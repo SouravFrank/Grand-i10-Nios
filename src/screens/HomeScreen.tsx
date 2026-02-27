@@ -14,14 +14,7 @@ import { useAppTheme } from '@/theme/useAppTheme';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
-const carInfoFields: CarInfoField[] = [
-  { label: 'Chassis Number', value: 'MA3E12S00N0001234' },
-  { label: 'Registration Number', value: 'WB XX XX XXXX' },
-  { label: 'Engine Number', value: 'K12N-A1B2C3D4' },
-  { label: 'PUCC Valid Upto', value: '20 SEP 2026' },
-  { label: 'Last Engine Oil Changed', value: '12 JAN 2026' },
-  { label: 'Last Coolant Changed', value: '04 NOV 2025' },
-];
+const STATIC_ODO_READING = 29661;
 
 export function HomeScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
@@ -33,6 +26,15 @@ export function HomeScreen({ navigation }: Props) {
   const [carSheetVisible, setCarSheetVisible] = useState(false);
 
   const latestEntry = entries[0];
+  const carInfoFields: CarInfoField[] = [
+    { label: 'Registration Number', value: 'WB12BP0584' },
+    { label: 'Registration Year', value: 'Aug-2023' },
+    { label: 'Manufacturing Year', value: 'JULY 2023' },
+    { label: 'Odometer Reading', value: `${latestEntry?.odometer ?? STATIC_ODO_READING}` },
+    { label: 'Fuel Type', value: 'Petrol' },
+    { label: 'Model', value: 'Hyundai GRAND I10 NIOS' },
+    { label: 'Variant', value: 'SPORTZ 1.2 KAPPA VTVT - 2023' },
+  ];
 
   useEffect(() => {
     void runSyncCycle();
@@ -51,15 +53,20 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.container}>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>GRAND i10 NIOS</Text>
+
         {offlineBannerText ? (
           <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
             <Text style={[styles.offlineText, { color: colors.textSecondary }]}>{offlineBannerText}</Text>
           </View>
         ) : null}
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>GRAND i10 NIOS</Text>
-
-        <CarDisplayCard registrationText="WB XX XX XXXX" onPress={() => setCarSheetVisible(true)} />
+        <CarDisplayCard
+          registrationText="WB12BP0584"
+          subtitle="Hyundai GRAND I10 NIOS"
+          variant="SPORTZ 1.2 KAPPA VTVT - 2023"
+          onPress={() => setCarSheetVisible(true)}
+        />
 
         <DashboardSummaryCard
           latestEntry={latestEntry}
@@ -72,17 +79,19 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.ctaRow}>
           <SharpButton
             label="START THE CAR"
-            style={styles.ctaButton}
+            variant="primary"
+            style={styles.primaryCtaButton}
             onPress={() => navigation.navigate('StartingCarModal')}
           />
           <SharpButton
             label="ADD FUEL"
-            style={styles.ctaButton}
+            variant="secondary"
+            style={styles.secondaryCtaButton}
             onPress={() => navigation.navigate('FuelEntryModal')}
           />
         </View>
 
-        <Pressable onPress={() => navigation.navigate('History')}>
+        <Pressable onPress={() => navigation.navigate('History')} style={styles.historyWrap}>
           <Text style={[styles.historyLink, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>VIEW HISTORY</Text>
         </Pressable>
 
@@ -114,19 +123,27 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.4,
     marginTop: 2,
+    alignSelf: 'center',
+    textAlign: 'center',
   },
   ctaRow: {
     flexDirection: 'row',
     gap: 14,
   },
-  ctaButton: {
+  primaryCtaButton: {
+    flex: 1.65,
+  },
+  secondaryCtaButton: {
     flex: 1,
+  },
+  historyWrap: {
+    alignItems: 'center',
   },
   historyLink: {
     fontSize: 13,
     textDecorationLine: 'underline',
     letterSpacing: 0.5,
-    width: 110,
+    textAlign: 'center',
   },
   securityText: {
     fontSize: 12,

@@ -1,67 +1,99 @@
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
 type CarDisplayCardProps = {
   registrationText: string;
+  subtitle: string;
+  variant: string;
   onPress: () => void;
 };
 
-const carLight = require('../../assets/images/carL.png');
-const carDark = require('../../assets/images/carR.png');
+const carLeft = require('../../assets/images/carL.png');
+const carRight = require('../../assets/images/carR.png');
 
-export function CarDisplayCard({ registrationText, onPress }: CarDisplayCardProps) {
-  const { colors, isDark } = useAppTheme();
+export function CarDisplayCard({ registrationText, subtitle, variant, onPress }: CarDisplayCardProps) {
+  const { colors } = useAppTheme();
+  const [selectedImage, setSelectedImage] = useState<'left' | 'right'>('left');
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          opacity: pressed ? 0.92 : 1,
-        },
-      ]}>
-      <View style={styles.imageWrap}>
-        <Image source={isDark ? carLight : carDark} style={[styles.image, styles.backImage, { opacity: 0.38 }]} />
-        <Image source={isDark ? carDark : carLight} style={styles.image} />
+    <View style={styles.wrapper}>
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.imagePressable, { opacity: pressed ? 0.9 : 1 }]}>
+        <Image source={selectedImage === 'left' ? carLeft : carRight} style={styles.image} />
+      </Pressable>
+
+      <View style={styles.switchRow}>
+        <Pressable
+          onPress={() => setSelectedImage('left')}
+          style={[
+            styles.switchButton,
+            {
+              borderColor: colors.border,
+              backgroundColor: selectedImage === 'left' ? colors.backgroundSecondary : 'transparent',
+            },
+          ]}>
+          <Text style={[styles.switchText, { color: colors.textPrimary }]}>CAR L</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setSelectedImage('right')}
+          style={[
+            styles.switchButton,
+            {
+              borderColor: colors.border,
+              backgroundColor: selectedImage === 'right' ? colors.backgroundSecondary : 'transparent',
+            },
+          ]}>
+          <Text style={[styles.switchText, { color: colors.textPrimary }]}>CAR R</Text>
+        </Pressable>
       </View>
-      <Text style={[styles.caption, { color: colors.textSecondary }]}>REGISTRATION</Text>
+
       <Text style={[styles.registration, { color: colors.textPrimary }]}>{registrationText}</Text>
-    </Pressable>
+      <Text style={[styles.subMeta, { color: colors.textSecondary }]}>{subtitle}</Text>
+      <Text style={[styles.subMeta, { color: colors.textSecondary }]}>{variant}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderRadius: 2,
-    padding: 14,
+  wrapper: {
     gap: 8,
   },
-  imageWrap: {
-    height: 160,
+  imagePressable: {
+    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
   },
   image: {
-    width: '96%',
+    width: '100%',
     height: '100%',
     resizeMode: 'contain',
   },
-  backImage: {
-    position: 'absolute',
-    transform: [{ translateX: 12 }, { translateY: -6 }],
+  switchRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignSelf: 'center',
   },
-  caption: {
+  switchButton: {
+    borderWidth: 1,
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  switchText: {
     fontSize: 11,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+    fontWeight: '700',
   },
   registration: {
+    alignSelf: 'center',
     fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.6,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  subMeta: {
+    alignSelf: 'center',
+    fontSize: 12,
+    letterSpacing: 0.35,
   },
 });

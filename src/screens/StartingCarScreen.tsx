@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -74,8 +75,8 @@ export function StartingCarScreen({ navigation }: Props) {
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>STARTING THE CAR</Text>
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={[styles.close, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>CLOSE</Text>
+          <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
+            <MaterialIcons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
         </View>
 
@@ -118,10 +119,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
-  close: {
-    fontSize: 12,
-    textDecorationLine: 'underline',
-    letterSpacing: 0.6,
+  iconBtn: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   form: {
     borderWidth: 1,

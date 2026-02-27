@@ -8,9 +8,16 @@ type SharpButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   style?: ViewStyle;
+  variant?: 'primary' | 'secondary';
 };
 
-export function SharpButton({ label, onPress, disabled = false, style }: SharpButtonProps) {
+export function SharpButton({
+  label,
+  onPress,
+  disabled = false,
+  style,
+  variant = 'primary',
+}: SharpButtonProps) {
   const { colors } = useAppTheme();
   const scaleValue = useRef(new Animated.Value(1)).current;
 
@@ -33,8 +40,8 @@ export function SharpButton({ label, onPress, disabled = false, style }: SharpBu
         style={({ pressed }) => [
           styles.button,
           {
-            backgroundColor: colors.invertedBackground,
-            borderColor: colors.invertedBackground,
+            backgroundColor: variant === 'primary' ? colors.invertedBackground : colors.backgroundSecondary,
+            borderColor: variant === 'primary' ? colors.invertedBackground : colors.border,
             opacity: pressed ? 0.9 : 1,
           },
           disabled && styles.disabled,
@@ -44,7 +51,7 @@ export function SharpButton({ label, onPress, disabled = false, style }: SharpBu
           style={[
             styles.label,
             {
-              color: colors.invertedText,
+              color: variant === 'primary' ? colors.invertedText : colors.textPrimary,
             },
           ]}>
           {label}

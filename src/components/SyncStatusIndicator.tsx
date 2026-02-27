@@ -29,12 +29,23 @@ export function SyncStatusIndicator({ status, queuedCount, isOnline, onRetry }: 
     return 'Synced';
   })();
 
-  const dotColor = status === 'synced' && isOnline ? colors.textPrimary : colors.textSecondary;
+  const dotColor = (() => {
+    if (!isOnline && queuedCount > 0) {
+      return '#F9A825';
+    }
+    if (status === 'syncing') {
+      return '#F9A825';
+    }
+    if (status === 'failed') {
+      return '#D93025';
+    }
+    return '#2E7D32';
+  })();
 
   return (
     <View style={styles.wrapper}>
       <View style={[styles.dot, { backgroundColor: dotColor }]} />
-      <Text style={[styles.text, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.text, { color: dotColor }]}>{label}</Text>
       {status === 'failed' && onRetry ? (
         <Pressable onPress={onRetry}>
           <Text style={[styles.retry, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>Retry Sync</Text>

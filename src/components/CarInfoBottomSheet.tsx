@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -95,7 +96,12 @@ export function CarInfoBottomSheet({ visible, fields, onClose }: CarInfoBottomSh
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
           </View>
 
-          <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPEC SHEET</Text>
+          <View style={styles.headerRow}>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPEC SHEET</Text>
+            <Pressable onPress={onClose} style={styles.iconBtn}>
+              <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+            </Pressable>
+          </View>
 
           <View style={[styles.table, { borderColor: colors.border }]}> 
             {rows.map((row, rowIndex) => (
@@ -157,7 +163,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: 0.8,
     fontWeight: '700',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  iconBtn: {
+    padding: 2,
   },
   table: {
     borderWidth: 1,

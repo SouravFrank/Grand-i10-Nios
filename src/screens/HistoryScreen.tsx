@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -42,10 +43,11 @@ export function HistoryScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.headerRow}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Text style={[styles.backText, { color: colors.textPrimary }]}>BACK</Text>
+        <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
+          <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.title, { color: colors.textPrimary }]}>HISTORY</Text>
+        <View style={styles.iconPlaceholder} />
       </View>
 
       <FlatList
@@ -68,10 +70,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  backText: {
-    fontSize: 12,
-    letterSpacing: 0.8,
-    textDecorationLine: 'underline',
+  iconBtn: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPlaceholder: {
+    width: 24,
+    height: 24,
   },
   title: {
     fontSize: 24,
