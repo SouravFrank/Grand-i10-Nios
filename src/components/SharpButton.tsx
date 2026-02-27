@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -9,6 +10,7 @@ type SharpButtonProps = {
   disabled?: boolean;
   style?: ViewStyle;
   variant?: 'primary' | 'secondary';
+  iconName?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 };
 
 export function SharpButton({
@@ -17,6 +19,7 @@ export function SharpButton({
   disabled = false,
   style,
   variant = 'primary',
+  iconName,
 }: SharpButtonProps) {
   const { colors } = useAppTheme();
   const scaleValue = useRef(new Animated.Value(1)).current;
@@ -46,15 +49,24 @@ export function SharpButton({
           },
           disabled && styles.disabled,
         ]}>
-        <Text
-          style={[
-            styles.label,
-            {
-              color: variant === 'primary' ? colors.invertedText : colors.textPrimary,
-            },
-          ]}>
-          {label}
-        </Text>
+        <View style={styles.contentRow}>
+          {iconName ? (
+            <MaterialCommunityIcons
+              name={iconName}
+              size={16}
+              color={variant === 'primary' ? colors.invertedText : colors.textPrimary}
+            />
+          ) : null}
+          <Text
+            style={[
+              styles.label,
+              {
+                color: variant === 'primary' ? colors.invertedText : colors.textPrimary,
+              },
+            ]}>
+            {label}
+          </Text>
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -74,6 +86,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.9,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   disabled: {
     opacity: 0.5,

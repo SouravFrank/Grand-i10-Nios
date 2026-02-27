@@ -16,6 +16,7 @@ type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
+  const currentUser = useAppStore((state) => state.currentUser);
   const entries = useAppStore((state) => state.entries);
   const carSpec = useAppStore((state) => state.carSpec);
   const updateCarSpec = useAppStore((state) => state.updateCarSpec);
@@ -44,7 +45,9 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>GRAND i10 NIOS</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>
+          Welcome {currentUser?.name ?? 'User'}
+        </Text>
 
         {offlineBannerText ? (
           <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
@@ -70,12 +73,14 @@ export function HomeScreen({ navigation }: Props) {
           <SharpButton
             label="START THE CAR"
             variant="primary"
+            iconName="steering"
             style={styles.primaryCtaButton}
             onPress={() => navigation.navigate('StartingCarModal')}
           />
           <SharpButton
             label="ADD FUEL"
             variant="secondary"
+            iconName="fuel"
             style={styles.secondaryCtaButton}
             onPress={() => navigation.navigate('FuelEntryModal')}
           />
@@ -114,9 +119,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0.4,
     marginTop: 2,
     alignSelf: 'center',
     textAlign: 'center',

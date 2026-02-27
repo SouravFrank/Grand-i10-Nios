@@ -15,19 +15,29 @@ const carRight = require('../../assets/images/carR.png');
 
 export function CarDisplayCard({ registrationText, subtitle, onPress }: CarDisplayCardProps) {
   const { colors } = useAppTheme();
-  const [selectedImage, setSelectedImage] = useState<'left' | 'right'>('left');
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const imageSources = [carLeft, carRight] as const;
+  const selectedImage = imageSources[selectedImageIndex];
+
+  const goToPrevious = () => {
+    setSelectedImageIndex((prev) => (prev - 1 + imageSources.length) % imageSources.length);
+  };
+
+  const goToNext = () => {
+    setSelectedImageIndex((prev) => (prev + 1) % imageSources.length);
+  };
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.imagePressable}>
         <View style={styles.imageRow}>
-          <Pressable onPress={() => setSelectedImage('left')} style={styles.arrowBtn}>
+          <Pressable onPress={goToPrevious} style={styles.arrowBtn}>
             <MaterialIcons name="chevron-left" size={26} color={colors.textPrimary} />
           </Pressable>
           <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, styles.imageTapArea]}>
-            <Image source={selectedImage === 'left' ? carLeft : carRight} style={styles.image} />
+            <Image source={selectedImage} style={styles.image} />
           </Pressable>
-          <Pressable onPress={() => setSelectedImage('right')} style={styles.arrowBtn}>
+          <Pressable onPress={goToNext} style={styles.arrowBtn}>
             <MaterialIcons name="chevron-right" size={26} color={colors.textPrimary} />
           </Pressable>
         </View>
