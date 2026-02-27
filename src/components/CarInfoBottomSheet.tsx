@@ -5,7 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { CarSpec, CarSpecEditableFields } from '@/types/models';
+import type { CarSpec, CarSpecEditSubmission, CarSpecEditableFields } from '@/types/models';
 
 type CarInfoField = {
   label: string;
@@ -16,7 +16,7 @@ type CarInfoBottomSheetProps = {
   visible: boolean;
   carSpec: CarSpec;
   onClose: () => void;
-  onSaveEdits: (updates: CarSpecEditableFields) => void;
+  onSaveEdits: (submission: CarSpecEditSubmission) => void;
 };
 
 function getEditableFields(spec: CarSpec): CarSpecEditableFields {
@@ -30,11 +30,21 @@ function getEditableFields(spec: CarSpec): CarSpecEditableFields {
   };
 }
 
+const EDITABLE_LABELS: Record<keyof CarSpecEditableFields, string> = {
+  lastMaintenanceDate: 'Last Maintenance Date',
+  lastEngineOilChangedOn: 'Last Engine Oil Changed',
+  lastCoolantRefillOn: 'Last Coolant Refill',
+  puccExpireDate: 'PUCC Expire Date',
+  insuranceFirstPartyExpiry: 'Insurance First Party',
+  insuranceThirdPartyExpiry: 'Insurance Third Party',
+};
+
 export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: CarInfoBottomSheetProps) {
   const { colors } = useAppTheme();
   const [rendered, setRendered] = useState(visible);
   const [isEditing, setIsEditing] = useState(false);
   const [editFields, setEditFields] = useState<CarSpecEditableFields>(getEditableFields(carSpec));
+  const [editCost, setEditCost] = useState('');
   const translateY = useRef(new Animated.Value(420)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -79,6 +89,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
     }
 
     setEditFields(getEditableFields(carSpec));
+    setEditCost('');
   }, [carSpec, visible]);
 
   const fields = useMemo<CarInfoField[]>(
@@ -111,8 +122,20 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
   }, [fields]);
 
   const saveEdits = () => {
-    onSaveEdits(editFields);
+    const updatedFields = Object.keys(editFields).filter((key) => {
+      const typedKey = key as keyof CarSpecEditableFields;
+      return editFields[typedKey].trim() !== carSpec[typedKey].trim();
+    }).map((key) => EDITABLE_LABELS[key as keyof CarSpecEditableFields]);
+
+    const parsedCost = editCost.trim() ? Number(editCost) : undefined;
+
+    onSaveEdits({
+      updates: editFields,
+      cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
+      updatedFields,
+    });
     setIsEditing(false);
+    setEditCost('');
   };
 
   if (!rendered) {
@@ -151,6 +174,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
                   onPress={() => {
                     setIsEditing(false);
                     setEditFields(getEditableFields(carSpec));
+                    setEditCost('');
                   }}>
                   <Text style={[styles.editText, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>CANCEL</Text>
                 </Pressable>
@@ -191,6 +215,14 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
             {isEditing ? (
               <View style={[styles.editPanel, { borderColor: colors.border, backgroundColor: colors.card }]}> 
                 <Text style={[styles.editHeader, { color: colors.textPrimary }]}>Update Maintenance & Expiry Dates</Text>
+
+                <AppTextField
+                  label="Update Cost (Rs)"
+                  value={editCost}
+                  onChangeText={setEditCost}
+                  placeholder="Optional"
+                  keyboardType="decimal-pad"
+                />
 
                 <AppTextField
                   label="Last Maintenance Date"

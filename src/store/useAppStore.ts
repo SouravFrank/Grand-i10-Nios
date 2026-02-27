@@ -48,6 +48,8 @@ type AddEntryInput = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  cost?: number;
+  specUpdatedFields?: string[];
   createdAt?: number;
 };
 
@@ -244,6 +246,8 @@ export const useAppStore = create<AppState>()(
           fuelAmount: payload.fuelAmount,
           fuelLiters: payload.fuelLiters,
           fullTank: payload.fullTank,
+          cost: payload.cost,
+          specUpdatedFields: payload.specUpdatedFields,
           createdAt,
           synced: false,
         };

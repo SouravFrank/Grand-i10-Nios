@@ -20,6 +20,8 @@ export async function pushEntryToFirestore(entry: EntryRecord): Promise<void> {
     fuelAmount: entry.fuelAmount,
     fuelLiters: entry.fuelLiters,
     fullTank: entry.fullTank,
+    cost: entry.cost,
+    specUpdatedFields: entry.specUpdatedFields,
     createdAt: entry.createdAt,
   };
 

@@ -20,6 +20,11 @@ const schema = z.object({
     .trim()
     .min(1, 'Odometer is required.')
     .refine((value) => /^\d{1,7}$/.test(value), 'Use up to 7 digits.'),
+  cost: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => value === undefined || value === '' || Number(value) > 0, 'Cost must be positive.'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -38,10 +43,11 @@ export function StartingCarScreen({ navigation }: Props) {
     resolver: zodResolver(schema),
     defaultValues: {
       odometer: String(lastOdometer),
+      cost: '',
     },
   });
 
-  const onSubmit = handleSubmit(async ({ odometer }) => {
+  const onSubmit = handleSubmit(async ({ odometer, cost }) => {
     if (!currentUser) {
       Alert.alert('Session expired', 'Please login again.');
       return;
@@ -59,11 +65,13 @@ export function StartingCarScreen({ navigation }: Props) {
     }
 
     try {
+      const parsedCost = cost ? Number(cost) : undefined;
       await addEntryOfflineFirst({
         type: 'odometer',
         userId: currentUser.id,
         userName: currentUser.name,
         odometer: parsedOdometer,
+        cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
       });
 
       navigation.goBack();
@@ -98,6 +106,20 @@ export function StartingCarScreen({ navigation }: Props) {
                 onChangeText={onChange}
                 keyboardType="numeric"
                 error={errors.odometer?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="cost"
+            render={({ field: { onChange, value } }) => (
+              <AppTextField
+                label="Cost (Rs) - Optional"
+                value={value ?? ''}
+                onChangeText={onChange}
+                keyboardType="decimal-pad"
+                error={errors.cost?.message}
               />
             )}
           />

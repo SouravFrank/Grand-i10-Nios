@@ -2,6 +2,7 @@ import { sha256 } from '@/services/security/hash';
 import type { EntryRecord } from '@/types/models';
 
 export async function buildEntryIntegrityHash(entry: Omit<EntryRecord, 'integrityHash'>, secret: string) {
+  const updatedFields = entry.specUpdatedFields?.join(',') ?? '';
   const payload = [
     entry.id,
     entry.type,
@@ -11,6 +12,8 @@ export async function buildEntryIntegrityHash(entry: Omit<EntryRecord, 'integrit
     entry.fuelAmount ?? '',
     entry.fuelLiters ?? '',
     entry.fullTank ?? '',
+    entry.cost ?? '',
+    updatedFields,
     entry.createdAt,
   ].join('|');
 

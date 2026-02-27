@@ -32,6 +32,11 @@ const fuelSchema = z
       .trim()
       .optional()
       .refine((value) => value === undefined || value === '' || Number(value) > 0, 'Fuel liters must be positive.'),
+    cost: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => value === undefined || value === '' || Number(value) > 0, 'Cost must be positive.'),
     fullTank: z.boolean(),
   })
   .refine((data) => Boolean(data.fullTank || data.fuelAmount || data.fuelLiters), {
@@ -57,6 +62,7 @@ export function FuelEntryScreen({ navigation }: Props) {
       odometer: String(lastOdometer),
       fuelAmount: '',
       fuelLiters: '',
+      cost: '',
       fullTank: false,
     },
   });
@@ -79,6 +85,7 @@ export function FuelEntryScreen({ navigation }: Props) {
 
     const amount = values.fuelAmount ? Number(values.fuelAmount) : undefined;
     const liters = values.fuelLiters ? Number(values.fuelLiters) : undefined;
+    const cost = values.cost ? Number(values.cost) : undefined;
 
     try {
       await addEntryOfflineFirst({
@@ -88,6 +95,7 @@ export function FuelEntryScreen({ navigation }: Props) {
         odometer: parsedOdometer,
         fuelAmount: Number.isFinite(amount) ? amount : undefined,
         fuelLiters: Number.isFinite(liters) ? liters : undefined,
+        cost: Number.isFinite(cost) ? cost : undefined,
         fullTank: values.fullTank,
       });
 
@@ -158,6 +166,21 @@ export function FuelEntryScreen({ navigation }: Props) {
               )}
             />
           </View>
+
+          <Controller
+            control={control}
+            name="cost"
+            render={({ field: { onChange, value } }) => (
+              <AppTextField
+                label="Cost (Rs) - Optional"
+                value={value ?? ''}
+                onChangeText={onChange}
+                keyboardType="decimal-pad"
+                placeholder="e.g. 2000"
+                error={errors.cost?.message}
+              />
+            )}
+          />
 
           <View style={[styles.switchRow, { borderColor: colors.textPrimary }]}> 
             <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>

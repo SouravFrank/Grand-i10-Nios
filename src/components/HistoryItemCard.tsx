@@ -33,6 +33,9 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
     ]).start();
   }, [index, opacity, translateY]);
 
+  const entryTypeLabel =
+    entry.type === 'fuel' ? 'FUEL ENTRY' : entry.type === 'spec_update' ? 'SPECS UPDATE' : 'ODOMETER';
+
   return (
     <Animated.View
       style={{
@@ -43,12 +46,12 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
         <View style={styles.topRow}>
           <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName.toUpperCase()}</Text>
           <Text style={[styles.separator, { color: colors.textSecondary }]}>|</Text>
-          <Text style={[styles.entryType, { color: colors.textSecondary }]}>
-            {entry.type === 'fuel' ? 'FUEL ENTRY' : 'ODOMETER'}
-          </Text>
+          <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
         </View>
 
-        <Text style={[styles.odometer, { color: colors.textPrimary }]}>{entry.odometer} km</Text>
+        <Text style={[styles.odometer, { color: colors.textPrimary }]}>
+          {entry.type === 'spec_update' ? 'SPECIFICATIONS UPDATED' : `${entry.odometer} km`}
+        </Text>
 
         {entry.type === 'fuel' ? (
           <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
@@ -59,11 +62,21 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
           </Text>
         ) : null}
 
+        {entry.type === 'spec_update' && entry.specUpdatedFields?.length ? (
+          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
+            UPDATED: {entry.specUpdatedFields.join(', ').toUpperCase()}
+          </Text>
+        ) : null}
+
+        {typeof entry.cost === 'number' ? (
+          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>COST: ₹{entry.cost}</Text>
+        ) : null}
+
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
           <Text style={[styles.date, { color: colors.textSecondary }]}>
             {dayjs(entry.createdAt).format('DD MMM YYYY, hh:mm A')}
           </Text>
-          {distanceKm !== null ? (
+          {distanceKm !== null && entry.type !== 'spec_update' ? (
             <Text style={[styles.distance, { color: colors.textSecondary }]}>DISTANCE TRAVELLED: {distanceKm} KM</Text>
           ) : null}
         </View>

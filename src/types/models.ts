@@ -1,4 +1,4 @@
-export type EntryType = 'odometer' | 'fuel';
+export type EntryType = 'odometer' | 'fuel' | 'spec_update';
 
 export type Entry = {
   id: string;
@@ -9,6 +9,8 @@ export type Entry = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  cost?: number;
+  specUpdatedFields?: string[];
   createdAt: number;
   synced: boolean;
 };
@@ -69,4 +71,10 @@ export type CarSpecEditableFields = {
   puccExpireDate: string;
   insuranceFirstPartyExpiry: string;
   insuranceThirdPartyExpiry: string;
+};
+
+export type CarSpecEditSubmission = {
+  updates: CarSpecEditableFields;
+  cost?: number;
+  updatedFields: string[];
 };

@@ -11,6 +11,7 @@ import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
+import type { CarSpecEditSubmission } from '@/types/models';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
@@ -20,6 +21,8 @@ export function HomeScreen({ navigation }: Props) {
   const entries = useAppStore((state) => state.entries);
   const carSpec = useAppStore((state) => state.carSpec);
   const updateCarSpec = useAppStore((state) => state.updateCarSpec);
+  const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const lastOdometerValue = useAppStore((state) => state.lastOdometerValue);
   const pendingQueue = useAppStore((state) => state.pendingQueue);
   const syncStatus = useAppStore((state) => state.syncStatus);
   const isOnline = useAppStore((state) => state.isOnline);
@@ -41,6 +44,29 @@ export function HomeScreen({ navigation }: Props) {
       ? `OFFLINE MODE - ${pendingQueue.length} ${pendingQueue.length > 1 ? 'ENTRIES' : 'ENTRY'} PENDING`
       : 'OFFLINE MODE';
   }, [isOnline, pendingQueue.length]);
+
+  const handleCarSpecSave = async (submission: CarSpecEditSubmission) => {
+    const { updates, cost, updatedFields } = submission;
+    updateCarSpec(updates);
+
+    if (!currentUser || updatedFields.length === 0) {
+      return;
+    }
+
+    try {
+      await addEntryOfflineFirst({
+        type: 'spec_update',
+        userId: currentUser.id,
+        userName: currentUser.name,
+        odometer: lastOdometerValue,
+        cost,
+        specUpdatedFields: updatedFields,
+      });
+      void runSyncCycle();
+    } catch {
+      // Spec values are already saved locally; entry history sync failure should not block UI.
+    }
+  };
 
   return (
     <ScreenContainer>
@@ -97,7 +123,7 @@ export function HomeScreen({ navigation }: Props) {
         visible={carSheetVisible}
         onClose={() => setCarSheetVisible(false)}
         carSpec={carSpec}
-        onSaveEdits={updateCarSpec}
+        onSaveEdits={(submission) => void handleCarSpecSave(submission)}
       />
     </ScreenContainer>
   );
