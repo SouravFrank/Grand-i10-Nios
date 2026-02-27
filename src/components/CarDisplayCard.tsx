@@ -1,6 +1,6 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   imagePressable: {
-    height: 220,
+    height: 286,
     width: '100%',
   },
   imageRow: {

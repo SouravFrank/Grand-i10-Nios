@@ -53,6 +53,10 @@ export function StartingCarScreen({ navigation }: Props) {
       Alert.alert('Invalid odometer', 'Odometer must be greater than or equal to the previous value.');
       return;
     }
+    if (parsedOdometer - lastOdometer > 500) {
+      Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
+      return;
+    }
 
     try {
       await addEntryOfflineFirst({

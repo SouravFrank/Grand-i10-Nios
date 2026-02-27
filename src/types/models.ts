@@ -54,6 +54,7 @@ export type CarSpec = {
   fuelType: string;
   model: string;
   variant: string;
+  lastMaintenanceDate: string;
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
   puccExpireDate: string;
@@ -62,6 +63,7 @@ export type CarSpec = {
 };
 
 export type CarSpecEditableFields = {
+  lastMaintenanceDate: string;
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
   puccExpireDate: string;

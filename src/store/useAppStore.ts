@@ -91,6 +91,7 @@ const initialPersistedState: PersistedAppData = {
     fuelType: 'Petrol',
     model: 'Hyundai GRAND I10 NIOS',
     variant: 'SPORTZ 1.2 KAPPA VTVT - 2023',
+    lastMaintenanceDate: '12 JAN 2026',
     lastEngineOilChangedOn: '12 JAN 2026',
     lastCoolantRefillOn: '04 NOV 2025',
     puccExpireDate: '20 SEP 2026',
@@ -228,6 +229,9 @@ export const useAppStore = create<AppState>()(
         const { lastOdometerValue, pendingQueue } = get();
         if (payload.odometer < lastOdometerValue) {
           throw new Error('Odometer rollback detected.');
+        }
+        if (payload.odometer - lastOdometerValue > 500) {
+          throw new Error('Single odometer entry cannot exceed 500 km from the previous reading.');
         }
 
         const createdAt = payload.createdAt ?? Date.now();

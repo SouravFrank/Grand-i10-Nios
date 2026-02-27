@@ -53,7 +53,7 @@ export function SharpButton({
           {iconName ? (
             <MaterialCommunityIcons
               name={iconName}
-              size={16}
+              size={20}
               color={variant === 'primary' ? colors.invertedText : colors.textPrimary}
             />
           ) : null}

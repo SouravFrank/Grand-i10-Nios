@@ -21,6 +21,7 @@ type CarInfoBottomSheetProps = {
 
 function getEditableFields(spec: CarSpec): CarSpecEditableFields {
   return {
+    lastMaintenanceDate: spec.lastMaintenanceDate,
     lastEngineOilChangedOn: spec.lastEngineOilChangedOn,
     lastCoolantRefillOn: spec.lastCoolantRefillOn,
     puccExpireDate: spec.puccExpireDate,
@@ -82,6 +83,12 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
 
   const fields = useMemo<CarInfoField[]>(
     () => [
+      { label: 'Last Maintenance Date', value: carSpec.lastMaintenanceDate },
+      { label: 'Last Engine Oil Changed', value: carSpec.lastEngineOilChangedOn },
+      { label: 'Last Coolant Refill', value: carSpec.lastCoolantRefillOn },
+      { label: 'PUCC Expire Date', value: carSpec.puccExpireDate },
+      { label: 'Insurance First Party', value: carSpec.insuranceFirstPartyExpiry },
+      { label: 'Insurance Third Party', value: carSpec.insuranceThirdPartyExpiry },
       { label: 'Registration Number', value: carSpec.registrationNumber },
       { label: 'Registration Year', value: carSpec.registrationYear },
       { label: 'Manufacturing Year', value: carSpec.manufacturingYear },
@@ -89,11 +96,6 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
       { label: 'Fuel Type', value: carSpec.fuelType },
       { label: 'Model', value: carSpec.model },
       { label: 'Variant', value: carSpec.variant },
-      { label: 'Last Engine Oil Changed', value: carSpec.lastEngineOilChangedOn },
-      { label: 'Last Coolant Refill', value: carSpec.lastCoolantRefillOn },
-      { label: 'PUCC Expire Date', value: carSpec.puccExpireDate },
-      { label: 'Insurance First Party', value: carSpec.insuranceFirstPartyExpiry },
-      { label: 'Insurance Third Party', value: carSpec.insuranceThirdPartyExpiry },
     ],
     [carSpec],
   );
@@ -189,6 +191,13 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
             {isEditing ? (
               <View style={[styles.editPanel, { borderColor: colors.border, backgroundColor: colors.card }]}> 
                 <Text style={[styles.editHeader, { color: colors.textPrimary }]}>Update Maintenance & Expiry Dates</Text>
+
+                <AppTextField
+                  label="Last Maintenance Date"
+                  value={editFields.lastMaintenanceDate}
+                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, lastMaintenanceDate: value }))}
+                  placeholder="DD MMM YYYY"
+                />
 
                 <AppTextField
                   label="Last Engine Oil Changed"
