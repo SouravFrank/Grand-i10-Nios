@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 type AppTextFieldProps = {
   label: string;
@@ -25,20 +25,32 @@ export function AppTextField({
   autoCapitalize = 'none',
   editable = true,
 }: AppTextFieldProps) {
+  const { colors } = useAppTheme();
+
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
+        placeholderTextColor={colors.textSecondary}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         editable={editable}
-        style={[styles.input, error && styles.errorInput, !editable && styles.disabledInput]}
+        style={[
+          styles.input,
+          {
+            borderColor: colors.border,
+            color: colors.textPrimary,
+            backgroundColor: colors.card,
+          },
+          error && { borderColor: colors.textSecondary },
+          !editable && { backgroundColor: colors.backgroundSecondary },
+        ]}
       />
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <Text style={[styles.errorText, { color: colors.textSecondary }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -50,25 +62,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textPrimary,
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: 2,
     height: 46,
     paddingHorizontal: 12,
-    color: colors.textPrimary,
-    backgroundColor: colors.surface,
-  },
-  disabledInput: {
-    backgroundColor: colors.muted,
-  },
-  errorInput: {
-    borderColor: colors.danger,
   },
   errorText: {
     fontSize: 12,
-    color: colors.danger,
   },
 });

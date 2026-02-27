@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -10,7 +10,7 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'StartingCarModal'>;
 
@@ -25,6 +25,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function StartingCarScreen({ navigation }: Props) {
+  const { colors } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
@@ -71,23 +72,32 @@ export function StartingCarScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.container}>
-        <Text style={styles.info}>Previous odometer: {lastOdometer} km</Text>
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>STARTING THE CAR</Text>
+          <Pressable onPress={() => navigation.goBack()}>
+            <Text style={[styles.close, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>CLOSE</Text>
+          </Pressable>
+        </View>
 
-        <Controller
-          control={control}
-          name="odometer"
-          render={({ field: { onChange, value } }) => (
-            <AppTextField
-              label="Odometer Reading"
-              value={value}
-              onChangeText={onChange}
-              keyboardType="numeric"
-              error={errors.odometer?.message}
-            />
-          )}
-        />
+        <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <Text style={[styles.info, { color: colors.textSecondary }]}>Previous odometer: {lastOdometer} km</Text>
 
-        <PrimaryButton label="Save Odometer" onPress={onSubmit} loading={isSubmitting} />
+          <Controller
+            control={control}
+            name="odometer"
+            render={({ field: { onChange, value } }) => (
+              <AppTextField
+                label="Odometer Reading"
+                value={value}
+                onChangeText={onChange}
+                keyboardType="numeric"
+                error={errors.odometer?.message}
+              />
+            )}
+          />
+
+          <PrimaryButton label="SAVE ODOMETER" onPress={onSubmit} loading={isSubmitting} />
+        </View>
       </View>
     </ScreenContainer>
   );
@@ -98,8 +108,28 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 14,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  close: {
+    fontSize: 12,
+    textDecorationLine: 'underline',
+    letterSpacing: 0.6,
+  },
+  form: {
+    borderWidth: 1,
+    borderRadius: 2,
+    padding: 14,
+    gap: 12,
+  },
   info: {
     fontSize: 13,
-    color: colors.textSecondary,
   },
 });

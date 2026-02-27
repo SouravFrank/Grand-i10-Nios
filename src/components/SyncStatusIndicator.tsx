@@ -1,27 +1,45 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/useAppTheme';
 import type { SyncStatus } from '@/types/models';
 
 type SyncStatusIndicatorProps = {
   status: SyncStatus;
   queuedCount: number;
   isOnline: boolean;
+  onRetry?: () => void;
 };
 
-export function SyncStatusIndicator({ status, queuedCount, isOnline }: SyncStatusIndicatorProps) {
-  const config =
-    status === 'syncing'
-      ? { label: 'Syncing...', color: colors.warning }
-      : status === 'failed'
-        ? { label: `Failed (Queued: ${queuedCount})`, color: colors.danger }
-        : { label: 'Synced', color: colors.success };
+export function SyncStatusIndicator({ status, queuedCount, isOnline, onRetry }: SyncStatusIndicatorProps) {
+  const { colors } = useAppTheme();
+
+  const label = (() => {
+    if (!isOnline && queuedCount > 0) {
+      return `Offline - Pending ${queuedCount} ${queuedCount > 1 ? 'entries' : 'entry'}`;
+    }
+
+    if (status === 'syncing') {
+      return 'Syncing...';
+    }
+
+    if (status === 'failed') {
+      return 'Sync Failed';
+    }
+
+    return 'Synced';
+  })();
+
+  const dotColor = status === 'synced' && isOnline ? colors.textPrimary : colors.textSecondary;
 
   return (
-    <View style={[styles.wrapper, { borderColor: config.color }]}> 
-      {status === 'syncing' ? <ActivityIndicator size="small" color={config.color} /> : null}
-      <Text style={[styles.text, { color: config.color }]}>{config.label}</Text>
-      {!isOnline ? <Text style={styles.offline}>Offline</Text> : null}
+    <View style={styles.wrapper}>
+      <View style={[styles.dot, { backgroundColor: dotColor }]} />
+      <Text style={[styles.text, { color: colors.textSecondary }]}>{label}</Text>
+      {status === 'failed' && onRetry ? (
+        <Pressable onPress={onRetry}>
+          <Text style={[styles.retry, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>Retry Sync</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -30,18 +48,20 @@ const styles = StyleSheet.create({
   wrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   text: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  offline: {
     fontSize: 12,
-    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
+  retry: {
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
 });

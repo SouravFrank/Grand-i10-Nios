@@ -9,7 +9,7 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import { canUseBiometricAuth, authenticateWithPassword } from '@/services/auth/authService';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 const loginSchema = z.object({
   userId: z.string().trim().min(1, 'User ID is required.'),
@@ -19,6 +19,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export function LoginScreen() {
+  const { colors } = useAppTheme();
   const login = useAppStore((state) => state.login);
 
   const {
@@ -60,11 +61,11 @@ export function LoginScreen() {
     <ScreenContainer>
       <View style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Grand i10 Nios</Text>
-          <Text style={styles.subtitle}>Shared maintenance tracker for two users.</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>GRAND i10 NIOS</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Shared maintenance tracker</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}> 
           <Controller
             control={control}
             name="userId"
@@ -73,7 +74,7 @@ export function LoginScreen() {
                 label="User ID"
                 value={value}
                 onChangeText={onChange}
-                placeholder="owner"
+                placeholder="sourav"
                 autoCapitalize="none"
                 error={errors.userId?.message}
               />
@@ -96,7 +97,7 @@ export function LoginScreen() {
             )}
           />
 
-          <PrimaryButton label="Login" onPress={onSubmit} loading={isSubmitting} />
+          <PrimaryButton label="LOGIN" onPress={onSubmit} loading={isSubmitting} />
         </View>
       </View>
     </ScreenContainer>
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     justifyContent: 'center',
-    gap: 22,
+    gap: 20,
   },
   header: {
     gap: 8,
@@ -115,18 +116,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: '800',
-    color: colors.textPrimary,
+    letterSpacing: 1.3,
   },
   subtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    letterSpacing: 0.3,
   },
   form: {
     gap: 14,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 2,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: 16,
   },
 });

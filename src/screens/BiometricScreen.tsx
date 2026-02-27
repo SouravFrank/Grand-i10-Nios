@@ -6,9 +6,10 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import { authenticateWithBiometric } from '@/services/auth/authService';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
-import { colors } from '@/theme/colors';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 export function BiometricScreen() {
+  const { colors } = useAppTheme();
   const unlockWithBiometric = useAppStore((state) => state.unlockWithBiometric);
   const fallbackToPassword = useAppStore((state) => state.fallbackToPassword);
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +39,15 @@ export function BiometricScreen() {
     <ScreenContainer>
       <View style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Unlock with biometrics</Text>
-          <Text style={styles.subtitle}>Use your fingerprint or face ID to continue.</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>BIOMETRIC UNLOCK</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Use fingerprint or Face ID.</Text>
         </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: colors.textSecondary }]}>{error}</Text> : null}
 
         <View style={styles.actions}>
-          <PrimaryButton label="Try biometric" onPress={() => void tryBiometric()} loading={loading} />
-          <PrimaryButton label="Use password" variant="secondary" onPress={fallbackToPassword} />
+          <PrimaryButton label="TRY BIOMETRIC" onPress={() => void tryBiometric()} loading={loading} />
+          <PrimaryButton label="USE PASSWORD" variant="secondary" onPress={fallbackToPassword} />
         </View>
       </View>
     </ScreenContainer>
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     justifyContent: 'center',
-    gap: 20,
+    gap: 18,
   },
   header: {
     gap: 8,
@@ -65,15 +66,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: colors.textPrimary,
+    letterSpacing: 1,
   },
   subtitle: {
-    color: colors.textSecondary,
     fontSize: 14,
   },
   error: {
-    color: colors.danger,
     fontSize: 13,
+    letterSpacing: 0.2,
   },
   actions: {
     gap: 10,

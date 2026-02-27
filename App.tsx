@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 
 import { StatusBar } from 'expo-status-bar';
+import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -13,10 +14,12 @@ function AppBootstrapper() {
 }
 
 export default function App() {
+  const colorScheme = useColorScheme();
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <AppBootstrapper />
       </SafeAreaProvider>
     </ErrorBoundary>

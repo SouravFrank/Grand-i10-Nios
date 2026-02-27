@@ -1,8 +1,8 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Appearance, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/theme/colors';
+import { darkColors, lightColors } from '@/theme/colors';
 
 type Props = {
   children: ReactNode;
@@ -30,14 +30,16 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public render() {
+    const colors = Appearance.getColorScheme() === 'dark' ? darkColors : lightColors;
+
     if (!this.state.hasError) {
       return this.props.children;
     }
 
     return (
-      <View style={styles.wrapper}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.subtitle}>Please restart the current flow.</Text>
+      <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Something went wrong</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Please restart the current flow.</Text>
         <PrimaryButton label="Try again" onPress={this.reset} style={styles.button} />
       </View>
     );
@@ -49,18 +51,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
     padding: 20,
     gap: 12,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.textPrimary,
   },
   subtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
     textAlign: 'center',
   },
   button: {
