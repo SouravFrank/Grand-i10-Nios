@@ -75,7 +75,8 @@ type AppState = PersistedAppData & {
   updatePendingQueue: (nextQueue: PendingQueueItem[]) => void;
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
-  updateCarSpec: (updates: CarSpecEditableFields) => void;
+  updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  ensureDemoData: () => Promise<void>;
 };
 
 const initialPersistedState: PersistedAppData = {
@@ -390,6 +391,56 @@ export const useAppStore = create<AppState>()(
             ...updates,
           },
         }));
+      },
+
+      ensureDemoData: async () => {
+        const state = get();
+        if (state.entries.length > 0) {
+          return;
+        }
+
+        const secret = await ensureIntegritySecret();
+        const now = Date.now();
+        const baseEntries: Entry[] = [
+          {
+            id: createId('entry_demo_1'),
+            type: 'odometer',
+            userId: 'sourav',
+            userName: 'Sourav',
+            odometer: 29661,
+            createdAt: now - 1000 * 60 * 60 * 24 * 2,
+            synced: true,
+          },
+          {
+            id: createId('entry_demo_2'),
+            type: 'fuel',
+            userId: 'ayan',
+            userName: 'Ayan',
+            odometer: 29980,
+            fuelAmount: 2300,
+            fuelLiters: 31.2,
+            fullTank: true,
+            cost: 2300,
+            createdAt: now - 1000 * 60 * 60 * 18,
+            synced: true,
+          },
+        ];
+
+        const hashedEntries: EntryRecord[] = [];
+        for (const entry of baseEntries) {
+          const integrityHash = await buildEntryIntegrityHash(entry, secret);
+          hashedEntries.push({
+            ...entry,
+            integrityHash,
+          });
+        }
+
+        set({
+          entries: hashedEntries.sort((a, b) => b.createdAt - a.createdAt),
+          pendingQueue: [],
+          lastOdometerValue: 29980,
+          syncStatus: 'synced',
+        });
       },
     }),
     {

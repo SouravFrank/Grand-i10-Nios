@@ -5,46 +5,54 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { CarSpec, CarSpecEditSubmission, CarSpecEditableFields } from '@/types/models';
-
-type CarInfoField = {
-  label: string;
-  value: string;
-};
+import type {
+  CarSpec,
+  CarSpecEditableFieldKey,
+  CarSpecFieldUpdateSubmission,
+} from '@/types/models';
+import { dayjs } from '@/utils/day';
 
 type CarInfoBottomSheetProps = {
   visible: boolean;
   carSpec: CarSpec;
   onClose: () => void;
-  onSaveEdits: (submission: CarSpecEditSubmission) => void;
+  onSaveFieldEdit: (submission: CarSpecFieldUpdateSubmission) => void;
 };
 
-function getEditableFields(spec: CarSpec): CarSpecEditableFields {
-  return {
-    lastMaintenanceDate: spec.lastMaintenanceDate,
-    lastEngineOilChangedOn: spec.lastEngineOilChangedOn,
-    lastCoolantRefillOn: spec.lastCoolantRefillOn,
-    puccExpireDate: spec.puccExpireDate,
-    insuranceFirstPartyExpiry: spec.insuranceFirstPartyExpiry,
-    insuranceThirdPartyExpiry: spec.insuranceThirdPartyExpiry,
-  };
+type SpecRow = {
+  key: string;
+  label: string;
+  value: string;
+  editable: boolean;
+};
+
+const EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
+  { key: 'lastMaintenanceDate', label: 'Last Maintenance Date' },
+  { key: 'lastEngineOilChangedOn', label: 'Last Engine Oil Changed' },
+  { key: 'lastCoolantRefillOn', label: 'Last Coolant Refill' },
+  { key: 'puccExpireDate', label: 'PUCC Expire Date' },
+  { key: 'insuranceFirstPartyExpiry', label: 'Insurance First Party Expiry' },
+  { key: 'insuranceThirdPartyExpiry', label: 'Insurance Third Party Expiry' },
+];
+
+function parseExistingDate(value: string): Date {
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    return new Date();
+  }
+  return parsed.toDate();
 }
 
-const EDITABLE_LABELS: Record<keyof CarSpecEditableFields, string> = {
-  lastMaintenanceDate: 'Last Maintenance Date',
-  lastEngineOilChangedOn: 'Last Engine Oil Changed',
-  lastCoolantRefillOn: 'Last Coolant Refill',
-  puccExpireDate: 'PUCC Expire Date',
-  insuranceFirstPartyExpiry: 'Insurance First Party',
-  insuranceThirdPartyExpiry: 'Insurance Third Party',
-};
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: CarInfoBottomSheetProps) {
+export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors } = useAppTheme();
   const [rendered, setRendered] = useState(visible);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editFields, setEditFields] = useState<CarSpecEditableFields>(getEditableFields(carSpec));
-  const [editCost, setEditCost] = useState('');
+  const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
+  const [draftDate, setDraftDate] = useState<Date>(new Date());
+  const [draftCost, setDraftCost] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const translateY = useRef(new Animated.Value(420)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -79,63 +87,77 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
       }),
     ]).start(() => {
       setRendered(false);
-      setIsEditing(false);
+      setActiveField(null);
+      setDraftCost('');
+      setShowDatePicker(false);
     });
   }, [overlayOpacity, translateY, visible]);
 
-  useEffect(() => {
-    if (!visible) {
+  const rows = useMemo<SpecRow[]>(() => {
+    const editableRows: SpecRow[] = EDITABLE_CONFIG.map((item) => ({
+      key: item.key,
+      label: item.label,
+      value: carSpec[item.key],
+      editable: true,
+    }));
+
+    const staticRows: SpecRow[] = [
+      { key: 'registrationNumber', label: 'Registration Number', value: carSpec.registrationNumber, editable: false },
+      { key: 'registrationYear', label: 'Registration Year', value: carSpec.registrationYear, editable: false },
+      { key: 'manufacturingYear', label: 'Manufacturing Year', value: carSpec.manufacturingYear, editable: false },
+      { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
+      { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
+      { key: 'model', label: 'Model', value: carSpec.model, editable: false },
+      { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
+    ];
+
+    return [...editableRows, ...staticRows];
+  }, [carSpec]);
+
+  const editableRows = useMemo(() => rows.filter((row) => row.editable), [rows]);
+  const nonEditableRows = useMemo(() => rows.filter((row) => !row.editable), [rows]);
+  const nonEditableGridRows = useMemo(() => {
+    const pairs: SpecRow[][] = [];
+    for (let index = 0; index < nonEditableRows.length; index += 2) {
+      pairs.push(nonEditableRows.slice(index, index + 2));
+    }
+    return pairs;
+  }, [nonEditableRows]);
+
+  const beginEdit = (field: CarSpecEditableFieldKey) => {
+    setActiveField(field);
+    setDraftDate(parseExistingDate(carSpec[field]));
+    setDraftCost('');
+    setShowDatePicker(false);
+  };
+
+  const cancelEdit = () => {
+    setActiveField(null);
+    setDraftCost('');
+    setShowDatePicker(false);
+  };
+
+  const saveEdit = () => {
+    if (!activeField) {
       return;
     }
 
-    setEditFields(getEditableFields(carSpec));
-    setEditCost('');
-  }, [carSpec, visible]);
+    const parsedCost = draftCost.trim() ? Number(draftCost) : undefined;
 
-  const fields = useMemo<CarInfoField[]>(
-    () => [
-      { label: 'Last Maintenance Date', value: carSpec.lastMaintenanceDate },
-      { label: 'Last Engine Oil Changed', value: carSpec.lastEngineOilChangedOn },
-      { label: 'Last Coolant Refill', value: carSpec.lastCoolantRefillOn },
-      { label: 'PUCC Expire Date', value: carSpec.puccExpireDate },
-      { label: 'Insurance First Party', value: carSpec.insuranceFirstPartyExpiry },
-      { label: 'Insurance Third Party', value: carSpec.insuranceThirdPartyExpiry },
-      { label: 'Registration Number', value: carSpec.registrationNumber },
-      { label: 'Registration Year', value: carSpec.registrationYear },
-      { label: 'Manufacturing Year', value: carSpec.manufacturingYear },
-      { label: 'Initial Odometer', value: `${carSpec.initialOdometer} km` },
-      { label: 'Fuel Type', value: carSpec.fuelType },
-      { label: 'Model', value: carSpec.model },
-      { label: 'Variant', value: carSpec.variant },
-    ],
-    [carSpec],
-  );
-
-  const rows = useMemo(() => {
-    const pairRows: CarInfoField[][] = [];
-
-    for (let index = 0; index < fields.length; index += 2) {
-      pairRows.push(fields.slice(index, index + 2));
-    }
-
-    return pairRows;
-  }, [fields]);
-
-  const saveEdits = () => {
-    const updatedFields = Object.keys(editFields).filter((key) => {
-      const typedKey = key as keyof CarSpecEditableFields;
-      return editFields[typedKey].trim() !== carSpec[typedKey].trim();
-    }).map((key) => EDITABLE_LABELS[key as keyof CarSpecEditableFields]);
-
-    const parsedCost = editCost.trim() ? Number(editCost) : undefined;
-
-    onSaveEdits({
-      updates: editFields,
+    onSaveFieldEdit({
+      field: activeField,
+      value: dayjs(draftDate).format('DD MMM YYYY'),
       cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
-      updatedFields,
     });
-    setIsEditing(false);
-    setEditCost('');
+
+    setActiveField(null);
+    setDraftCost('');
+    setShowDatePicker(false);
+  };
+
+  const changeDraftDate = (unit: 'day' | 'month' | 'year', delta: number) => {
+    const next = dayjs(draftDate).add(delta, unit);
+    setDraftDate(next.toDate());
   };
 
   if (!rendered) {
@@ -144,7 +166,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
 
   return (
     <Modal transparent statusBarTranslucent animationType="none" visible={rendered} onRequestClose={onClose}>
-      <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+      <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}> 
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
       </Animated.View>
 
@@ -164,111 +186,140 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveEdits }: C
 
           <View style={styles.headerRow}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPEC SHEET</Text>
-            <View style={styles.headerActions}>
-              {!isEditing ? (
-                <Pressable onPress={() => setIsEditing(true)}>
-                  <Text style={[styles.editText, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>EDIT</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => {
-                    setIsEditing(false);
-                    setEditFields(getEditableFields(carSpec));
-                    setEditCost('');
-                  }}>
-                  <Text style={[styles.editText, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>CANCEL</Text>
-                </Pressable>
-              )}
-              <Pressable onPress={onClose} style={styles.iconBtn}>
-                <MaterialIcons name="close" size={22} color={colors.textPrimary} />
-              </Pressable>
-            </View>
+            <Pressable onPress={onClose} style={styles.iconBtn}>
+              <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+            </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentWrap}>
-            <View style={[styles.table, { borderColor: colors.border }]}> 
-              {rows.map((row, rowIndex) => (
-                <View
-                  key={`row-${rowIndex}`}
-                  style={[
-                    styles.tableRow,
-                    rowIndex < rows.length - 1 ? { borderBottomColor: colors.border, borderBottomWidth: 1 } : null,
-                  ]}>
-                  {row.map((field, cellIndex) => (
+            {editableRows.map((row) => {
+              const isActive = row.editable && row.key === activeField;
+
+              return (
+                <View key={row.key} style={[styles.rowCard, { borderColor: colors.border, backgroundColor: colors.card }]}> 
+                  <View style={styles.rowTop}>
+                    <View style={styles.rowTitleWrap}>
+                      <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+                      <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
+                    </View>
+                    {row.editable ? (
+                      <Pressable onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)} style={styles.editIconBtn}>
+                        <MaterialIcons name="edit" size={18} color={colors.textPrimary} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {isActive ? (
+                    <View style={[styles.inlineEditor, { borderTopColor: colors.border }]}> 
+                      <Pressable
+                        style={[styles.dateSelect, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+                        onPress={() => setShowDatePicker((prev) => !prev)}>
+                        <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
+                        <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(draftDate).format('DD MMM YYYY')}</Text>
+                      </Pressable>
+
+                      {showDatePicker ? (
+                        <View style={[styles.customDatePicker, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                          <View style={styles.datePickerPreview}>
+                            <Text style={[styles.datePickerPreviewText, { color: colors.textPrimary }]}>
+                              {dayjs(draftDate).format('DD MMM YYYY')}
+                            </Text>
+                          </View>
+
+                          <View style={styles.pickerControlRow}>
+                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>DAY</Text>
+                            <View style={styles.pickerButtons}>
+                              <Pressable onPress={() => changeDraftDate('day', -1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
+                                {dayjs(draftDate).date()}
+                              </Text>
+                              <Pressable onPress={() => changeDraftDate('day', 1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                            </View>
+                          </View>
+
+                          <View style={styles.pickerControlRow}>
+                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>MONTH</Text>
+                            <View style={styles.pickerButtons}>
+                              <Pressable onPress={() => changeDraftDate('month', -1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
+                                {MONTH_NAMES[dayjs(draftDate).month()]}
+                              </Text>
+                              <Pressable onPress={() => changeDraftDate('month', 1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                            </View>
+                          </View>
+
+                          <View style={styles.pickerControlRow}>
+                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>YEAR</Text>
+                            <View style={styles.pickerButtons}>
+                              <Pressable onPress={() => changeDraftDate('year', -1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
+                                {dayjs(draftDate).year()}
+                              </Text>
+                              <Pressable onPress={() => changeDraftDate('year', 1)} style={styles.pickerBtn}>
+                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
+                              </Pressable>
+                            </View>
+                          </View>
+                        </View>
+                      ) : null}
+
+                      <AppTextField
+                        label="Cost (Rs) - Optional"
+                        value={draftCost}
+                        onChangeText={setDraftCost}
+                        keyboardType="decimal-pad"
+                        placeholder="e.g. 1200"
+                      />
+
+                      <View style={styles.editorActions}>
+                        <PrimaryButton label="SAVE" onPress={saveEdit} style={styles.editorActionBtn} />
+                        <PrimaryButton
+                          label="CANCEL"
+                          variant="secondary"
+                          onPress={cancelEdit}
+                          style={styles.editorActionBtn}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            <View style={[styles.nonEditablePanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Vehicle Details</Text>
+              {nonEditableGridRows.map((pair, rowIndex) => (
+                <View key={`grid-${rowIndex}`} style={styles.nonEditableGridRow}>
+                  {pair.map((row, cellIndex) => (
                     <View
-                      key={`${field.label}-${cellIndex}`}
+                      key={row.key}
                       style={[
-                        styles.cell,
-                        cellIndex === 0 && row.length === 2
-                          ? { borderRightColor: colors.border, borderRightWidth: 1 }
-                          : null,
+                        styles.nonEditableCell,
+                        {
+                          borderColor: colors.border,
+                          borderWidth: 1,
+                          backgroundColor: colors.backgroundSecondary,
+                        },
+                        cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 },
                       ]}>
-                      <Text style={[styles.label, { color: colors.textSecondary }]}>{field.label}</Text>
-                      <Text style={[styles.value, { color: colors.textPrimary }]}>{field.value}</Text>
+                      <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+                      <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
                     </View>
                   ))}
-                  {row.length === 1 ? <View style={styles.cell} /> : null}
+                  {pair.length === 1 ? <View style={styles.nonEditableCellSpacer} /> : null}
                 </View>
               ))}
             </View>
-
-            {isEditing ? (
-              <View style={[styles.editPanel, { borderColor: colors.border, backgroundColor: colors.card }]}> 
-                <Text style={[styles.editHeader, { color: colors.textPrimary }]}>Update Maintenance & Expiry Dates</Text>
-
-                <AppTextField
-                  label="Update Cost (Rs)"
-                  value={editCost}
-                  onChangeText={setEditCost}
-                  placeholder="Optional"
-                  keyboardType="decimal-pad"
-                />
-
-                <AppTextField
-                  label="Last Maintenance Date"
-                  value={editFields.lastMaintenanceDate}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, lastMaintenanceDate: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <AppTextField
-                  label="Last Engine Oil Changed"
-                  value={editFields.lastEngineOilChangedOn}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, lastEngineOilChangedOn: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <AppTextField
-                  label="Last Coolant Refill"
-                  value={editFields.lastCoolantRefillOn}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, lastCoolantRefillOn: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <AppTextField
-                  label="PUCC Expire Date"
-                  value={editFields.puccExpireDate}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, puccExpireDate: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <AppTextField
-                  label="Insurance First Party Expiry"
-                  value={editFields.insuranceFirstPartyExpiry}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, insuranceFirstPartyExpiry: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <AppTextField
-                  label="Insurance Third Party Expiry"
-                  value={editFields.insuranceThirdPartyExpiry}
-                  onChangeText={(value) => setEditFields((prev) => ({ ...prev, insuranceThirdPartyExpiry: value }))}
-                  placeholder="DD MMM YYYY"
-                />
-
-                <PrimaryButton label="SAVE UPDATES" onPress={saveEdits} />
-              </View>
-            ) : null}
           </ScrollView>
         </Animated.View>
       </View>
@@ -308,60 +359,140 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   title: {
     fontSize: 17,
     letterSpacing: 0.8,
     fontWeight: '700',
   },
-  editText: {
-    fontSize: 12,
-    textDecorationLine: 'underline',
-    letterSpacing: 0.8,
-  },
   iconBtn: {
     padding: 2,
   },
   contentWrap: {
-    gap: 12,
+    gap: 10,
     paddingBottom: 10,
   },
-  table: {
+  nonEditablePanel: {
     borderWidth: 1,
+    borderRadius: 2,
+    padding: 10,
+    gap: 8,
   },
-  tableRow: {
+  nonEditableTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  nonEditableGridRow: {
     flexDirection: 'row',
-    minHeight: 72,
   },
-  cell: {
+  nonEditableCell: {
     flex: 1,
+    borderRadius: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  nonEditableCellSpacer: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  rowCard: {
+    borderWidth: 1,
+    borderRadius: 2,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    justifyContent: 'center',
-    gap: 6,
+    gap: 10,
   },
-  label: {
+  rowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  rowTitleWrap: {
+    flex: 1,
+    gap: 5,
+  },
+  rowLabel: {
     fontSize: 11,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  value: {
+  rowValue: {
     fontSize: 14,
     fontWeight: '700',
   },
-  editPanel: {
-    borderWidth: 1,
-    padding: 12,
-    borderRadius: 2,
+  editIconBtn: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineEditor: {
+    borderTopWidth: 1,
+    paddingTop: 10,
     gap: 10,
   },
-  editHeader: {
+  dateSelect: {
+    borderWidth: 1,
+    borderRadius: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 4,
+  },
+  dateLabel: {
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  dateValue: {
     fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 0.3,
+  },
+  editorActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editorActionBtn: {
+    flex: 1,
+  },
+  customDatePicker: {
+    borderWidth: 1,
+    borderRadius: 2,
+    padding: 10,
+    gap: 8,
+  },
+  datePickerPreview: {
+    alignItems: 'center',
+  },
+  datePickerPreviewText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  pickerControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerLabel: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  pickerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pickerBtn: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerValue: {
+    minWidth: 52,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

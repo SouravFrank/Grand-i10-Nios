@@ -73,8 +73,10 @@ export type CarSpecEditableFields = {
   insuranceThirdPartyExpiry: string;
 };
 
-export type CarSpecEditSubmission = {
-  updates: CarSpecEditableFields;
+export type CarSpecEditableFieldKey = keyof CarSpecEditableFields;
+
+export type CarSpecFieldUpdateSubmission = {
+  field: CarSpecEditableFieldKey;
+  value: string;
   cost?: number;
-  updatedFields: string[];
 };

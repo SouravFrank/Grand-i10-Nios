@@ -11,6 +11,14 @@ type HistoryItemCardProps = {
   index: number;
 };
 
+function prettyFieldName(value: string): string {
+  return value
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardProps) {
   const { colors } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
@@ -64,7 +72,7 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
 
         {entry.type === 'spec_update' && entry.specUpdatedFields?.length ? (
           <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-            UPDATED: {entry.specUpdatedFields.join(', ').toUpperCase()}
+            UPDATED: {entry.specUpdatedFields.map((field) => prettyFieldName(field)).join(', ').toUpperCase()}
           </Text>
         ) : null}
 

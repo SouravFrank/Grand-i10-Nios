@@ -11,7 +11,7 @@ import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { CarSpecEditSubmission } from '@/types/models';
+import type { CarSpecFieldUpdateSubmission } from '@/types/models';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
@@ -45,11 +45,11 @@ export function HomeScreen({ navigation }: Props) {
       : 'OFFLINE MODE';
   }, [isOnline, pendingQueue.length]);
 
-  const handleCarSpecSave = async (submission: CarSpecEditSubmission) => {
-    const { updates, cost, updatedFields } = submission;
-    updateCarSpec(updates);
+  const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
+    const { field, value, cost } = submission;
+    updateCarSpec({ [field]: value });
 
-    if (!currentUser || updatedFields.length === 0) {
+    if (!currentUser) {
       return;
     }
 
@@ -60,7 +60,7 @@ export function HomeScreen({ navigation }: Props) {
         userName: currentUser.name,
         odometer: lastOdometerValue,
         cost,
-        specUpdatedFields: updatedFields,
+        specUpdatedFields: [field],
       });
       void runSyncCycle();
     } catch {
@@ -123,7 +123,7 @@ export function HomeScreen({ navigation }: Props) {
         visible={carSheetVisible}
         onClose={() => setCarSheetVisible(false)}
         carSpec={carSpec}
-        onSaveEdits={(submission) => void handleCarSpecSave(submission)}
+        onSaveFieldEdit={(submission) => void handleCarSpecSave(submission)}
       />
     </ScreenContainer>
   );

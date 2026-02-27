@@ -9,6 +9,7 @@ export function useSyncBootstrap() {
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
   const isHydrated = useAppStore((state) => state.isHydrated);
   const runIntegrityCheck = useAppStore((state) => state.runIntegrityCheck);
+  const ensureDemoData = useAppStore((state) => state.ensureDemoData);
   const bootstrapAuth = useAppStore((state) => state.bootstrapAuth);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function useSyncBootstrap() {
 
     const bootstrap = async () => {
       await runIntegrityCheck();
+      await ensureDemoData();
       await bootstrapAuth();
 
       const networkState = await NetInfo.fetch();
@@ -46,5 +48,5 @@ export function useSyncBootstrap() {
       isMounted = false;
       unsubscribe();
     };
-  }, [bootstrapAuth, isHydrated, runIntegrityCheck, setNetworkStatus]);
+  }, [bootstrapAuth, ensureDemoData, isHydrated, runIntegrityCheck, setNetworkStatus]);
 }
