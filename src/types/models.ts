@@ -45,3 +45,26 @@ export type SyncStatus = 'synced' | 'syncing' | 'failed';
 export type AuthStatus = 'booting' | 'unauthenticated' | 'biometric' | 'authenticated';
 
 export type RemoteEntryDocument = Omit<Entry, 'synced'>;
+
+export type CarSpec = {
+  registrationNumber: string;
+  registrationYear: string;
+  manufacturingYear: string;
+  initialOdometer: number;
+  fuelType: string;
+  model: string;
+  variant: string;
+  lastEngineOilChangedOn: string;
+  lastCoolantRefillOn: string;
+  puccExpireDate: string;
+  insuranceFirstPartyExpiry: string;
+  insuranceThirdPartyExpiry: string;
+};
+
+export type CarSpecEditableFields = {
+  lastEngineOilChangedOn: string;
+  lastCoolantRefillOn: string;
+  puccExpireDate: string;
+  insuranceFirstPartyExpiry: string;
+  insuranceThirdPartyExpiry: string;
+};

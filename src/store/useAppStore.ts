@@ -20,6 +20,8 @@ import { clearStoredSession, getStoredSession, setStoredSession } from '@/servic
 import type {
   AppUser,
   AuthStatus,
+  CarSpec,
+  CarSpecEditableFields,
   Entry,
   EntryRecord,
   PendingQueueItem,
@@ -35,6 +37,7 @@ type PersistedAppData = {
   lastOdometerValue: number;
   currentUser: AppUser | null;
   biometricEnabled: boolean;
+  carSpec: CarSpec;
 };
 
 type AddEntryInput = {
@@ -70,6 +73,7 @@ type AppState = PersistedAppData & {
   updatePendingQueue: (nextQueue: PendingQueueItem[]) => void;
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
+  updateCarSpec: (updates: CarSpecEditableFields) => void;
 };
 
 const initialPersistedState: PersistedAppData = {
@@ -79,6 +83,20 @@ const initialPersistedState: PersistedAppData = {
   lastOdometerValue: 0,
   currentUser: null,
   biometricEnabled: false,
+  carSpec: {
+    registrationNumber: 'WB12BP0584',
+    registrationYear: 'Aug-2023',
+    manufacturingYear: 'JULY 2023',
+    initialOdometer: 29661,
+    fuelType: 'Petrol',
+    model: 'Hyundai GRAND I10 NIOS',
+    variant: 'SPORTZ 1.2 KAPPA VTVT - 2023',
+    lastEngineOilChangedOn: '12 JAN 2026',
+    lastCoolantRefillOn: '04 NOV 2025',
+    puccExpireDate: '20 SEP 2026',
+    insuranceFirstPartyExpiry: '31 AUG 2026',
+    insuranceThirdPartyExpiry: '31 AUG 2028',
+  },
 };
 
 async function ensureIntegritySecret(): Promise<string> {
@@ -356,6 +374,15 @@ export const useAppStore = create<AppState>()(
           };
         });
       },
+
+      updateCarSpec: (updates) => {
+        set((state) => ({
+          carSpec: {
+            ...state.carSpec,
+            ...updates,
+          },
+        }));
+      },
     }),
     {
       name: STORAGE_KEYS.appState,
@@ -367,6 +394,7 @@ export const useAppStore = create<AppState>()(
         lastOdometerValue: state.lastOdometerValue,
         currentUser: state.currentUser,
         biometricEnabled: state.biometricEnabled,
+        carSpec: state.carSpec,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);

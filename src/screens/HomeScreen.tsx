@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CarDisplayCard } from '@/components/CarDisplayCard';
-import { CarInfoBottomSheet, type CarInfoField } from '@/components/CarInfoBottomSheet';
+import { CarInfoBottomSheet } from '@/components/CarInfoBottomSheet';
 import { DashboardSummaryCard } from '@/components/DashboardSummaryCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SharpButton } from '@/components/SharpButton';
@@ -14,11 +14,11 @@ import { useAppTheme } from '@/theme/useAppTheme';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
-const STATIC_ODO_READING = 29661;
-
 export function HomeScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
   const entries = useAppStore((state) => state.entries);
+  const carSpec = useAppStore((state) => state.carSpec);
+  const updateCarSpec = useAppStore((state) => state.updateCarSpec);
   const pendingQueue = useAppStore((state) => state.pendingQueue);
   const syncStatus = useAppStore((state) => state.syncStatus);
   const isOnline = useAppStore((state) => state.isOnline);
@@ -26,15 +26,6 @@ export function HomeScreen({ navigation }: Props) {
   const [carSheetVisible, setCarSheetVisible] = useState(false);
 
   const latestEntry = entries[0];
-  const carInfoFields: CarInfoField[] = [
-    { label: 'Registration Number', value: 'WB12BP0584' },
-    { label: 'Registration Year', value: 'Aug-2023' },
-    { label: 'Manufacturing Year', value: 'JULY 2023' },
-    { label: 'Odometer Reading', value: `${latestEntry?.odometer ?? STATIC_ODO_READING}` },
-    { label: 'Fuel Type', value: 'Petrol' },
-    { label: 'Model', value: 'Hyundai GRAND I10 NIOS' },
-    { label: 'Variant', value: 'SPORTZ 1.2 KAPPA VTVT - 2023' },
-  ];
 
   useEffect(() => {
     void runSyncCycle();
@@ -62,8 +53,8 @@ export function HomeScreen({ navigation }: Props) {
         ) : null}
 
         <CarDisplayCard
-          registrationText="WB12BP0584"
-          subtitle="Hyundai GRAND I10 NIOS"
+          registrationText={carSpec.registrationNumber}
+          subtitle={carSpec.model}
           onPress={() => setCarSheetVisible(true)}
         />
 
@@ -97,7 +88,12 @@ export function HomeScreen({ navigation }: Props) {
         {securityIssue ? <Text style={[styles.securityText, { color: colors.textSecondary }]}>{securityIssue}</Text> : null}
       </ScrollView>
 
-      <CarInfoBottomSheet visible={carSheetVisible} onClose={() => setCarSheetVisible(false)} fields={carInfoFields} />
+      <CarInfoBottomSheet
+        visible={carSheetVisible}
+        onClose={() => setCarSheetVisible(false)}
+        carSpec={carSpec}
+        onSaveEdits={updateCarSpec}
+      />
     </ScreenContainer>
   );
 }
