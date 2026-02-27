@@ -5,7 +5,7 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const SECURE_KEYS = {
-  currentUser: 'grandi10nios/current-user/v1',
-  authToken: 'grandi10nios/auth-token/v1',
-  integritySecret: 'grandi10nios/integrity-secret/v1',
+  currentUser: 'grandi10nios.current_user.v1',
+  authToken: 'grandi10nios.auth_token.v1',
+  integritySecret: 'grandi10nios.integrity_secret.v1',
 } as const;
