@@ -1,57 +1,62 @@
-# Welcome to your Expo app 👋
+# Grand i10 Nios - Shared Maintenance Tracker
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Production-grade Expo React Native app for exactly 2 users, with frontend-only authentication and Firestore-backed sync.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- Expo SDK 55 + TypeScript
+- React Navigation (native stack)
+- Zustand (persisted app state)
+- React Hook Form + Zod
+- AsyncStorage + Expo SecureStore
+- Expo Local Authentication (biometric)
+- Firebase JS SDK (Firestore only)
+- Day.js
+- NetInfo (network detection)
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- Frontend-only authentication for exactly 2 users
+- Biometric unlock on subsequent launches
+- Offline-first writes (`entries[]` + `pendingQueue[]`)
+- Optimistic local updates with non-blocking sync
+- Queue retry on app launch and network regain
+- Odometer rollback prevention
+- Local integrity hashing for tamper detection
+- Unified history with dynamic distance calculation between consecutive entries
 
-   ```bash
-   npx expo start
-   ```
+## Login Users (default)
 
-In the output, you'll find options to open the app in a
+- `owner` / `Nios@1234`
+- `coDriver` / `Nios@5678`
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Firebase Setup
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Update `app.json`:
 
-## Get a fresh project
+- `expo.extra.firebaseApiKey`
+- `expo.extra.firebaseAuthDomain`
+- `expo.extra.firebaseProjectId`
+- `expo.extra.firebaseStorageBucket`
+- `expo.extra.firebaseMessagingSenderId`
+- `expo.extra.firebaseAppId`
 
-When you're ready, run:
+If Firebase config is not set, the app still works fully offline and keeps queueing writes locally.
+
+## Run
 
 ```bash
-npm run reset-project
+npm install
+npm run start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Project Structure
 
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# Grand-i10-Nios
+- `App.tsx`: app bootstrap + error boundary
+- `src/navigation`: React Navigation root stacks
+- `src/screens`: login, biometric, home, history, odometer, fuel flows
+- `src/store/useAppStore.ts`: persisted app state, queue, auth status, integrity checks
+- `src/services/sync/syncEngine.ts`: background sync and retry logic
+- `src/services/firestore/entriesRepository.ts`: Firestore push/pull
+- `src/services/auth`: password + biometric auth logic
+- `src/services/storage`: AsyncStorage and SecureStore adapters

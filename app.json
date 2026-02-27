@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "grandi10nios",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"
     },
@@ -24,7 +24,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -34,11 +33,30 @@
             "imageWidth": 76
           }
         }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Grand i10 Nios to use Face ID for secure login."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "firebaseApiKey": "REPLACE_ME",
+      "firebaseAuthDomain": "REPLACE_ME",
+      "firebaseProjectId": "REPLACE_ME",
+      "firebaseStorageBucket": "REPLACE_ME",
+      "firebaseMessagingSenderId": "REPLACE_ME",
+      "firebaseAppId": "REPLACE_ME"
     }
   }
 }
