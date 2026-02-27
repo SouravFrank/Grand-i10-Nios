@@ -31,7 +31,7 @@ export function SharpButton({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+    <Animated.View style={[{ transform: [{ scale: scaleValue }] }, style]}>
       <Pressable
         onPress={onPress}
         disabled={disabled}
@@ -40,12 +40,11 @@ export function SharpButton({
         style={({ pressed }) => [
           styles.button,
           {
-            backgroundColor: variant === 'primary' ? colors.invertedBackground : colors.backgroundSecondary,
-            borderColor: variant === 'primary' ? colors.invertedBackground : colors.border,
+            backgroundColor: variant === 'primary' ? colors.invertedBackground : 'transparent',
+            borderColor: variant === 'primary' ? colors.invertedBackground : colors.textPrimary,
             opacity: pressed ? 0.9 : 1,
           },
           disabled && styles.disabled,
-          style,
         ]}>
         <Text
           style={[
@@ -64,6 +63,7 @@ export function SharpButton({
 const styles = StyleSheet.create({
   button: {
     height: 48,
+    width: '100%',
     borderWidth: 1,
     borderRadius: 2,
     alignItems: 'center',

@@ -64,7 +64,6 @@ export function HomeScreen({ navigation }: Props) {
         <CarDisplayCard
           registrationText="WB12BP0584"
           subtitle="Hyundai GRAND I10 NIOS"
-          variant="SPORTZ 1.2 KAPPA VTVT - 2023"
           onPress={() => setCarSheetVisible(true)}
         />
 
@@ -119,9 +118,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   title: {
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '800',
-    letterSpacing: 1.4,
+    letterSpacing: 1,
     marginTop: 2,
     alignSelf: 'center',
     textAlign: 'center',
@@ -129,6 +128,7 @@ const styles = StyleSheet.create({
   ctaRow: {
     flexDirection: 'row',
     gap: 14,
+    width: '100%',
   },
   primaryCtaButton: {
     flex: 1.65,

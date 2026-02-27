@@ -1,13 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
@@ -71,16 +70,18 @@ export function StartingCarScreen({ navigation }: Props) {
   });
 
   return (
-    <ScreenContainer>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>STARTING THE CAR</Text>
+    <View style={styles.overlay}>
+      <Pressable style={StyleSheet.absoluteFillObject} onPress={() => navigation.goBack()} />
+
+      <View style={[styles.popup, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View style={[styles.headerStrip, { backgroundColor: colors.invertedBackground }]}> 
+          <Text style={[styles.title, { color: colors.invertedText }]}>STARTING THE CAR</Text>
           <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
-            <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+            <MaterialIcons name="close" size={22} color={colors.invertedText} />
           </Pressable>
         </View>
 
-        <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+        <View style={[styles.content, { backgroundColor: colors.backgroundSecondary }]}> 
           <Text style={[styles.info, { color: colors.textSecondary }]}>Previous odometer: {lastOdometer} km</Text>
 
           <Controller
@@ -100,24 +101,33 @@ export function StartingCarScreen({ navigation }: Props) {
           <PrimaryButton label="SAVE ODOMETER" onPress={onSubmit} loading={isSubmitting} />
         </View>
       </View>
-    </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
-    gap: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
-  headerRow: {
+  popup: {
+    borderWidth: 1,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  headerStrip: {
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 14,
   },
   title: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 0.9,
   },
   iconBtn: {
     width: 24,
@@ -125,9 +135,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  form: {
-    borderWidth: 1,
-    borderRadius: 2,
+  content: {
     padding: 14,
     gap: 12,
   },

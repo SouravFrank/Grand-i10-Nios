@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -97,61 +97,65 @@ export function FuelEntryScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>ADD FUEL ENTRY</Text>
+        <View style={[styles.headerStrip, { backgroundColor: colors.invertedBackground }]}> 
           <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
-            <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+            <MaterialIcons name="arrow-back" size={22} color={colors.invertedText} />
           </Pressable>
+          <Text style={[styles.title, { color: colors.invertedText }]}>ADD FUEL ENTRY</Text>
+          <View style={styles.iconBtn} />
         </View>
 
         <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <Text style={[styles.info, { color: colors.textSecondary }]}>Previous odometer: {lastOdometer} km</Text>
+          <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
+            <Text style={[styles.info, { color: colors.textSecondary }]}>Previous odometer: {lastOdometer} km</Text>
+            <Controller
+              control={control}
+              name="odometer"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Odometer"
+                  value={value}
+                  onChangeText={onChange}
+                  keyboardType="numeric"
+                  error={errors.odometer?.message}
+                />
+              )}
+            />
+          </View>
 
-          <Controller
-            control={control}
-            name="odometer"
-            render={({ field: { onChange, value } }) => (
-              <AppTextField
-                label="Odometer"
-                value={value}
-                onChangeText={onChange}
-                keyboardType="numeric"
-                error={errors.odometer?.message}
-              />
-            )}
-          />
+          <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
+            <Controller
+              control={control}
+              name="fuelAmount"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Fuel Amount (Rs)"
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g. 2000"
+                  error={errors.fuelAmount?.message}
+                />
+              )}
+            />
 
-          <Controller
-            control={control}
-            name="fuelAmount"
-            render={({ field: { onChange, value } }) => (
-              <AppTextField
-                label="Fuel Amount (Rs)"
-                value={value ?? ''}
-                onChangeText={onChange}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 2000"
-                error={errors.fuelAmount?.message}
-              />
-            )}
-          />
+            <Controller
+              control={control}
+              name="fuelLiters"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Fuel Liters"
+                  value={value ?? ''}
+                  onChangeText={onChange}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g. 24.6"
+                  error={errors.fuelLiters?.message}
+                />
+              )}
+            />
+          </View>
 
-          <Controller
-            control={control}
-            name="fuelLiters"
-            render={({ field: { onChange, value } }) => (
-              <AppTextField
-                label="Fuel Liters"
-                value={value ?? ''}
-                onChangeText={onChange}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 24.6"
-                error={errors.fuelLiters?.message}
-              />
-            )}
-          />
-
-          <View style={[styles.switchRow, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
+          <View style={[styles.switchRow, { borderColor: colors.textPrimary }]}> 
             <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
             <Controller
               control={control}
@@ -177,17 +181,15 @@ export function FuelEntryScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    gap: 14,
+    gap: 12,
   },
-  headerRow: {
+  headerStrip: {
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: 1,
+    paddingHorizontal: 12,
+    borderRadius: 2,
   },
   iconBtn: {
     width: 24,
@@ -195,11 +197,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  title: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+  },
   form: {
     borderWidth: 1,
     borderRadius: 2,
-    padding: 14,
+    padding: 12,
     gap: 10,
+  },
+  section: {
+    borderWidth: 1,
+    borderRadius: 2,
+    padding: 10,
+    gap: 8,
   },
   info: {
     fontSize: 13,
@@ -212,9 +225,10 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     paddingHorizontal: 12,
     height: 46,
+    backgroundColor: 'transparent',
   },
   switchLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
