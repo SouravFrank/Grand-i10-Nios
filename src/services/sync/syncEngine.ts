@@ -1,4 +1,4 @@
-import { getFirebaseDb } from '@/config/firebase';
+import { ensureAnonymousFirebaseAuth, getFirebaseDb } from '@/config/firebase';
 import type { PendingQueueItem } from '@/types/models';
 import { pullEntriesFromRealtimeDb, pushEntryToRealtimeDb } from '@/services/realtime/entriesRepository';
 import { useAppStore } from '@/store/useAppStore';
@@ -19,6 +19,12 @@ export async function runSyncCycle(): Promise<void> {
 
   if (!getFirebaseDb()) {
     useAppStore.getState().setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
+    return;
+  }
+
+  const authState = await ensureAnonymousFirebaseAuth();
+  if (!authState.ok) {
+    useAppStore.getState().setSyncOutcome('failed', `Firebase anonymous auth failed: ${authState.reason}`);
     return;
   }
 

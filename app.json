@@ -51,13 +51,13 @@
       "reactCompiler": true
     },
     "extra": {
-      "firebaseApiKey": "REPLACE_ME",
-      "firebaseAuthDomain": "REPLACE_ME",
-      "firebaseProjectId": "REPLACE_ME",
-      "firebaseStorageBucket": "REPLACE_ME",
-      "firebaseMessagingSenderId": "REPLACE_ME",
-      "firebaseAppId": "REPLACE_ME",
-      "firebaseDatabaseUrl": "https://REPLACE_ME-default-rtdb.firebaseio.com"
+      "firebaseApiKey": "AIzaSyCCvIn9Ft5kE_HRvj2-ayEa4w-3Pk9lktU",
+      "firebaseAuthDomain": "grand-i10-app.firebaseapp.com",
+      "firebaseProjectId": "grand-i10-app",
+      "firebaseStorageBucket": "grand-i10-app.firebasestorage.app",
+      "firebaseMessagingSenderId": "93230549279",
+      "firebaseAppId": "1:93230549279:web:ab6bae65b994675845482a",
+      "firebaseDatabaseUrl": "https://grand-i10-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
     }
   }
 }
