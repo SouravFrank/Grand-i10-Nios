@@ -1,12 +1,23 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import {
+  Alert,
+  Animated,
+  FlatList,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
-import { AppTextField } from '@/components/AppTextField';
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
+import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, EntryType } from '@/types/models';
@@ -20,6 +31,10 @@ type HistoryRow = {
 };
 
 type CategoryFilter = 'all' | EntryType;
+type DateTarget = 'from' | 'to';
+type DatePreset = 'all' | 'last7' | 'last30' | 'thisMonth' | 'custom';
+
+const MIN_FILTER_DATE = dayjs('2026-02-01').startOf('day');
 
 function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
@@ -38,32 +53,29 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   });
 }
 
-function parseDateInput(value: string): number | null {
-  if (!value.trim()) {
-    return null;
-  }
-
-  const parsed = dayjs(value.trim());
-  return parsed.isValid() ? parsed.valueOf() : null;
-}
-
 export function HistoryScreen({ navigation }: Props) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const entries = useAppStore((state) => state.entries);
+  const currentUser = useAppStore((state) => state.currentUser);
+  const markEntrySharedTrip = useAppStore((state) => state.markEntrySharedTrip);
 
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [filterContentHeight, setFilterContentHeight] = useState(0);
 
-  const filterAnim = useRef(new Animated.Value(0)).current;
+  const filterAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.timing(filterAnim, {
       toValue: isFilterOpen ? 1 : 0,
-      duration: 190,
+      duration: 220,
       useNativeDriver: false,
     }).start();
   }, [filterAnim, isFilterOpen]);
@@ -75,7 +87,7 @@ export function HistoryScreen({ navigation }: Props) {
         userMap.set(entry.userId, entry.userName);
       }
     });
-    return [{ id: 'all', name: 'ALL USERS' }, ...Array.from(userMap.entries()).map(([id, name]) => ({ id, name }))];
+    return [{ id: 'all', name: 'All users' }, ...Array.from(userMap.entries()).map(([id, name]) => ({ id, name }))];
   }, [entries]);
 
   const monthOptions = useMemo(() => {
@@ -102,21 +114,28 @@ export function HistoryScreen({ navigation }: Props) {
       pills.push(dayjs(`${selectedMonth}-01`).format('MMM YYYY'));
     }
 
+    if (datePreset !== 'all') {
+      if (datePreset === 'last7') pills.push('Last 7 days');
+      if (datePreset === 'last30') pills.push('Last 30 days');
+      if (datePreset === 'thisMonth') pills.push('This month');
+      if (datePreset === 'custom') pills.push('Custom range');
+    }
+
     if (fromDate) {
-      pills.push(`From ${fromDate}`);
+      pills.push(`From ${dayjs(fromDate).format('DD MMM YYYY')}`);
     }
 
     if (toDate) {
-      pills.push(`To ${toDate}`);
+      pills.push(`To ${dayjs(toDate).format('DD MMM YYYY')}`);
     }
 
     return pills;
-  }, [category, fromDate, selectedMonth, selectedUser, toDate, userOptions]);
+  }, [category, datePreset, fromDate, selectedMonth, selectedUser, toDate, userOptions]);
 
   const rows = useMemo(() => {
     const baseRows = buildHistoryRows(entries);
-    const fromTimestamp = parseDateInput(fromDate);
-    const toTimestamp = parseDateInput(toDate);
+    const fromTimestamp = fromDate ? dayjs(fromDate).startOf('day').valueOf() : null;
+    const toTimestamp = toDate ? dayjs(toDate).endOf('day').valueOf() : null;
 
     return baseRows.filter((row) => {
       const entry = row.entry;
@@ -137,11 +156,8 @@ export function HistoryScreen({ navigation }: Props) {
         return false;
       }
 
-      if (toTimestamp !== null) {
-        const endOfDay = dayjs(toTimestamp).endOf('day').valueOf();
-        if (entry.createdAt > endOfDay) {
-          return false;
-        }
+      if (toTimestamp !== null && entry.createdAt > toTimestamp) {
+        return false;
       }
 
       return true;
@@ -152,14 +168,138 @@ export function HistoryScreen({ navigation }: Props) {
     setCategory('all');
     setSelectedUser('all');
     setSelectedMonth('all');
-    setFromDate('');
-    setToDate('');
+    setFromDate(null);
+    setToDate(null);
+    setDatePreset('all');
+    setActiveDateTarget(null);
+    setIsDatePickerVisible(false);
+  };
+
+  const setDateForTarget = (target: DateTarget, date: Date | null) => {
+    if (!date) {
+      if (target === 'from') {
+        setFromDate(null);
+      } else {
+        setToDate(null);
+      }
+      return;
+    }
+
+    let nextDate = dayjs(date).startOf('day');
+    if (nextDate.isBefore(MIN_FILTER_DATE, 'day')) {
+      nextDate = MIN_FILTER_DATE;
+    }
+
+    if (target === 'from') {
+      setFromDate(nextDate.toDate());
+      if (toDate && dayjs(toDate).isBefore(nextDate, 'day')) {
+        setToDate(nextDate.toDate());
+      }
+      return;
+    }
+
+    const lowerLimit = fromDate ? dayjs(fromDate).startOf('day') : MIN_FILTER_DATE;
+    if (nextDate.isBefore(lowerLimit, 'day')) {
+      nextDate = lowerLimit;
+    }
+    setToDate(nextDate.toDate());
+  };
+
+  const applyDatePreset = (preset: DatePreset) => {
+    const today = dayjs().endOf('day');
+    setDatePreset(preset);
+
+    if (preset === 'all') {
+      setFromDate(null);
+      setToDate(null);
+      return;
+    }
+
+    if (preset === 'last7') {
+      setFromDate(today.subtract(6, 'day').startOf('day').toDate());
+      setToDate(today.toDate());
+      return;
+    }
+
+    if (preset === 'last30') {
+      setFromDate(today.subtract(29, 'day').startOf('day').toDate());
+      setToDate(today.toDate());
+      return;
+    }
+
+    if (preset === 'thisMonth') {
+      setFromDate(today.startOf('month').toDate());
+      setToDate(today.toDate());
+      return;
+    }
+  };
+
+  const openDatePicker = (target: DateTarget) => {
+    setActiveDateTarget(target);
+    setIsDatePickerVisible(true);
+    setDatePreset('custom');
+  };
+
+  const handleDatePickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      if (Platform.OS === 'android') {
+        setIsDatePickerVisible(false);
+      }
+      return;
+    }
+
+    if (!selectedDate || !activeDateTarget) {
+      return;
+    }
+
+    setDateForTarget(activeDateTarget, selectedDate);
+    setDatePreset('custom');
+
+    if (Platform.OS === 'android') {
+      setIsDatePickerVisible(false);
+    }
+  };
+
+  const pickerDate = useMemo(() => {
+    if (activeDateTarget === 'from') {
+      return fromDate ?? MIN_FILTER_DATE.toDate();
+    }
+    if (activeDateTarget === 'to') {
+      return toDate ?? fromDate ?? dayjs().toDate();
+    }
+    return dayjs().toDate();
+  }, [activeDateTarget, fromDate, toDate]);
+
+  const handleSharedTripToggle = (row: HistoryRow) => {
+    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer' || row.entry.userId === currentUser.id) {
+      return;
+    }
+
+    Alert.alert('Shared Trip', 'Mark this odometer entry as shared trip?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: () => {
+          void (async () => {
+            try {
+              await markEntrySharedTrip(row.entry.id, {
+                userId: currentUser.id,
+                userName: currentUser.name,
+              });
+              void runSyncCycle();
+            } catch (error) {
+              Alert.alert('Could not update entry', error instanceof Error ? error.message : 'Unknown error');
+            }
+          })();
+        },
+      },
+    ]);
   };
 
   const animatedFilterStyle = {
     maxHeight: filterAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0, 420],
+      outputRange: [0, filterContentHeight || 420],
     }),
     opacity: filterAnim,
   };
@@ -176,7 +316,7 @@ export function HistoryScreen({ navigation }: Props) {
         <Pressable
           onPress={() => setIsFilterOpen((prev) => !prev)}
           style={[styles.filterToggleBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <MaterialIcons name={isFilterOpen ? 'filter-list-off' : 'filter-list'} size={19} color={colors.textPrimary} />
+          <MaterialIcons name={isFilterOpen ? 'tune' : 'filter-list'} size={18} color={colors.textPrimary} />
           {activeFilterPills.length > 0 ? (
             <View style={[styles.filterCountBadge, { backgroundColor: colors.textPrimary }]}>
               <Text style={[styles.filterCountText, { color: colors.invertedText }]}>{activeFilterPills.length}</Text>
@@ -185,22 +325,22 @@ export function HistoryScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <View style={[styles.filterShell, { borderColor: colors.border, backgroundColor: colors.card }]}> 
+      <View style={[styles.filterShell, { borderColor: colors.border, backgroundColor: colors.card }]}>
         <View style={styles.filterHeadRow}>
-          <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Filters</Text>
-          <View style={styles.filterHeadActions}>
-            <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries</Text>
-            <Pressable onPress={resetFilters}>
-              <Text style={[styles.clearText, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>Clear</Text>
-            </Pressable>
+          <View>
+            <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
+            <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
           </View>
+          <Pressable onPress={resetFilters} style={[styles.clearBtn, { borderColor: colors.border }]}>
+            <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
+          </Pressable>
         </View>
 
         {activeFilterPills.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
             {activeFilterPills.map((pill) => (
-              <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
-                <Text style={[styles.activePillText, { color: colors.textPrimary }]}>{pill.toUpperCase()}</Text>
+              <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <Text style={[styles.activePillText, { color: colors.textPrimary }]}>{pill}</Text>
               </View>
             ))}
           </ScrollView>
@@ -209,12 +349,19 @@ export function HistoryScreen({ navigation }: Props) {
         )}
 
         <Animated.View style={[styles.filterContentWrap, animatedFilterStyle]}>
-          <View style={styles.filterInner}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry Type</Text>
+          <View
+            style={styles.filterInner}
+            onLayout={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+              if (measuredHeight !== filterContentHeight) {
+                setFilterContentHeight(measuredHeight);
+              }
+            }}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {(['all', 'odometer', 'fuel', 'spec_update'] as CategoryFilter[]).map((filter) => {
                 const active = filter === category;
-                const label = filter === 'all' ? 'ALL' : filter === 'spec_update' ? 'SPECS UPDATE' : filter.toUpperCase();
+                const label = filter === 'all' ? 'All' : filter === 'spec_update' ? 'Specs Update' : filter.toUpperCase();
 
                 return (
                   <Pressable
@@ -223,11 +370,12 @@ export function HistoryScreen({ navigation }: Props) {
                     style={[
                       styles.filterChip,
                       {
-                        borderColor: colors.border,
-                        backgroundColor: active ? colors.backgroundSecondary : 'transparent',
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
                       },
                     ]}>
-                    <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>{label}</Text>
+                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{label}</Text>
                   </Pressable>
                 );
               })}
@@ -244,12 +392,13 @@ export function HistoryScreen({ navigation }: Props) {
                     style={[
                       styles.filterChip,
                       {
-                        borderColor: colors.border,
-                        backgroundColor: active ? colors.backgroundSecondary : 'transparent',
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
                       },
                     ]}>
-                    <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>
-                      {user.name.toUpperCase()}
+                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                      {user.name}
                     </Text>
                   </Pressable>
                 );
@@ -260,7 +409,7 @@ export function HistoryScreen({ navigation }: Props) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {monthOptions.map((month) => {
                 const active = month === selectedMonth;
-                const label = month === 'all' ? 'ALL MONTHS' : dayjs(`${month}-01`).format('MMM YYYY').toUpperCase();
+                const label = month === 'all' ? 'All months' : dayjs(`${month}-01`).format('MMM YYYY');
 
                 return (
                   <Pressable
@@ -269,35 +418,96 @@ export function HistoryScreen({ navigation }: Props) {
                     style={[
                       styles.filterChip,
                       {
-                        borderColor: colors.border,
-                        backgroundColor: active ? colors.backgroundSecondary : 'transparent',
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
                       },
                     ]}>
-                    <Text style={[styles.filterChipText, { color: colors.textPrimary }]}>{label}</Text>
+                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{label}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
 
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Date Range</Text>
-            <View style={styles.dateInputsRow}>
-              <View style={styles.dateInputCell}>
-                <AppTextField
-                  label="From"
-                  value={fromDate}
-                  onChangeText={setFromDate}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
-              <View style={styles.dateInputCell}>
-                <AppTextField
-                  label="To"
-                  value={toDate}
-                  onChangeText={setToDate}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Date range</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {(
+                [
+                  { id: 'all', label: 'All time' },
+                  { id: 'last7', label: 'Last 7 days' },
+                  { id: 'last30', label: 'Last 30 days' },
+                  { id: 'thisMonth', label: 'This month' },
+                ] as { id: DatePreset; label: string }[]
+              ).map((option) => {
+                const active = datePreset === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => applyDatePreset(option.id)}
+                    style={[
+                      styles.filterChip,
+                      {
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                      },
+                    ]}>
+                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.datePickerRow}>
+              {(['from', 'to'] as DateTarget[]).map((target) => {
+                const selected = target === 'from' ? fromDate : toDate;
+                return (
+                  <Pressable
+                    key={target}
+                    onPress={() => openDatePicker(target)}
+                    style={[styles.datePickCard, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                    <Text style={[styles.datePickLabel, { color: colors.textSecondary }]}>
+                      {target === 'from' ? 'From' : 'To'}
+                    </Text>
+                    <View style={styles.datePickValueRow}>
+                      <MaterialIcons name="calendar-month" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.datePickValue, { color: colors.textPrimary }]}>
+                        {selected ? dayjs(selected).format('DD MMM YYYY') : 'Select date'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
+
+            {isDatePickerVisible && activeDateTarget ? (
+              <View style={[styles.nativePickerWrap, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <View style={styles.nativePickerTop}>
+                  <Text style={[styles.nativePickerTitle, { color: colors.textPrimary }]}>
+                    Choose {activeDateTarget === 'from' ? 'From Date' : 'To Date'}
+                  </Text>
+                  {Platform.OS === 'ios' ? (
+                    <Pressable onPress={() => setIsDatePickerVisible(false)}>
+                      <Text style={[styles.nativePickerDone, { color: colors.textPrimary }]}>Done</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <DateTimePicker
+                  mode="date"
+                  value={pickerDate}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={activeDateTarget === 'from' ? MIN_FILTER_DATE.toDate() : fromDate ?? MIN_FILTER_DATE.toDate()}
+                  maximumDate={activeDateTarget === 'from' && toDate ? toDate : undefined}
+                  onChange={handleDatePickerChange}
+                  themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
+                />
+                <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
+                  Range starts from {MIN_FILTER_DATE.format('DD MMM YYYY')}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -308,7 +518,13 @@ export function HistoryScreen({ navigation }: Props) {
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={[styles.empty, { color: colors.textSecondary }]}>No trips recorded yet.</Text>}
         renderItem={({ item, index }) => (
-          <HistoryItemCard entry={item.entry} distanceKm={item.distanceKm} index={index} />
+          <HistoryItemCard
+            entry={item.entry}
+            distanceKm={item.distanceKm}
+            index={index}
+            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer' && item.entry.userId !== currentUser.id)}
+            onPressSharedTripToggle={() => handleSharedTripToggle(item)}
+          />
         )}
       />
     </ScreenContainer>
@@ -320,34 +536,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   iconBtn: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
   },
   filterToggleBtn: {
-    width: 30,
-    height: 30,
+    width: 34,
+    height: 34,
     borderWidth: 1,
-    borderRadius: 2,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterCountBadge: {
     position: 'absolute',
-    top: -7,
-    right: -7,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    top: -8,
+    right: -8,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 8.5,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
@@ -358,10 +574,10 @@ const styles = StyleSheet.create({
   },
   filterShell: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
-    marginBottom: 10,
-    gap: 8,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    gap: 10,
   },
   filterHeadRow: {
     flexDirection: 'row',
@@ -370,21 +586,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterHeadTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  filterHeadActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    letterSpacing: 0.4,
   },
   filterHeadMeta: {
     fontSize: 12,
+    marginTop: 2,
   },
-  clearText: {
+  clearBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  clearBtnText: {
     fontSize: 12,
-    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   activePillsRow: {
     gap: 7,
@@ -392,14 +610,14 @@ const styles = StyleSheet.create({
   },
   activePill: {
     borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   activePillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.45,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   noFilterText: {
     fontSize: 12,
@@ -408,13 +626,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   filterInner: {
-    gap: 9,
-    paddingTop: 4,
+    gap: 10,
+    paddingTop: 2,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.6,
+    letterSpacing: 0.7,
     textTransform: 'uppercase',
   },
   filterRow: {
@@ -423,21 +641,69 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   filterChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  dateInputsRow: {
+  datePickerRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
-  dateInputCell: {
+  datePickCard: {
     flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 5,
+  },
+  datePickLabel: {
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  datePickValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  datePickValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  nativePickerWrap: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  nativePickerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nativePickerTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  nativePickerDone: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  nativePickerHint: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+    marginTop: 2,
   },
   list: {
     gap: 10,

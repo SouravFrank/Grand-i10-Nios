@@ -53,6 +53,11 @@ type AddEntryInput = {
   createdAt?: number;
 };
 
+type SharedTripActor = {
+  userId: string;
+  userName: string;
+};
+
 type AppState = PersistedAppData & {
   authStatus: AuthStatus;
   syncStatus: SyncStatus;
@@ -76,6 +81,7 @@ type AppState = PersistedAppData & {
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
   updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  markEntrySharedTrip: (entryId: string, actor: SharedTripActor) => Promise<void>;
   ensureDemoData: () => Promise<void>;
 };
 
@@ -390,6 +396,44 @@ export const useAppStore = create<AppState>()(
             ...state.carSpec,
             ...updates,
           },
+        }));
+      },
+
+      markEntrySharedTrip: async (entryId, actor) => {
+        const { entries, pendingQueue } = get();
+        const targetEntry = entries.find((entry) => entry.id === entryId);
+        if (!targetEntry || targetEntry.type !== 'odometer' || targetEntry.userId === actor.userId || targetEntry.sharedTrip) {
+          return;
+        }
+
+        const secret = await ensureIntegritySecret();
+        const updatedEntry: Entry = {
+          ...targetEntry,
+          sharedTrip: true,
+          sharedTripMarkedById: actor.userId,
+          sharedTripMarkedByName: actor.userName,
+          synced: false,
+        };
+        const integrityHash = await buildEntryIntegrityHash(updatedEntry, secret);
+        const nextQueue = normalizeQueue([
+          ...pendingQueue,
+          {
+            entryId,
+            retries: 0,
+          },
+        ]);
+
+        set((state) => ({
+          entries: state.entries.map((entry) =>
+            entry.id === entryId
+              ? {
+                  ...updatedEntry,
+                  integrityHash,
+                }
+              : entry,
+          ),
+          pendingQueue: nextQueue,
+          syncStatus: 'failed',
         }));
       },
 

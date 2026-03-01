@@ -9,6 +9,9 @@ export type Entry = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  sharedTrip?: boolean;
+  sharedTripMarkedById?: string;
+  sharedTripMarkedByName?: string;
   cost?: number;
   specUpdatedFields?: string[];
   createdAt: number;

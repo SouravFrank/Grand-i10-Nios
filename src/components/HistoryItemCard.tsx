@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
@@ -9,6 +10,8 @@ type HistoryItemCardProps = {
   entry: EntryRecord;
   distanceKm: number | null;
   index: number;
+  showSharedTripToggle?: boolean;
+  onPressSharedTripToggle?: () => void;
 };
 
 function prettyFieldName(value: string): string {
@@ -19,7 +22,7 @@ function prettyFieldName(value: string): string {
     .trim();
 }
 
-export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardProps) {
+export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle, onPressSharedTripToggle }: HistoryItemCardProps) {
   const { colors } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
@@ -55,6 +58,11 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
           <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName.toUpperCase()}</Text>
           <Text style={[styles.separator, { color: colors.textSecondary }]}>|</Text>
           <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
+          {entry.sharedTrip ? (
+            <View style={[styles.sharedTripTag, { borderColor: colors.textPrimary, backgroundColor: colors.backgroundSecondary }]}>
+              <Text style={[styles.sharedTripTagText, { color: colors.textPrimary }]}>SHARED TRIP</Text>
+            </View>
+          ) : null}
         </View>
 
         <Text style={[styles.odometer, { color: colors.textPrimary }]}>
@@ -78,6 +86,27 @@ export function HistoryItemCard({ entry, distanceKm, index }: HistoryItemCardPro
 
         {typeof entry.cost === 'number' ? (
           <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>COST: ₹{entry.cost}</Text>
+        ) : null}
+
+        {entry.sharedTrip && entry.sharedTripMarkedByName ? (
+          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
+            MARKED SHARED BY: {entry.sharedTripMarkedByName.toUpperCase()}
+          </Text>
+        ) : null}
+
+        {showSharedTripToggle ? (
+          <Pressable
+            onPress={entry.sharedTrip ? undefined : onPressSharedTripToggle}
+            style={[styles.sharedTripToggleRow, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialIcons
+              name={entry.sharedTrip ? 'check-box' : 'check-box-outline-blank'}
+              size={20}
+              color={entry.sharedTrip ? colors.textPrimary : colors.textSecondary}
+            />
+            <Text style={[styles.sharedTripToggleText, { color: colors.textPrimary }]}>
+              {entry.sharedTrip ? 'Shared Trip Enabled' : 'Mark as Shared Trip'}
+            </Text>
+          </Pressable>
         ) : null}
 
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
@@ -117,6 +146,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.6,
   },
+  sharedTripTag: {
+    marginLeft: 'auto',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sharedTripTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   odometer: {
     fontSize: 26,
     fontWeight: '800',
@@ -125,6 +166,20 @@ const styles = StyleSheet.create({
   fuelMeta: {
     fontSize: 12,
     letterSpacing: 0.4,
+  },
+  sharedTripToggleRow: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sharedTripToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   bottomRow: {
     borderTopWidth: 1,
