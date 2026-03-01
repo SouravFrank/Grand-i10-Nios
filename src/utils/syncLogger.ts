@@ -10,7 +10,12 @@ function write(level: 'log' | 'warn' | 'error', message: string, payload?: SyncL
 
   const line = `${SYNC_LOG_PREFIX} ${new Date().toISOString()} ${message}`;
   if (payload) {
-    console[level](line, payload);
+    try {
+      const payloadString = JSON.stringify(payload);
+      console[level](`${line} ${payloadString}`);
+    } catch {
+      console[level](line, payload);
+    }
     return;
   }
 

@@ -7,6 +7,11 @@ import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger
 const ENTRIES_COLLECTION = 'carEntries';
 const CAR_SPEC_PATH = 'carMeta/carSpec';
 
+function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const filteredEntries = Object.entries(obj).filter(([, value]) => value !== undefined);
+  return Object.fromEntries(filteredEntries) as T;
+}
+
 export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
   const db = getFirebaseDb();
   if (!db) {
@@ -31,10 +36,11 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
     specUpdatedFields: entry.specUpdatedFields,
     createdAt: entry.createdAt,
   };
+  const sanitizedPayload = stripUndefined(payload);
 
   try {
     syncLog('realtime_push_entry_start', { entryId: entry.id, createdAt: entry.createdAt });
-    await set(ref(db, `${ENTRIES_COLLECTION}/${entry.id}`), payload);
+    await set(ref(db, `${ENTRIES_COLLECTION}/${entry.id}`), sanitizedPayload);
     syncLog('realtime_push_entry_success', { entryId: entry.id });
   } catch (error) {
     syncError('realtime_push_entry_failed', {

@@ -17,20 +17,29 @@ function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
   };
 }
 
-export async function runSyncCycle(): Promise<void> {
-  const state = useAppStore.getState();
+let inFlightSyncCycle: Promise<void> | null = null;
+
+async function runSyncCycleInternal(): Promise<void> {
+  const initialState = useAppStore.getState();
   syncLog('sync_cycle_start', {
-    isOnline: state.isOnline,
-    isSyncing: state.isSyncing,
-    queueLength: state.pendingQueue.length,
-    localEntries: state.entries.length,
-    syncStatus: state.syncStatus,
+    isOnline: initialState.isOnline,
+    isSyncing: initialState.isSyncing,
+    queueLength: initialState.pendingQueue.length,
+    localEntries: initialState.entries.length,
+    syncStatus: initialState.syncStatus,
   });
 
-  if (!state.isOnline || state.isSyncing) {
-    syncWarn('sync_cycle_skipped', { reason: !state.isOnline ? 'offline' : 'already_syncing' });
+  if (!initialState.isOnline) {
+    syncWarn('sync_cycle_skipped', { reason: 'offline' });
     return;
   }
+
+  if (initialState.isSyncing) {
+    syncWarn('sync_cycle_skipped', { reason: 'already_syncing' });
+    return;
+  }
+
+  initialState.setSyncing();
 
   if (!getFirebaseDb()) {
     syncWarn('sync_cycle_failed_no_firebase_db');
@@ -45,12 +54,12 @@ export async function runSyncCycle(): Promise<void> {
     return;
   }
 
-  const queueSnapshot = [...state.pendingQueue];
+  const cycleState = useAppStore.getState();
+  const queueSnapshot = [...cycleState.pendingQueue];
   syncLog('sync_cycle_queue_snapshot', { queueLength: queueSnapshot.length });
-  state.setSyncing();
 
   try {
-    const entriesMap = new Map(state.entries.map((entry) => [entry.id, entry]));
+    const entriesMap = new Map(cycleState.entries.map((entry) => [entry.id, entry]));
     const syncedIds: string[] = [];
     const failedQueue: PendingQueueItem[] = [];
 
@@ -61,6 +70,7 @@ export async function runSyncCycle(): Promise<void> {
           entryId: queueItem.entryId,
           retries: queueItem.retries,
         });
+        failedQueue.push(buildFailedQueueItem(queueItem));
         continue;
       }
 
@@ -120,4 +130,17 @@ export async function runSyncCycle(): Promise<void> {
     const message = error instanceof Error ? error.message : 'Unknown sync error';
     useAppStore.getState().setSyncOutcome('failed', message);
   }
+}
+
+export function runSyncCycle(): Promise<void> {
+  if (inFlightSyncCycle) {
+    syncWarn('sync_cycle_join_existing_inflight');
+    return inFlightSyncCycle;
+  }
+
+  inFlightSyncCycle = runSyncCycleInternal().finally(() => {
+    inFlightSyncCycle = null;
+  });
+
+  return inFlightSyncCycle;
 }
