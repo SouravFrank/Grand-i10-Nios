@@ -7,11 +7,13 @@ type SyncStatusIndicatorProps = {
   status: SyncStatus;
   queuedCount: number;
   isOnline: boolean;
+  lastSyncError?: string | null;
   onRetry?: () => void;
 };
 
-export function SyncStatusIndicator({ status, queuedCount, isOnline, onRetry }: SyncStatusIndicatorProps) {
+export function SyncStatusIndicator({ status, queuedCount, isOnline, lastSyncError, onRetry }: SyncStatusIndicatorProps) {
   const { colors } = useAppTheme();
+  const syncNotConfigured = status === 'failed' && (lastSyncError ?? '').toLowerCase().includes('not configured');
 
   const label = (() => {
     if (!isOnline && queuedCount > 0) {
@@ -23,6 +25,9 @@ export function SyncStatusIndicator({ status, queuedCount, isOnline, onRetry }: 
     }
 
     if (status === 'failed') {
+      if (syncNotConfigured) {
+        return 'Sync not configured';
+      }
       return 'Sync Failed';
     }
 
@@ -46,7 +51,7 @@ export function SyncStatusIndicator({ status, queuedCount, isOnline, onRetry }: 
     <View style={styles.wrapper}>
       <View style={[styles.dot, { backgroundColor: dotColor }]} />
       <Text style={[styles.text, { color: dotColor }]}>{label}</Text>
-      {status === 'failed' && onRetry ? (
+      {status === 'failed' && onRetry && !syncNotConfigured ? (
         <Pressable onPress={onRetry}>
           <Text style={[styles.retry, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>Retry Sync</Text>
         </Pressable>

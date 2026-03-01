@@ -1,3 +1,4 @@
+import { getFirebaseDb } from '@/config/firebase';
 import type { PendingQueueItem } from '@/types/models';
 import { pullEntriesFromFirestore, pushEntryToFirestore } from '@/services/firestore/entriesRepository';
 import { useAppStore } from '@/store/useAppStore';
@@ -13,6 +14,11 @@ function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
 export async function runSyncCycle(): Promise<void> {
   const state = useAppStore.getState();
   if (!state.isOnline || state.isSyncing) {
+    return;
+  }
+
+  if (!getFirebaseDb()) {
+    useAppStore.getState().setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
     return;
   }
 

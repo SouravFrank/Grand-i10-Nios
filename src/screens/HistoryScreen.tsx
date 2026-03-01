@@ -1,7 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -75,17 +75,6 @@ export function HistoryScreen({ navigation }: Props) {
   const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterContentHeight, setFilterContentHeight] = useState(0);
-
-  const filterAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(filterAnim, {
-      toValue: isFilterOpen ? 1 : 0,
-      duration: 220,
-      useNativeDriver: false,
-    }).start();
-  }, [filterAnim, isFilterOpen]);
 
   const userOptions = useMemo(() => {
     const userMap = new Map<string, string>();
@@ -314,14 +303,6 @@ export function HistoryScreen({ navigation }: Props) {
     ]);
   };
 
-  const animatedFilterStyle = {
-    maxHeight: filterAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, filterContentHeight || 420],
-    }),
-    opacity: filterAnim,
-  };
-
   return (
     <ScreenContainer>
       <View style={styles.headerRow}>
@@ -343,38 +324,31 @@ export function HistoryScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <View style={[styles.filterShell, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        <View style={styles.filterHeadRow}>
-          <View>
-            <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
-            <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
+      {isFilterOpen ? (
+        <View style={[styles.filterShell, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <View style={styles.filterHeadRow}>
+            <View>
+              <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
+              <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
+            </View>
+            <Pressable onPress={resetFilters} style={[styles.clearBtn, { borderColor: colors.border }]}>
+              <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
+            </Pressable>
           </View>
-          <Pressable onPress={resetFilters} style={[styles.clearBtn, { borderColor: colors.border }]}>
-            <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
-          </Pressable>
-        </View>
 
-        {activeFilterPills.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
-            {activeFilterPills.map((pill) => (
-              <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <Text style={[styles.activePillText, { color: colors.textPrimary }]}>{pill}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={[styles.noFilterText, { color: colors.textSecondary }]}>No active filters</Text>
-        )}
+          {activeFilterPills.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
+              {activeFilterPills.map((pill) => (
+                <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                  <Text style={[styles.activePillText, { color: colors.textPrimary }]}>{pill}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={[styles.noFilterText, { color: colors.textSecondary }]}>No active filters</Text>
+          )}
 
-        <Animated.View style={[styles.filterContentWrap, animatedFilterStyle]}>
-          <View
-            style={styles.filterInner}
-            onLayout={(event) => {
-              const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
-              if (measuredHeight !== filterContentHeight) {
-                setFilterContentHeight(measuredHeight);
-              }
-            }}>
+          <View style={styles.filterInner}>
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {(['all', 'odometer', 'fuel', 'expense', 'spec_update'] as CategoryFilter[]).map((filter) => {
@@ -540,8 +514,8 @@ export function HistoryScreen({ navigation }: Props) {
               </View>
             ) : null}
           </View>
-        </Animated.View>
-      </View>
+        </View>
+      ) : null}
 
       <FlatList
         data={rows}
@@ -653,12 +627,8 @@ const styles = StyleSheet.create({
   noFilterText: {
     fontSize: 12,
   },
-  filterContentWrap: {
-    overflow: 'hidden',
-  },
   filterInner: {
     gap: 10,
-    paddingTop: 2,
   },
   sectionLabel: {
     fontSize: 11,

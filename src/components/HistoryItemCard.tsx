@@ -143,7 +143,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
 
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
           <Text style={[styles.date, { color: colors.textSecondary }]}>
-            {dayjs(entry.createdAt).format('DD MMM YYYY, hh:mm A')}
+            {dayjs(entry.createdAt).format('DD MMM YYYY')}
           </Text>
           {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
             <Text style={[styles.distance, { color: colors.textSecondary }]}>DISTANCE TRAVELLED: {distanceKm} KM</Text>

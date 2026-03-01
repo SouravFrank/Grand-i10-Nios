@@ -2,11 +2,13 @@ import { useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
+import { getFirebaseDb } from '@/config/firebase';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 
 export function useSyncBootstrap() {
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
+  const setSyncOutcome = useAppStore((state) => state.setSyncOutcome);
   const isHydrated = useAppStore((state) => state.isHydrated);
   const runIntegrityCheck = useAppStore((state) => state.runIntegrityCheck);
   const ensureDemoData = useAppStore((state) => state.ensureDemoData);
@@ -23,6 +25,10 @@ export function useSyncBootstrap() {
       await runIntegrityCheck();
       await ensureDemoData();
       await bootstrapAuth();
+
+      if (!getFirebaseDb()) {
+        setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
+      }
 
       const networkState = await NetInfo.fetch();
       setNetworkStatus(Boolean(networkState.isConnected && networkState.isInternetReachable !== false));
@@ -48,5 +54,5 @@ export function useSyncBootstrap() {
       isMounted = false;
       unsubscribe();
     };
-  }, [bootstrapAuth, ensureDemoData, isHydrated, runIntegrityCheck, setNetworkStatus]);
+  }, [bootstrapAuth, ensureDemoData, isHydrated, runIntegrityCheck, setNetworkStatus, setSyncOutcome]);
 }

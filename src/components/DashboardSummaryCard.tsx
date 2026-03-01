@@ -8,6 +8,7 @@ import { dayjs } from '@/utils/day';
 type DashboardSummaryCardProps = {
   latestEntry?: EntryRecord;
   syncStatus: SyncStatus;
+  lastSyncError?: string | null;
   queuedCount: number;
   isOnline: boolean;
   onRetrySync: () => void;
@@ -16,6 +17,7 @@ type DashboardSummaryCardProps = {
 export function DashboardSummaryCard({
   latestEntry,
   syncStatus,
+  lastSyncError,
   queuedCount,
   isOnline,
   onRetrySync,
@@ -29,7 +31,7 @@ export function DashboardSummaryCard({
         {latestEntry ? `${latestEntry.odometer} km` : '-- km'}
       </Text>
       <Text style={[styles.meta, { color: colors.textSecondary }]}>
-        Date recorded: {latestEntry ? dayjs(latestEntry.createdAt).format('DD MMM YYYY, hh:mm A') : 'No records yet'}
+        Date recorded: {latestEntry ? dayjs(latestEntry.createdAt).format('DD MMM YYYY') : 'No records yet'}
       </Text>
       <Text style={[styles.meta, { color: colors.textSecondary }]}> 
         Last entry by:{' '}
@@ -41,6 +43,7 @@ export function DashboardSummaryCard({
         status={syncStatus}
         queuedCount={queuedCount}
         isOnline={isOnline}
+        lastSyncError={lastSyncError}
         onRetry={syncStatus === 'failed' ? onRetrySync : undefined}
       />
     </View>

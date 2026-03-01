@@ -26,6 +26,7 @@ export function HomeScreen({ navigation }: Props) {
   const lastOdometerValue = useAppStore((state) => state.lastOdometerValue);
   const pendingQueue = useAppStore((state) => state.pendingQueue);
   const syncStatus = useAppStore((state) => state.syncStatus);
+  const lastSyncError = useAppStore((state) => state.lastSyncError);
   const isOnline = useAppStore((state) => state.isOnline);
   const securityIssue = useAppStore((state) => state.securityIssue);
   const [carSheetVisible, setCarSheetVisible] = useState(false);
@@ -91,6 +92,7 @@ export function HomeScreen({ navigation }: Props) {
         <DashboardSummaryCard
           latestEntry={latestEntry}
           syncStatus={syncStatus}
+          lastSyncError={lastSyncError}
           queuedCount={pendingQueue.length}
           isOnline={isOnline}
           onRetrySync={() => void runSyncCycle()}

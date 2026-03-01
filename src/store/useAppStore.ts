@@ -29,7 +29,6 @@ import type {
   RemoteEntryDocument,
   SyncStatus,
 } from '@/types/models';
-import { dayjs } from '@/utils/day';
 import { createId } from '@/utils/id';
 
 type PersistedAppData = {
@@ -46,7 +45,7 @@ type AddEntryInput = {
   type: Entry['type'];
   userId: string;
   userName: string;
-  odometer: number;
+  odometer?: number;
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
@@ -135,6 +134,8 @@ function normalizeQueue(queue: PendingQueueItem[]): PendingQueueItem[] {
     return true;
   });
 }
+
+const SEEDED_ENTRY_PREFIXES = ['entry_demo_', 'entry_actual_'] as const;
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -240,10 +241,17 @@ export const useAppStore = create<AppState>()(
 
       addEntryOfflineFirst: async (payload) => {
         const { lastOdometerValue, pendingQueue } = get();
-        if (payload.odometer < lastOdometerValue) {
+
+        if (payload.type !== 'expense' && typeof payload.odometer !== 'number') {
+          throw new Error('Odometer is required.');
+        }
+
+        const entryOdometer = payload.type === 'expense' ? (payload.odometer ?? lastOdometerValue) : (payload.odometer as number);
+
+        if (entryOdometer < lastOdometerValue) {
           throw new Error('Odometer rollback detected.');
         }
-        if (payload.odometer - lastOdometerValue > 500) {
+        if (entryOdometer - lastOdometerValue > 500) {
           throw new Error('Single odometer entry cannot exceed 500 km from the previous reading.');
         }
 
@@ -253,7 +261,7 @@ export const useAppStore = create<AppState>()(
           type: payload.type,
           userId: payload.userId,
           userName: payload.userName,
-          odometer: payload.odometer,
+          odometer: entryOdometer,
           fuelAmount: payload.fuelAmount,
           fuelLiters: payload.fuelLiters,
           fullTank: payload.fullTank,
@@ -444,84 +452,28 @@ export const useAppStore = create<AppState>()(
       },
 
       ensureDemoData: async () => {
-        const state = get();
-        const secret = await ensureIntegritySecret();
-        const baseEntries: Entry[] = [
-          {
-            id: 'entry_actual_20260227_fuel_ayan',
-            type: 'fuel',
-            userId: 'ayan',
-            userName: 'Ayan',
-            odometer: 29841,
-            fuelAmount: 2000,
-            fuelLiters: 18.98,
-            fullTank: false,
-            cost: 2000,
-            createdAt: dayjs('2026-02-27T20:15:00').valueOf(),
-            synced: true,
-          },
-          {
-            id: 'entry_actual_20260228_expense_cover_sourav',
-            type: 'expense',
-            userId: 'sourav',
-            userName: 'Sourav',
-            odometer: 29841,
-            expenseCategory: 'shield_safety',
-            expenseTitle: 'Car Cover',
-            cost: 950,
-            createdAt: dayjs('2026-02-28T11:10:00').valueOf(),
-            synced: true,
-          },
-          {
-            id: 'entry_actual_20260228_expense_rat_sourav',
-            type: 'expense',
-            userId: 'sourav',
-            userName: 'Sourav',
-            odometer: 29841,
-            expenseCategory: 'shield_safety',
-            expenseTitle: 'Rat Protector',
-            cost: 449,
-            createdAt: dayjs('2026-02-28T11:18:00').valueOf(),
-            synced: true,
-          },
-          {
-            id: 'entry_actual_20260301_fuel_ayan',
-            type: 'fuel',
-            userId: 'ayan',
-            userName: 'Ayan',
-            odometer: 29853,
-            fuelAmount: 211,
-            fuelLiters: 2,
-            fullTank: false,
-            cost: 211,
-            createdAt: dayjs('2026-03-01T09:05:00').valueOf(),
-            synced: true,
-          },
-        ];
+        set((state) => {
+          const filteredEntries = state.entries.filter(
+            (entry) => !SEEDED_ENTRY_PREFIXES.some((prefix) => entry.id.startsWith(prefix)),
+          );
 
-        const existingIds = new Set(state.entries.map((entry) => entry.id));
-        const entriesToAdd = baseEntries.filter((entry) => !existingIds.has(entry.id));
-        if (entriesToAdd.length === 0) {
-          return;
-        }
+          if (filteredEntries.length === state.entries.length) {
+            return {};
+          }
 
-        const hashedEntries: EntryRecord[] = [];
-        for (const entry of entriesToAdd) {
-          const integrityHash = await buildEntryIntegrityHash(entry, secret);
-          hashedEntries.push({
-            ...entry,
-            integrityHash,
-          });
-        }
+          const validIds = new Set(filteredEntries.map((entry) => entry.id));
+          const filteredQueue = state.pendingQueue.filter((item) => validIds.has(item.entryId));
+          const recalculatedLastOdometer = filteredEntries.reduce(
+            (maxValue, entry) => Math.max(maxValue, entry.odometer),
+            0,
+          );
 
-        set({
-          entries: [...state.entries, ...hashedEntries].sort((a, b) => b.createdAt - a.createdAt),
-          pendingQueue: state.pendingQueue,
-          lastOdometerValue: Math.max(
-            state.lastOdometerValue,
-            ...hashedEntries.map((entry) => entry.odometer),
-          ),
-          syncStatus: 'synced',
+          return {
+            entries: filteredEntries.sort((a, b) => b.createdAt - a.createdAt),
+            pendingQueue: filteredQueue,
+            lastOdometerValue: recalculatedLastOdometer,
+            syncStatus: filteredQueue.length > 0 ? 'failed' : state.syncStatus,
+          };
         });
       },
     }),
