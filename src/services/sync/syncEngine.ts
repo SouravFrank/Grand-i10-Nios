@@ -1,6 +1,11 @@
 import { ensureAnonymousFirebaseAuth, getFirebaseDb } from '@/config/firebase';
 import type { PendingQueueItem } from '@/types/models';
-import { pullEntriesFromRealtimeDb, pushEntryToRealtimeDb } from '@/services/realtime/entriesRepository';
+import {
+  pullCarSpecFromRealtimeDb,
+  pullEntriesFromRealtimeDb,
+  pushCarSpecToRealtimeDb,
+  pushEntryToRealtimeDb,
+} from '@/services/realtime/entriesRepository';
 import { useAppStore } from '@/store/useAppStore';
 
 function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
@@ -56,9 +61,18 @@ export async function runSyncCycle(): Promise<void> {
 
     useAppStore.getState().updatePendingQueue(failedQueue);
 
-    const latestState = useAppStore.getState();
-    const remoteEntries = await pullEntriesFromRealtimeDb(latestState.lastSyncTime ?? undefined);
+    const remoteEntries = await pullEntriesFromRealtimeDb();
     await useAppStore.getState().mergeRemoteEntries(remoteEntries);
+
+    const currentState = useAppStore.getState();
+    const remoteCarSpec = await pullCarSpecFromRealtimeDb();
+
+    if (remoteCarSpec && !currentState.carSpecDirty) {
+      useAppStore.getState().replaceCarSpecFromRemote(remoteCarSpec);
+    } else {
+      await pushCarSpecToRealtimeDb(currentState.carSpec);
+      useAppStore.getState().markCarSpecSynced();
+    }
 
     const hasPending = useAppStore.getState().pendingQueue.length > 0;
     useAppStore.getState().setSyncOutcome(hasPending ? 'failed' : 'synced', hasPending ? 'Pending items queued.' : null);

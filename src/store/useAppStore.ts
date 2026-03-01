@@ -29,6 +29,7 @@ import type {
   RemoteEntryDocument,
   SyncStatus,
 } from '@/types/models';
+import { dayjs } from '@/utils/day';
 import { createId } from '@/utils/id';
 
 type PersistedAppData = {
@@ -39,6 +40,7 @@ type PersistedAppData = {
   currentUser: AppUser | null;
   biometricEnabled: boolean;
   carSpec: CarSpec;
+  carSpecDirty: boolean;
 };
 
 type AddEntryInput = {
@@ -84,6 +86,8 @@ type AppState = PersistedAppData & {
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
   updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  markCarSpecSynced: () => void;
+  replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
   markEntrySharedTrip: (entryId: string, actor: SharedTripActor) => Promise<void>;
   ensureDemoData: () => Promise<void>;
 };
@@ -95,6 +99,7 @@ const initialPersistedState: PersistedAppData = {
   lastOdometerValue: 0,
   currentUser: null,
   biometricEnabled: false,
+  carSpecDirty: false,
   carSpec: {
     registrationNumber: 'WB12BP0584',
     registrationYear: 'Aug-2023',
@@ -134,8 +139,6 @@ function normalizeQueue(queue: PendingQueueItem[]): PendingQueueItem[] {
     return true;
   });
 }
-
-const SEEDED_ENTRY_PREFIXES = ['entry_demo_', 'entry_actual_'] as const;
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -325,36 +328,34 @@ export const useAppStore = create<AppState>()(
         }
 
         const secret = await ensureIntegritySecret();
-        const existingIds = new Set(get().entries.map((entry) => entry.id));
-
-        const remoteToAdd: EntryRecord[] = [];
+        const remoteRecords: EntryRecord[] = [];
         for (const remoteEntry of remoteEntries) {
-          if (existingIds.has(remoteEntry.id)) {
-            continue;
-          }
-
           const baseEntry: Entry = {
             ...remoteEntry,
             synced: true,
           };
           const integrityHash = await buildEntryIntegrityHash(baseEntry, secret);
-          remoteToAdd.push({ ...baseEntry, integrityHash });
-        }
-
-        if (remoteToAdd.length === 0) {
-          return;
+          remoteRecords.push({ ...baseEntry, integrityHash });
         }
 
         set((state) => {
-          const allEntries = [...state.entries, ...remoteToAdd].sort((a, b) => b.createdAt - a.createdAt);
+          const byId = new Map(state.entries.map((entry) => [entry.id, entry]));
+          for (const remoteEntry of remoteRecords) {
+            byId.set(remoteEntry.id, remoteEntry);
+          }
+
+          const allEntries = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
           const lastOdometerValue = allEntries.reduce(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
             state.lastOdometerValue,
           );
+          const unsyncedIds = new Set(allEntries.filter((entry) => !entry.synced).map((entry) => entry.id));
+          const filteredQueue = state.pendingQueue.filter((item) => unsyncedIds.has(item.entryId));
 
           return {
             entries: allEntries,
             lastOdometerValue,
+            pendingQueue: filteredQueue,
           };
         });
       },
@@ -410,7 +411,19 @@ export const useAppStore = create<AppState>()(
             ...state.carSpec,
             ...updates,
           },
+          carSpecDirty: true,
         }));
+      },
+
+      markCarSpecSynced: () => {
+        set({ carSpecDirty: false });
+      },
+
+      replaceCarSpecFromRemote: (carSpec) => {
+        set({
+          carSpec,
+          carSpecDirty: false,
+        });
       },
 
       markEntrySharedTrip: async (entryId, actor) => {
@@ -452,28 +465,87 @@ export const useAppStore = create<AppState>()(
       },
 
       ensureDemoData: async () => {
-        set((state) => {
-          const filteredEntries = state.entries.filter(
-            (entry) => !SEEDED_ENTRY_PREFIXES.some((prefix) => entry.id.startsWith(prefix)),
-          );
+        const state = get();
+        const secret = await ensureIntegritySecret();
+        const baseEntries: Entry[] = [
+          {
+            id: 'entry_actual_20260227_fuel_ayan',
+            type: 'fuel',
+            userId: 'ayan',
+            userName: 'Ayan',
+            odometer: 29841,
+            fuelAmount: 2000,
+            fuelLiters: 18.98,
+            fullTank: false,
+            cost: 2000,
+            createdAt: dayjs('2026-02-27T20:15:00').valueOf(),
+            synced: false,
+          },
+          {
+            id: 'entry_actual_20260228_expense_cover_sourav',
+            type: 'expense',
+            userId: 'sourav',
+            userName: 'Sourav',
+            odometer: 29841,
+            expenseCategory: 'shield_safety',
+            expenseTitle: 'Car Cover',
+            cost: 950,
+            createdAt: dayjs('2026-02-28T11:10:00').valueOf(),
+            synced: false,
+          },
+          {
+            id: 'entry_actual_20260228_expense_rat_sourav',
+            type: 'expense',
+            userId: 'sourav',
+            userName: 'Sourav',
+            odometer: 29841,
+            expenseCategory: 'shield_safety',
+            expenseTitle: 'Rat Protector',
+            cost: 449,
+            createdAt: dayjs('2026-02-28T11:18:00').valueOf(),
+            synced: false,
+          },
+          {
+            id: 'entry_actual_20260301_fuel_ayan',
+            type: 'fuel',
+            userId: 'ayan',
+            userName: 'Ayan',
+            odometer: 29853,
+            fuelAmount: 211,
+            fuelLiters: 2,
+            fullTank: false,
+            cost: 211,
+            createdAt: dayjs('2026-03-01T09:05:00').valueOf(),
+            synced: false,
+          },
+        ];
 
-          if (filteredEntries.length === state.entries.length) {
-            return {};
-          }
+        const existingIds = new Set(state.entries.map((entry) => entry.id));
+        const entriesToAdd = baseEntries.filter((entry) => !existingIds.has(entry.id));
+        if (entriesToAdd.length === 0) {
+          return;
+        }
 
-          const validIds = new Set(filteredEntries.map((entry) => entry.id));
-          const filteredQueue = state.pendingQueue.filter((item) => validIds.has(item.entryId));
-          const recalculatedLastOdometer = filteredEntries.reduce(
-            (maxValue, entry) => Math.max(maxValue, entry.odometer),
-            0,
-          );
+        const hashedEntries: EntryRecord[] = [];
+        for (const entry of entriesToAdd) {
+          const integrityHash = await buildEntryIntegrityHash(entry, secret);
+          hashedEntries.push({
+            ...entry,
+            integrityHash,
+          });
+        }
 
-          return {
-            entries: filteredEntries.sort((a, b) => b.createdAt - a.createdAt),
-            pendingQueue: filteredQueue,
-            lastOdometerValue: recalculatedLastOdometer,
-            syncStatus: filteredQueue.length > 0 ? 'failed' : state.syncStatus,
-          };
+        const seedQueue = entriesToAdd.map((entry) => ({ entryId: entry.id, retries: 0 }));
+        const nextQueue = normalizeQueue([...state.pendingQueue, ...seedQueue]);
+
+        set({
+          entries: [...state.entries, ...hashedEntries].sort((a, b) => b.createdAt - a.createdAt),
+          pendingQueue: nextQueue,
+          lastOdometerValue: Math.max(
+            state.lastOdometerValue,
+            ...hashedEntries.map((entry) => entry.odometer),
+          ),
+          syncStatus: 'failed',
         });
       },
     }),
@@ -488,6 +560,7 @@ export const useAppStore = create<AppState>()(
         currentUser: state.currentUser,
         biometricEnabled: state.biometricEnabled,
         carSpec: state.carSpec,
+        carSpecDirty: state.carSpecDirty,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
