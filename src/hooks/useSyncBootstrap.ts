@@ -5,6 +5,7 @@ import type { NetInfoState } from '@react-native-community/netinfo';
 import { ensureAnonymousFirebaseAuth, getFirebaseDb } from '@/config/firebase';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
+import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger';
 
 export function useSyncBootstrap() {
   const setNetworkStatus = useAppStore((state) => state.setNetworkStatus);
@@ -19,27 +20,48 @@ export function useSyncBootstrap() {
       return;
     }
 
+    syncLog('bootstrap_effect_start');
     let isMounted = true;
 
     const bootstrap = async () => {
-      await runIntegrityCheck();
-      await ensureDemoData();
-      await bootstrapAuth();
+      try {
+        syncLog('bootstrap_step_start', { step: 'runIntegrityCheck' });
+        await runIntegrityCheck();
+        syncLog('bootstrap_step_done', { step: 'runIntegrityCheck' });
 
-      const networkState = await NetInfo.fetch();
-      const online = Boolean(networkState.isConnected && networkState.isInternetReachable !== false);
-      setNetworkStatus(online);
+        syncLog('bootstrap_step_start', { step: 'ensureDemoData' });
+        await ensureDemoData();
+        syncLog('bootstrap_step_done', { step: 'ensureDemoData' });
 
-      if (!getFirebaseDb()) {
-        setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
-      } else if (online) {
-        const authState = await ensureAnonymousFirebaseAuth();
-        if (!authState.ok) {
-          setSyncOutcome('failed', `Firebase anonymous auth failed: ${authState.reason}`);
+        syncLog('bootstrap_step_start', { step: 'bootstrapAuth' });
+        await bootstrapAuth();
+        syncLog('bootstrap_step_done', { step: 'bootstrapAuth' });
+
+        const networkState = await NetInfo.fetch();
+        const online = Boolean(networkState.isConnected && networkState.isInternetReachable !== false);
+        syncLog('bootstrap_network_state', {
+          isConnected: networkState.isConnected ?? null,
+          isInternetReachable: networkState.isInternetReachable ?? null,
+          computedOnline: online,
+        });
+        setNetworkStatus(online);
+
+        if (!getFirebaseDb()) {
+          syncWarn('bootstrap_firebase_db_missing');
+          setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
+        } else if (online) {
+          const authState = await ensureAnonymousFirebaseAuth();
+          if (!authState.ok) {
+            syncWarn('bootstrap_anonymous_auth_failed', { reason: authState.reason });
+            setSyncOutcome('failed', `Firebase anonymous auth failed: ${authState.reason}`);
+          }
         }
-      }
 
-      void runSyncCycle();
+        syncLog('bootstrap_trigger_sync_cycle');
+        void runSyncCycle();
+      } catch (error) {
+        syncError('bootstrap_failed', toErrorPayload(error));
+      }
     };
 
     void bootstrap();
@@ -51,8 +73,14 @@ export function useSyncBootstrap() {
 
       const online = Boolean(state.isConnected && state.isInternetReachable !== false);
       setNetworkStatus(online);
+      syncLog('network_listener_update', {
+        isConnected: state.isConnected ?? null,
+        isInternetReachable: state.isInternetReachable ?? null,
+        computedOnline: online,
+      });
 
       if (online) {
+        syncLog('network_listener_trigger_sync_cycle');
         void runSyncCycle();
       }
     });

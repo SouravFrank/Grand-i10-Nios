@@ -31,6 +31,7 @@ import type {
 } from '@/types/models';
 import { dayjs } from '@/utils/day';
 import { createId } from '@/utils/id';
+import { syncLog } from '@/utils/syncLogger';
 
 type PersistedAppData = {
   entries: EntryRecord[];
@@ -157,10 +158,17 @@ export const useAppStore = create<AppState>()(
       setNetworkStatus: (online) => set({ isOnline: online }),
 
       setSyncing: () => {
+        const queueLength = get().pendingQueue.length;
+        syncLog('store_set_syncing', { queueLength });
         set({ syncStatus: 'syncing', isSyncing: true, lastSyncError: null });
       },
 
       setSyncOutcome: (status, error = null) => {
+        syncLog('store_set_sync_outcome', {
+          status,
+          error,
+          pendingQueueLength: get().pendingQueue.length,
+        });
         set({
           syncStatus: status,
           isSyncing: false,
