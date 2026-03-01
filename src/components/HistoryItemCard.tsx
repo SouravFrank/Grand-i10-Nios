@@ -45,7 +45,26 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
   }, [index, opacity, translateY]);
 
   const entryTypeLabel =
-    entry.type === 'fuel' ? 'FUEL ENTRY' : entry.type === 'spec_update' ? 'SPECS UPDATE' : 'ODOMETER';
+    entry.type === 'fuel'
+      ? 'FUEL ENTRY'
+      : entry.type === 'spec_update'
+        ? 'SPECS UPDATE'
+        : entry.type === 'expense'
+          ? 'EXPENSE ENTRY'
+          : 'ODOMETER';
+
+  const expenseCategoryLabel =
+    entry.expenseCategory === 'shield_safety'
+      ? 'SHIELD & SAFETY'
+      : entry.expenseCategory === 'care_comfort'
+        ? 'CARE & COMFORT'
+        : entry.expenseCategory === 'maintenance_lab'
+          ? 'MAINTENANCE LAB'
+          : entry.expenseCategory === 'utility_addon'
+            ? 'UTILITY ADD-ONS'
+            : entry.expenseCategory === 'other'
+              ? 'OTHER'
+              : null;
 
   return (
     <Animated.View
@@ -66,7 +85,13 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
         </View>
 
         <Text style={[styles.odometer, { color: colors.textPrimary }]}>
-          {entry.type === 'spec_update' ? 'SPECIFICATIONS UPDATED' : `${entry.odometer} km`}
+          {entry.type === 'spec_update'
+            ? 'SPECIFICATIONS UPDATED'
+            : entry.type === 'expense'
+              ? entry.expenseTitle
+                ? entry.expenseTitle.toUpperCase()
+                : 'EXPENSE LOGGED'
+              : `${entry.odometer} km`}
         </Text>
 
         {entry.type === 'fuel' ? (
@@ -86,6 +111,13 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
 
         {typeof entry.cost === 'number' ? (
           <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>COST: ₹{entry.cost}</Text>
+        ) : null}
+
+        {entry.type === 'expense' ? (
+          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
+            {expenseCategoryLabel ? `${expenseCategoryLabel} | ` : ''}
+            ODOMETER: {entry.odometer} KM
+          </Text>
         ) : null}
 
         {entry.sharedTrip && entry.sharedTripMarkedByName ? (
@@ -113,7 +145,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
           <Text style={[styles.date, { color: colors.textSecondary }]}>
             {dayjs(entry.createdAt).format('DD MMM YYYY, hh:mm A')}
           </Text>
-          {distanceKm !== null && entry.type !== 'spec_update' ? (
+          {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
             <Text style={[styles.distance, { color: colors.textSecondary }]}>DISTANCE TRAVELLED: {distanceKm} KM</Text>
           ) : null}
         </View>

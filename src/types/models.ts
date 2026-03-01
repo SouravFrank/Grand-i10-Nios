@@ -1,4 +1,6 @@
-export type EntryType = 'odometer' | 'fuel' | 'spec_update';
+export type EntryType = 'odometer' | 'fuel' | 'spec_update' | 'expense';
+
+export type ExpenseCategory = 'shield_safety' | 'care_comfort' | 'maintenance_lab' | 'utility_addon' | 'other';
 
 export type Entry = {
   id: string;
@@ -12,6 +14,8 @@ export type Entry = {
   sharedTrip?: boolean;
   sharedTripMarkedById?: string;
   sharedTripMarkedByName?: string;
+  expenseCategory?: ExpenseCategory;
+  expenseTitle?: string;
   cost?: number;
   specUpdatedFields?: string[];
   createdAt: number;

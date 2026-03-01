@@ -23,6 +23,8 @@ export async function pushEntryToFirestore(entry: EntryRecord): Promise<void> {
     sharedTrip: entry.sharedTrip,
     sharedTripMarkedById: entry.sharedTripMarkedById,
     sharedTripMarkedByName: entry.sharedTripMarkedByName,
+    expenseCategory: entry.expenseCategory,
+    expenseTitle: entry.expenseTitle,
     cost: entry.cost,
     specUpdatedFields: entry.specUpdatedFields,
     createdAt: entry.createdAt,

@@ -35,13 +35,20 @@ type DateTarget = 'from' | 'to';
 type DatePreset = 'all' | 'last7' | 'last30' | 'thisMonth' | 'custom';
 
 const MIN_FILTER_DATE = dayjs('2026-02-01').startOf('day');
+const MAX_FILTER_DATE = dayjs().endOf('day');
 
 function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
 
   return sorted.map((entry, index) => {
     const previous = sorted[index + 1];
-    if (!previous || entry.type === 'spec_update' || previous.type === 'spec_update') {
+    if (
+      !previous ||
+      entry.type === 'spec_update' ||
+      previous.type === 'spec_update' ||
+      entry.type === 'expense' ||
+      previous.type === 'expense'
+    ) {
       return { entry, distanceKm: null };
     }
 
@@ -67,10 +74,10 @@ export function HistoryScreen({ navigation }: Props) {
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterContentHeight, setFilterContentHeight] = useState(0);
 
-  const filterAnim = useRef(new Animated.Value(1)).current;
+  const filterAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(filterAnim, {
@@ -134,8 +141,16 @@ export function HistoryScreen({ navigation }: Props) {
 
   const rows = useMemo(() => {
     const baseRows = buildHistoryRows(entries);
-    const fromTimestamp = fromDate ? dayjs(fromDate).startOf('day').valueOf() : null;
-    const toTimestamp = toDate ? dayjs(toDate).endOf('day').valueOf() : null;
+    const fromTimestamp = fromDate
+      ? dayjs(fromDate).startOf('day').isBefore(MIN_FILTER_DATE, 'day')
+        ? MIN_FILTER_DATE.valueOf()
+        : dayjs(fromDate).startOf('day').valueOf()
+      : null;
+    const toTimestamp = toDate
+      ? dayjs(toDate).endOf('day').isAfter(MAX_FILTER_DATE, 'day')
+        ? MAX_FILTER_DATE.valueOf()
+        : dayjs(toDate).endOf('day').valueOf()
+      : null;
 
     return baseRows.filter((row) => {
       const entry = row.entry;
@@ -188,6 +203,9 @@ export function HistoryScreen({ navigation }: Props) {
     let nextDate = dayjs(date).startOf('day');
     if (nextDate.isBefore(MIN_FILTER_DATE, 'day')) {
       nextDate = MIN_FILTER_DATE;
+    }
+    if (nextDate.isAfter(MAX_FILTER_DATE, 'day')) {
+      nextDate = MAX_FILTER_DATE.startOf('day');
     }
 
     if (target === 'from') {
@@ -359,9 +377,16 @@ export function HistoryScreen({ navigation }: Props) {
             }}>
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {(['all', 'odometer', 'fuel', 'spec_update'] as CategoryFilter[]).map((filter) => {
+              {(['all', 'odometer', 'fuel', 'expense', 'spec_update'] as CategoryFilter[]).map((filter) => {
                 const active = filter === category;
-                const label = filter === 'all' ? 'All' : filter === 'spec_update' ? 'Specs Update' : filter.toUpperCase();
+                const label =
+                  filter === 'all'
+                    ? 'All'
+                    : filter === 'spec_update'
+                      ? 'Specs Update'
+                      : filter === 'expense'
+                        ? 'Expense'
+                        : filter.toUpperCase();
 
                 return (
                   <Pressable
@@ -499,7 +524,13 @@ export function HistoryScreen({ navigation }: Props) {
                   value={pickerDate}
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   minimumDate={activeDateTarget === 'from' ? MIN_FILTER_DATE.toDate() : fromDate ?? MIN_FILTER_DATE.toDate()}
-                  maximumDate={activeDateTarget === 'from' && toDate ? toDate : undefined}
+                  maximumDate={
+                    activeDateTarget === 'from'
+                      ? toDate && dayjs(toDate).isBefore(MAX_FILTER_DATE, 'day')
+                        ? toDate
+                        : MAX_FILTER_DATE.toDate()
+                      : MAX_FILTER_DATE.toDate()
+                  }
                   onChange={handleDatePickerChange}
                   themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
                 />

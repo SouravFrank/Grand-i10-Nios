@@ -3,6 +3,7 @@ export type AppStackParamList = {
   History: undefined;
   StartingCarModal: undefined;
   FuelEntryModal: undefined;
+  ExpenseEntryModal: undefined;
 };
 
 export type AuthStackParamList = {

@@ -1,4 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -111,9 +112,20 @@ export function HomeScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('FuelEntryModal')}
           />
         </View>
+        <SharpButton
+          label="ADD EXPENSE"
+          variant="secondary"
+          iconName="wallet-plus-outline"
+          onPress={() => navigation.navigate('ExpenseEntryModal')}
+        />
 
         <Pressable onPress={() => navigation.navigate('History')} style={styles.historyWrap}>
-          <Text style={[styles.historyLink, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>VIEW HISTORY</Text>
+          <View style={styles.historyRow}>
+            <MaterialIcons name="history" size={16} color={colors.textPrimary} />
+            <Text style={[styles.historyLink, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>
+              VIEW HISTORY
+            </Text>
+          </View>
         </Pressable>
 
         {securityIssue ? <Text style={[styles.securityText, { color: colors.textSecondary }]}>{securityIssue}</Text> : null}
@@ -165,6 +177,11 @@ const styles = StyleSheet.create({
   },
   historyWrap: {
     alignItems: 'center',
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   historyLink: {
     fontSize: 13,

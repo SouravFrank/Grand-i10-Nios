@@ -8,6 +8,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
 
 import { BiometricScreen } from '@/screens/BiometricScreen';
+import { ExpenseEntryScreen } from '@/screens/ExpenseEntryScreen';
 import { FuelEntryScreen } from '@/screens/FuelEntryScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
@@ -57,6 +58,11 @@ function MainNavigator() {
       <AppStack.Screen
         name="FuelEntryModal"
         component={FuelEntryScreen}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
+      <AppStack.Screen
+        name="ExpenseEntryModal"
+        component={ExpenseEntryScreen}
         options={{ presentation: 'card', animation: 'slide_from_right' }}
       />
     </AppStack.Navigator>

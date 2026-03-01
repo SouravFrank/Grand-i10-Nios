@@ -24,10 +24,12 @@ import type {
   CarSpecEditableFields,
   Entry,
   EntryRecord,
+  ExpenseCategory,
   PendingQueueItem,
   RemoteEntryDocument,
   SyncStatus,
 } from '@/types/models';
+import { dayjs } from '@/utils/day';
 import { createId } from '@/utils/id';
 
 type PersistedAppData = {
@@ -48,6 +50,8 @@ type AddEntryInput = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  expenseCategory?: ExpenseCategory;
+  expenseTitle?: string;
   cost?: number;
   specUpdatedFields?: string[];
   createdAt?: number;
@@ -96,7 +100,7 @@ const initialPersistedState: PersistedAppData = {
     registrationNumber: 'WB12BP0584',
     registrationYear: 'Aug-2023',
     manufacturingYear: 'JULY 2023',
-    initialOdometer: 29661,
+    initialOdometer: 29810,
     fuelType: 'Petrol',
     model: 'Hyundai GRAND I10 NIOS',
     variant: 'SPORTZ 1.2 KAPPA VTVT - 2023',
@@ -253,6 +257,8 @@ export const useAppStore = create<AppState>()(
           fuelAmount: payload.fuelAmount,
           fuelLiters: payload.fuelLiters,
           fullTank: payload.fullTank,
+          expenseCategory: payload.expenseCategory,
+          expenseTitle: payload.expenseTitle,
           cost: payload.cost,
           specUpdatedFields: payload.specUpdatedFields,
           createdAt,
@@ -439,39 +445,68 @@ export const useAppStore = create<AppState>()(
 
       ensureDemoData: async () => {
         const state = get();
-        if (state.entries.length > 0) {
-          return;
-        }
-
         const secret = await ensureIntegritySecret();
-        const now = Date.now();
         const baseEntries: Entry[] = [
           {
-            id: createId('entry_demo_1'),
-            type: 'odometer',
-            userId: 'sourav',
-            userName: 'Sourav',
-            odometer: 29661,
-            createdAt: now - 1000 * 60 * 60 * 24 * 2,
-            synced: true,
-          },
-          {
-            id: createId('entry_demo_2'),
+            id: 'entry_actual_20260227_fuel_ayan',
             type: 'fuel',
             userId: 'ayan',
             userName: 'Ayan',
-            odometer: 29980,
-            fuelAmount: 2300,
-            fuelLiters: 31.2,
-            fullTank: true,
-            cost: 2300,
-            createdAt: now - 1000 * 60 * 60 * 18,
+            odometer: 29841,
+            fuelAmount: 2000,
+            fuelLiters: 18.98,
+            fullTank: false,
+            cost: 2000,
+            createdAt: dayjs('2026-02-27T20:15:00').valueOf(),
+            synced: true,
+          },
+          {
+            id: 'entry_actual_20260228_expense_cover_sourav',
+            type: 'expense',
+            userId: 'sourav',
+            userName: 'Sourav',
+            odometer: 29841,
+            expenseCategory: 'shield_safety',
+            expenseTitle: 'Car Cover',
+            cost: 950,
+            createdAt: dayjs('2026-02-28T11:10:00').valueOf(),
+            synced: true,
+          },
+          {
+            id: 'entry_actual_20260228_expense_rat_sourav',
+            type: 'expense',
+            userId: 'sourav',
+            userName: 'Sourav',
+            odometer: 29841,
+            expenseCategory: 'shield_safety',
+            expenseTitle: 'Rat Protector',
+            cost: 449,
+            createdAt: dayjs('2026-02-28T11:18:00').valueOf(),
+            synced: true,
+          },
+          {
+            id: 'entry_actual_20260301_fuel_ayan',
+            type: 'fuel',
+            userId: 'ayan',
+            userName: 'Ayan',
+            odometer: 29853,
+            fuelAmount: 211,
+            fuelLiters: 2,
+            fullTank: false,
+            cost: 211,
+            createdAt: dayjs('2026-03-01T09:05:00').valueOf(),
             synced: true,
           },
         ];
 
+        const existingIds = new Set(state.entries.map((entry) => entry.id));
+        const entriesToAdd = baseEntries.filter((entry) => !existingIds.has(entry.id));
+        if (entriesToAdd.length === 0) {
+          return;
+        }
+
         const hashedEntries: EntryRecord[] = [];
-        for (const entry of baseEntries) {
+        for (const entry of entriesToAdd) {
           const integrityHash = await buildEntryIntegrityHash(entry, secret);
           hashedEntries.push({
             ...entry,
@@ -480,9 +515,12 @@ export const useAppStore = create<AppState>()(
         }
 
         set({
-          entries: hashedEntries.sort((a, b) => b.createdAt - a.createdAt),
-          pendingQueue: [],
-          lastOdometerValue: 29980,
+          entries: [...state.entries, ...hashedEntries].sort((a, b) => b.createdAt - a.createdAt),
+          pendingQueue: state.pendingQueue,
+          lastOdometerValue: Math.max(
+            state.lastOdometerValue,
+            ...hashedEntries.map((entry) => entry.odometer),
+          ),
           syncStatus: 'synced',
         });
       },
