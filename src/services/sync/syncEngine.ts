@@ -1,6 +1,6 @@
 import { getFirebaseDb } from '@/config/firebase';
 import type { PendingQueueItem } from '@/types/models';
-import { pullEntriesFromFirestore, pushEntryToFirestore } from '@/services/firestore/entriesRepository';
+import { pullEntriesFromRealtimeDb, pushEntryToRealtimeDb } from '@/services/realtime/entriesRepository';
 import { useAppStore } from '@/store/useAppStore';
 
 function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
@@ -37,7 +37,7 @@ export async function runSyncCycle(): Promise<void> {
       }
 
       try {
-        await pushEntryToFirestore(entry);
+        await pushEntryToRealtimeDb(entry);
         syncedIds.push(entry.id);
       } catch {
         failedQueue.push(buildFailedQueueItem(queueItem));
@@ -51,7 +51,7 @@ export async function runSyncCycle(): Promise<void> {
     useAppStore.getState().updatePendingQueue(failedQueue);
 
     const latestState = useAppStore.getState();
-    const remoteEntries = await pullEntriesFromFirestore(latestState.lastSyncTime ?? undefined);
+    const remoteEntries = await pullEntriesFromRealtimeDb(latestState.lastSyncTime ?? undefined);
     await useAppStore.getState().mergeRemoteEntries(remoteEntries);
 
     const hasPending = useAppStore.getState().pendingQueue.length > 0;

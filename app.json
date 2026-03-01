@@ -56,7 +56,8 @@
       "firebaseProjectId": "REPLACE_ME",
       "firebaseStorageBucket": "REPLACE_ME",
       "firebaseMessagingSenderId": "REPLACE_ME",
-      "firebaseAppId": "REPLACE_ME"
+      "firebaseAppId": "REPLACE_ME",
+      "firebaseDatabaseUrl": "https://REPLACE_ME-default-rtdb.firebaseio.com"
     }
   }
 }

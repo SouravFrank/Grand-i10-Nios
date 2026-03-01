@@ -1,11 +1,11 @@
-import { collection, doc, getDocs, orderBy, query, setDoc, where } from 'firebase/firestore';
+import { get, orderByChild, query, ref, set, startAt } from 'firebase/database';
 
 import { getFirebaseDb } from '@/config/firebase';
 import type { EntryRecord, RemoteEntryDocument } from '@/types/models';
 
 const ENTRIES_COLLECTION = 'carEntries';
 
-export async function pushEntryToFirestore(entry: EntryRecord): Promise<void> {
+export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
   const db = getFirebaseDb();
   if (!db) {
     throw new Error('Firebase is not configured.');
@@ -30,21 +30,28 @@ export async function pushEntryToFirestore(entry: EntryRecord): Promise<void> {
     createdAt: entry.createdAt,
   };
 
-  await setDoc(doc(db, ENTRIES_COLLECTION, entry.id), payload, { merge: true });
+  await set(ref(db, `${ENTRIES_COLLECTION}/${entry.id}`), payload);
 }
 
-export async function pullEntriesFromFirestore(since?: number): Promise<RemoteEntryDocument[]> {
+export async function pullEntriesFromRealtimeDb(since?: number): Promise<RemoteEntryDocument[]> {
   const db = getFirebaseDb();
   if (!db) {
     return [];
   }
 
-  const entriesRef = collection(db, ENTRIES_COLLECTION);
-  const q =
+  const entriesRef = ref(db, ENTRIES_COLLECTION);
+  const entriesQuery =
     typeof since === 'number'
-      ? query(entriesRef, where('createdAt', '>=', since), orderBy('createdAt', 'desc'))
-      : query(entriesRef, orderBy('createdAt', 'desc'));
+      ? query(entriesRef, orderByChild('createdAt'), startAt(since))
+      : query(entriesRef, orderByChild('createdAt'));
 
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((item) => item.data() as RemoteEntryDocument);
+  const snapshot = await get(entriesQuery);
+  if (!snapshot.exists()) {
+    return [];
+  }
+
+  const raw = snapshot.val() as Record<string, RemoteEntryDocument | undefined>;
+  return Object.values(raw)
+    .filter((entry): entry is RemoteEntryDocument => Boolean(entry))
+    .sort((a, b) => b.createdAt - a.createdAt);
 }

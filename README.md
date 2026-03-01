@@ -1,6 +1,6 @@
 # Grand i10 Nios - Shared Maintenance Tracker
 
-Production-grade Expo React Native app for exactly 2 users, with frontend-only authentication and Firestore-backed sync.
+Production-grade Expo React Native app for exactly 2 users, with frontend-only authentication and Firebase Realtime Database-backed sync.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Production-grade Expo React Native app for exactly 2 users, with frontend-only a
 - React Hook Form + Zod
 - AsyncStorage + Expo SecureStore
 - Expo Local Authentication (biometric)
-- Firebase JS SDK (Firestore only)
+- Firebase JS SDK (Realtime Database)
 - Day.js
 - NetInfo (network detection)
 
@@ -40,6 +40,7 @@ Update `app.json`:
 - `expo.extra.firebaseStorageBucket`
 - `expo.extra.firebaseMessagingSenderId`
 - `expo.extra.firebaseAppId`
+- `expo.extra.firebaseDatabaseUrl`
 
 If Firebase config is not set, the app still works fully offline and keeps queueing writes locally.
 
@@ -57,6 +58,6 @@ npm run start
 - `src/screens`: login, biometric, home, history, odometer, fuel flows
 - `src/store/useAppStore.ts`: persisted app state, queue, auth status, integrity checks
 - `src/services/sync/syncEngine.ts`: background sync and retry logic
-- `src/services/firestore/entriesRepository.ts`: Firestore push/pull
+- `src/services/realtime/entriesRepository.ts`: Realtime Database push/pull
 - `src/services/auth`: password + biometric auth logic
 - `src/services/storage`: AsyncStorage and SecureStore adapters

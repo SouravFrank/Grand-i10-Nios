@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { FirebaseApp, FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
-import { Firestore, getFirestore } from 'firebase/firestore';
+import { Database, getDatabase } from 'firebase/database';
 
 type FirebaseExtra = {
   firebaseApiKey?: string;
@@ -9,6 +9,7 @@ type FirebaseExtra = {
   firebaseStorageBucket?: string;
   firebaseMessagingSenderId?: string;
   firebaseAppId?: string;
+  firebaseDatabaseUrl?: string;
 };
 
 function getFirebaseOptions(): FirebaseOptions | null {
@@ -25,13 +26,14 @@ function getFirebaseOptions(): FirebaseOptions | null {
     storageBucket: extra.firebaseStorageBucket,
     messagingSenderId: extra.firebaseMessagingSenderId,
     appId: extra.firebaseAppId,
+    databaseURL: extra.firebaseDatabaseUrl,
   };
 }
 
 let cachedApp: FirebaseApp | null = null;
-let cachedDb: Firestore | null = null;
+let cachedDb: Database | null = null;
 
-export function getFirebaseDb(): Firestore | null {
+export function getFirebaseDb(): Database | null {
   if (cachedDb) {
     return cachedDb;
   }
@@ -42,7 +44,7 @@ export function getFirebaseDb(): Firestore | null {
   }
 
   cachedApp = getApps().length > 0 ? getApp() : initializeApp(options);
-  cachedDb = getFirestore(cachedApp);
+  cachedDb = getDatabase(cachedApp);
 
   return cachedDb;
 }
