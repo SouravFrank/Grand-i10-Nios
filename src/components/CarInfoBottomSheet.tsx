@@ -1,6 +1,6 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -109,6 +109,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
       { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
       { key: 'model', label: 'Model', value: carSpec.model, editable: false },
       { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
+      { key: 'carColor', label: 'Car Color', value: carSpec.carColor, editable: false },
     ];
 
     return [...editableRows, ...staticRows];

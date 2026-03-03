@@ -32,15 +32,19 @@ Production-grade Expo React Native app for exactly 2 users, with frontend-only a
 
 ## Firebase Setup
 
-Update `app.json`:
+Create a local `.env` file (do not commit it) from `.env.example`:
 
-- `expo.extra.firebaseApiKey`
-- `expo.extra.firebaseAuthDomain`
-- `expo.extra.firebaseProjectId`
-- `expo.extra.firebaseStorageBucket`
-- `expo.extra.firebaseMessagingSenderId`
-- `expo.extra.firebaseAppId`
-- `expo.extra.firebaseDatabaseUrl`
+```bash
+cp .env.example .env
+```
+
+- `EXPO_PUBLIC_FIREBASE_API_KEY`
+- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `EXPO_PUBLIC_FIREBASE_APP_ID`
+- `EXPO_PUBLIC_FIREBASE_DATABASE_URL`
 
 If Firebase config is not set, the app still works fully offline and keeps queueing writes locally.
 

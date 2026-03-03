@@ -63,6 +63,7 @@ export type CarSpec = {
   fuelType: string;
   model: string;
   variant: string;
+  carColor: string;
   lastMaintenanceDate: string;
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;

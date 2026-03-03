@@ -109,6 +109,7 @@ const initialPersistedState: PersistedAppData = {
     fuelType: 'Petrol',
     model: 'Hyundai GRAND I10 NIOS',
     variant: 'SPORTZ 1.2 KAPPA VTVT - 2023',
+    carColor: 'Spark Green Pearl',
     lastMaintenanceDate: '12 JAN 2026',
     lastEngineOilChangedOn: '12 JAN 2026',
     lastCoolantRefillOn: '04 NOV 2025',

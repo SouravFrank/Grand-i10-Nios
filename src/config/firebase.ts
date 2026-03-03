@@ -17,8 +17,32 @@ type FirebaseExtra = {
   firebaseDatabaseUrl?: string;
 };
 
+function getExpoPublicEnv(): FirebaseExtra {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+
+  return {
+    firebaseApiKey: env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    firebaseAuthDomain: env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    firebaseProjectId: env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    firebaseStorageBucket: env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    firebaseMessagingSenderId: env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    firebaseAppId: env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    firebaseDatabaseUrl: env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
+  };
+}
+
 function getFirebaseOptions(): FirebaseOptions | null {
-  const extra = (Constants.expoConfig?.extra ?? {}) as FirebaseExtra;
+  const configExtra = (Constants.expoConfig?.extra ?? {}) as FirebaseExtra;
+  const envExtra = getExpoPublicEnv();
+  const extra: FirebaseExtra = {
+    firebaseApiKey: envExtra.firebaseApiKey ?? configExtra.firebaseApiKey,
+    firebaseAuthDomain: envExtra.firebaseAuthDomain ?? configExtra.firebaseAuthDomain,
+    firebaseProjectId: envExtra.firebaseProjectId ?? configExtra.firebaseProjectId,
+    firebaseStorageBucket: envExtra.firebaseStorageBucket ?? configExtra.firebaseStorageBucket,
+    firebaseMessagingSenderId: envExtra.firebaseMessagingSenderId ?? configExtra.firebaseMessagingSenderId,
+    firebaseAppId: envExtra.firebaseAppId ?? configExtra.firebaseAppId,
+    firebaseDatabaseUrl: envExtra.firebaseDatabaseUrl ?? configExtra.firebaseDatabaseUrl,
+  };
 
   if (!extra.firebaseApiKey || !extra.firebaseProjectId || !extra.firebaseAppId) {
     syncWarn('firebase_options_missing', {
