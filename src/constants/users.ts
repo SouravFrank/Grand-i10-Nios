@@ -12,14 +12,14 @@ export type AllowedUser = {
 export const ALLOWED_USERS: [AllowedUser, AllowedUser] = [
   {
     id: "sourav",
-    name: "Sourav",
+    name: "Sourav", //-- 1998
     credentialHash:
-      "a575e368fdca5294e5b36da8bc98b8d87a10561d61743a64fe02dfe48a23f3b5",
+      "36dde268c19c90750bca0fe7eefb5ebfe7b8a676df2639f48b999354409cb571",
   },
   {
     id: "ayan",
-    name: "Ayan",
+    name: "Ayan", //-- 1997
     credentialHash:
-      "fd47483080469c8cef5b68b8b4eb10ce93c8a5afcd812aeb4497d74413fbc099",
+      "94f919635dec9527497a14684e4479b809391dc594c88fdc80651e165cb53f6b",
   },
 ];
