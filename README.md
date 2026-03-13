@@ -1,4 +1,4 @@
-# Grand i10 Nios - Shared Maintenance Tracker
+# Grand i10 Nios
 
 Production-grade Expo React Native app for exactly 2 users, with frontend-only authentication and Firebase Realtime Database-backed sync.
 
@@ -25,10 +25,10 @@ Production-grade Expo React Native app for exactly 2 users, with frontend-only a
 - Local integrity hashing for tamper detection
 - Unified history with dynamic distance calculation between consecutive entries
 
-## Login Users (default)
+## Login Usernames
 
-- `owner` / `Nios@1234`
-- `coDriver` / `Nios@5678`
+- `sourav`
+- `ayan`
 
 ## Firebase Setup
 
