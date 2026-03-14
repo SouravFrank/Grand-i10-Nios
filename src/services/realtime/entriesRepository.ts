@@ -60,14 +60,13 @@ export async function pullEntriesFromRealtimeDb(since?: number): Promise<RemoteE
   }
 
   const entriesRef = ref(db, ENTRIES_COLLECTION);
-  const entriesQuery =
-    typeof since === 'number'
-      ? query(entriesRef, orderByChild('createdAt'), startAt(since))
-      : query(entriesRef, orderByChild('createdAt'));
 
   try {
     syncLog('realtime_pull_entries_start', { since: since ?? null });
-    const snapshot = await get(entriesQuery);
+    const snapshot =
+      typeof since === 'number'
+        ? await get(query(entriesRef, orderByChild('createdAt'), startAt(since)))
+        : await get(entriesRef);
     if (!snapshot.exists()) {
       syncLog('realtime_pull_entries_empty', { since: since ?? null });
       return [];

@@ -17,6 +17,21 @@ function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
   };
 }
 
+function getSyncFailureMessage(error: unknown): string {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
+  const errorCode =
+    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
+  const normalizedMessage = errorMessage.toLowerCase();
+
+  if (errorCode === 'PERMISSION_DENIED' || normalizedMessage.includes('permission denied')) {
+    return 'Sync access denied. Check Firebase Realtime Database rules for /carEntries and /carMeta/carSpec, and ensure anonymous users are allowed.';
+  }
+
+  return errorMessage;
+}
+
 let inFlightSyncCycle: Promise<void> | null = null;
 
 async function runSyncCycleInternal(): Promise<void> {
@@ -134,8 +149,7 @@ async function runSyncCycleInternal(): Promise<void> {
     useAppStore.getState().setSyncOutcome(hasPending ? 'failed' : 'synced', hasPending ? 'Pending items queued.' : null);
   } catch (error) {
     syncError('sync_cycle_unhandled_error', toErrorPayload(error));
-    const message = error instanceof Error ? error.message : 'Unknown sync error';
-    useAppStore.getState().setSyncOutcome('failed', message);
+    useAppStore.getState().setSyncOutcome('failed', getSyncFailureMessage(error));
   }
 }
 
