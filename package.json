@@ -1,7 +1,7 @@
 {
   "name": "grand-i10-nios",
   "main": "expo/AppEntry",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
