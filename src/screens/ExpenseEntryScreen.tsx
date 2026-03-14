@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -71,10 +72,12 @@ const expenseSchema = z.object({
 type ExpenseForm = z.infer<typeof expenseSchema>;
 
 export function ExpenseEntryScreen({ navigation }: Props) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
 
   const {
     control,
@@ -134,12 +137,25 @@ export function ExpenseEntryScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={[styles.headerStrip, { backgroundColor: colors.invertedBackground }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
-            <MaterialIcons name="arrow-back" size={22} color={colors.invertedText} />
-          </Pressable>
-          <Text style={[styles.title, { color: colors.invertedText }]}>ADD EXPENSE</Text>
-          <View style={styles.iconBtn} />
+        <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
+
+        <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.headerRow}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
+            </Pressable>
+
+            <View style={styles.headerCopy}>
+              <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>EXPENSE ENTRY</Text>
+              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Expense</Text>
+            </View>
+
+            <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
+              <MaterialCommunityIcons name="receipt-text-outline" size={20} color={colors.textPrimary} />
+            </View>
+          </View>
         </View>
 
         <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -255,25 +271,54 @@ const styles = StyleSheet.create({
   container: {
     gap: 14,
     paddingBottom: 28,
+    position: 'relative',
   },
-  headerStrip: {
-    height: 52,
+  orbTop: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -30,
+    right: -50,
+  },
+  headerCard: {
+    borderWidth: 1,
+    borderRadius: 26,
+    padding: 16,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    borderRadius: 2,
+    gap: 12,
   },
-  iconBtn: {
-    width: 24,
-    height: 24,
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 16,
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  headerEyebrow: {
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.9,
+    letterSpacing: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  headerIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroCard: {
     borderWidth: 1,
