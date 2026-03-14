@@ -7,6 +7,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
+import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
@@ -60,7 +61,7 @@ const expenseSchema = z.object({
     .string()
     .trim()
     .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,7}$/.test(value), 'Use up to 7 digits.'),
+    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
   expenseTitle: z.string().trim().min(2, 'Expense title is required.').max(48, 'Keep title under 48 characters.'),
   cost: z
     .string()
@@ -284,11 +285,10 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                 control={control}
                 name="odometer"
                 render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Odometer"
+                  <OdometerDigitInput
+                    label="Current Odometer"
                     value={value}
                     onChangeText={onChange}
-                    keyboardType="numeric"
                     error={errors.odometer?.message}
                   />
                 )}

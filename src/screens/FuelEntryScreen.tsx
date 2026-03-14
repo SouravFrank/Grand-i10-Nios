@@ -8,6 +8,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
+import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
@@ -25,7 +26,7 @@ const fuelSchema = z
       .string()
       .trim()
       .min(1, 'Odometer is required.')
-      .refine((value) => /^\d{1,7}$/.test(value), 'Use up to 7 digits.'),
+      .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
     fuelAmount: z
       .string()
       .trim()
@@ -204,13 +205,20 @@ export function FuelEntryScreen({ navigation, route }: Props) {
                 control={control}
                 name="odometer"
                 render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Odometer"
-                    value={value}
-                    onChangeText={onChange}
-                    keyboardType="numeric"
-                    error={errors.odometer?.message}
-                  />
+                  <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                    <View style={styles.odoHead}>
+                      <Text style={[styles.odoPanelLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
+                      <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>
+                        {isEditing ? `Latest ${lastOdometer} km` : `Previous ${lastOdometer} km`}
+                      </Text>
+                    </View>
+                    <OdometerDigitInput
+                      label="Current Odometer"
+                      value={value}
+                      onChangeText={onChange}
+                      error={errors.odometer?.message}
+                    />
+                  </View>
                 )}
               />
 
@@ -361,7 +369,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   fieldsGroup: {
-    gap: 6,
+    gap: 12,
+  },
+  odoPanel: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+  },
+  odoHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  odoPanelLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  odoPanelHint: {
+    fontSize: 12,
   },
   fieldWrap: {
     gap: 4,
