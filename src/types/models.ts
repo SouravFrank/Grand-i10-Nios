@@ -101,5 +101,6 @@ export type CarSpecFieldUpdateSubmission = {
   label: string;
   previousValue: string;
   value: string;
+  odometer: number;
   cost?: number;
 };

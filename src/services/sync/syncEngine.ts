@@ -111,6 +111,13 @@ async function runSyncCycleInternal(): Promise<void> {
     if (remoteCarSpec && !currentState.carSpecDirty) {
       syncLog('sync_cycle_replace_car_spec_from_remote');
       useAppStore.getState().replaceCarSpecFromRemote(remoteCarSpec);
+      const normalizedState = useAppStore.getState();
+      if (normalizedState.carSpecDirty) {
+        syncLog('sync_cycle_push_normalized_car_spec_start');
+        await pushCarSpecToRealtimeDb(normalizedState.carSpec);
+        syncLog('sync_cycle_push_normalized_car_spec_success');
+        useAppStore.getState().markCarSpecSynced();
+      }
     } else {
       syncLog('sync_cycle_push_car_spec_start');
       await pushCarSpecToRealtimeDb(currentState.carSpec);

@@ -37,7 +37,7 @@ import type {
   SpecUpdateDetail,
   SyncStatus,
 } from "@/types/models";
-import { dayjs } from "@/utils/day";
+import { dayjs, normalizeIndianDate } from "@/utils/day";
 import { createId } from "@/utils/id";
 import { syncLog } from "@/utils/syncLogger";
 
@@ -72,6 +72,78 @@ type SharedTripActor = {
   userId: string;
   userName: string;
 };
+
+const DEFAULT_CAR_SPEC: CarSpec = {
+  registrationNumber: "WB12BP0584",
+  engineNumber: "G4LAPM522487",
+  chassisNumber: "MALB351 CLPM464714",
+  registrationDate: "09 Aug 2023",
+  registrationYear: "Aug-2023",
+  manufacturingYear: "July 2023",
+  initialOdometer: 29810,
+  fuelType: "Petrol",
+  model: "Hyundai Grand i10 Nios",
+  variant: "SPORTZ 1.2 KAPPA VTVT - 2023",
+  carColor: "Spark Green Pearl",
+  lastMaintenanceDate: "12 Jan 2026",
+  lastEngineOilChangedOn: "12 Jan 2026",
+  lastCoolantRefillOn: "04 Nov 2025",
+  puccExpireDate: "20 Sep 2026",
+  insuranceValidUpTo: "26 Feb 2027",
+  fitnessValidUpTo: "08 Aug 2038",
+  taxValidUpTo: "06 Aug 2028",
+};
+
+function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
+  const merged = {
+    ...DEFAULT_CAR_SPEC,
+    ...(carSpec ?? {}),
+  };
+
+  const normalizeTextKey = (value: string) =>
+    value
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+
+  const normalizedManufacturingYear =
+    normalizeTextKey(merged.manufacturingYear) === "july 2023"
+      ? DEFAULT_CAR_SPEC.manufacturingYear
+      : merged.manufacturingYear;
+  const normalizedModel =
+    normalizeTextKey(merged.model) === "hyundai grand i10 nios"
+      ? DEFAULT_CAR_SPEC.model
+      : merged.model;
+
+  return {
+    ...merged,
+    manufacturingYear: normalizedManufacturingYear,
+    model: normalizedModel,
+    registrationDate: normalizeIndianDate(merged.registrationDate),
+    lastMaintenanceDate: normalizeIndianDate(merged.lastMaintenanceDate),
+    lastEngineOilChangedOn: normalizeIndianDate(merged.lastEngineOilChangedOn),
+    lastCoolantRefillOn: normalizeIndianDate(merged.lastCoolantRefillOn),
+    puccExpireDate: normalizeIndianDate(merged.puccExpireDate),
+    insuranceValidUpTo: normalizeIndianDate(merged.insuranceValidUpTo),
+    fitnessValidUpTo: normalizeIndianDate(merged.fitnessValidUpTo),
+    taxValidUpTo: normalizeIndianDate(merged.taxValidUpTo),
+  };
+}
+
+function requiresCarSpecNormalization(carSpec?: Partial<CarSpec> | null): boolean {
+  if (!carSpec) {
+    return true;
+  }
+
+  const normalized = normalizeCarSpec(carSpec);
+  const keys = Object.keys(DEFAULT_CAR_SPEC) as (keyof CarSpec)[];
+
+  return keys.some((key) => {
+    const rawValue = carSpec[key];
+    const normalizedValue = normalized[key];
+    return rawValue === undefined || String(rawValue) !== String(normalizedValue);
+  });
+}
 
 type AppState = PersistedAppData & {
   authStatus: AuthStatus;
@@ -117,26 +189,7 @@ const initialPersistedState: PersistedAppData = {
   currentUser: null,
   biometricEnabled: false,
   carSpecDirty: false,
-  carSpec: {
-    registrationNumber: "WB12BP0584",
-    engineNumber: "G4LAPM522487",
-    chassisNumber: "MALB351CLPM464714",
-    registrationDate: "09 AUG 2023",
-    registrationYear: "Aug-2023",
-    manufacturingYear: "JULY 2023",
-    initialOdometer: 29810,
-    fuelType: "Petrol",
-    model: "Hyundai GRAND i10 NIOS",
-    variant: "SPORTZ 1.2 KAPPA VTVT - 2023",
-    carColor: "Spark Green Pearl",
-    lastMaintenanceDate: "12 JAN 2026",
-    lastEngineOilChangedOn: "12 JAN 2026",
-    lastCoolantRefillOn: "04 NOV 2025",
-    puccExpireDate: "20 SEP 2026",
-    insuranceValidUpTo: "26 FEB 2027",
-    fitnessValidUpTo: "08 AUG 2038",
-    taxValidUpTo: "06 AUG 2028",
-  },
+  carSpec: normalizeCarSpec(),
 };
 
 async function ensureIntegritySecret(): Promise<string> {
@@ -471,10 +524,10 @@ export const useAppStore = create<AppState>()(
 
       updateCarSpec: (updates) => {
         set((state) => ({
-          carSpec: {
+          carSpec: normalizeCarSpec({
             ...state.carSpec,
             ...updates,
-          },
+          }),
           carSpecDirty: true,
         }));
       },
@@ -484,9 +537,10 @@ export const useAppStore = create<AppState>()(
       },
 
       replaceCarSpecFromRemote: (carSpec) => {
+        const shouldSyncNormalizedSpec = requiresCarSpecNormalization(carSpec);
         set({
-          carSpec,
-          carSpecDirty: false,
+          carSpec: normalizeCarSpec(carSpec),
+          carSpecDirty: shouldSyncNormalizedSpec,
         });
       },
 
@@ -641,6 +695,18 @@ export const useAppStore = create<AppState>()(
         carSpec: state.carSpec,
         carSpecDirty: state.carSpecDirty,
       }),
+      merge: (persistedState, currentState) => {
+        const typedPersistedState = (persistedState as Partial<AppState>) ?? {};
+        const persistedCarSpec = typedPersistedState.carSpec;
+        return {
+          ...currentState,
+          ...typedPersistedState,
+          carSpec: normalizeCarSpec(persistedCarSpec),
+          carSpecDirty:
+            Boolean(typedPersistedState.carSpecDirty) ||
+            requiresCarSpecNormalization(persistedCarSpec),
+        };
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHydrated(true);
       },

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, SyncStatus } from '@/types/models';
-import { dayjs } from '@/utils/day';
+import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 
 type DashboardSummaryCardProps = {
   latestEntry?: EntryRecord;
@@ -31,7 +31,7 @@ export function DashboardSummaryCard({
         {latestEntry ? `${latestEntry.odometer} km` : '-- km'}
       </Text>
       <Text style={[styles.meta, { color: colors.textSecondary }]}>
-        Date recorded: {latestEntry ? dayjs(latestEntry.createdAt).format('DD MMM YYYY') : 'No records yet'}
+        Date recorded: {latestEntry ? dayjs(latestEntry.createdAt).format(INDIA_DATE_FORMAT) : 'No records yet'}
       </Text>
       <Text style={[styles.meta, { color: colors.textSecondary }]}> 
         Last entry by:{' '}

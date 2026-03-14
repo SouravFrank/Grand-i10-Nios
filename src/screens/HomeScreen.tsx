@@ -1,7 +1,9 @@
+import Constants from 'expo-constants';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as Clipboard from 'expo-clipboard';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CarDisplayCard } from '@/components/CarDisplayCard';
 import { CarInfoBottomSheet } from '@/components/CarInfoBottomSheet';
@@ -30,6 +32,7 @@ export function HomeScreen({ navigation }: Props) {
   const isOnline = useAppStore((state) => state.isOnline);
   const securityIssue = useAppStore((state) => state.securityIssue);
   const [carSheetVisible, setCarSheetVisible] = useState(false);
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
   const latestEntry = entries[0];
 
@@ -48,7 +51,7 @@ export function HomeScreen({ navigation }: Props) {
   }, [isOnline, pendingQueue.length]);
 
   const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
-    const { field, label, previousValue, value, cost } = submission;
+    const { field, label, previousValue, value, odometer, cost } = submission;
     updateCarSpec({ [field]: value });
 
     if (!currentUser) {
@@ -60,7 +63,7 @@ export function HomeScreen({ navigation }: Props) {
         type: 'spec_update',
         userId: currentUser.id,
         userName: currentUser.name,
-        odometer: lastOdometerValue,
+        odometer,
         cost,
         specUpdatedFields: [field],
         specUpdateDetails: [
@@ -75,6 +78,15 @@ export function HomeScreen({ navigation }: Props) {
       void runSyncCycle();
     } catch {
       // Spec values are already saved locally; entry history sync failure should not block UI.
+    }
+  };
+
+  const handleCopyVehicleNumber = async () => {
+    try {
+      await Clipboard.setStringAsync(carSpec.registrationNumber);
+      Alert.alert('Copied', 'Vehicle number copied to clipboard.');
+    } catch {
+      Alert.alert('Copy failed', 'Could not copy vehicle number.');
     }
   };
 
@@ -95,6 +107,7 @@ export function HomeScreen({ navigation }: Props) {
           registrationText={carSpec.registrationNumber}
           subtitle={carSpec.model}
           onPress={() => setCarSheetVisible(true)}
+          onLongPressRegistration={() => void handleCopyVehicleNumber()}
         />
 
         <DashboardSummaryCard
@@ -139,12 +152,14 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
 
         {securityIssue ? <Text style={[styles.securityText, { color: colors.textSecondary }]}>{securityIssue}</Text> : null}
+        <Text style={[styles.versionText, { color: colors.textSecondary }]}>App version {appVersion}</Text>
       </ScrollView>
 
       <CarInfoBottomSheet
         visible={carSheetVisible}
         onClose={() => setCarSheetVisible(false)}
         carSpec={carSpec}
+        lastOdometer={lastOdometerValue}
         onSaveFieldEdit={(submission) => void handleCarSpecSave(submission)}
       />
     </ScreenContainer>
@@ -201,5 +216,11 @@ const styles = StyleSheet.create({
   },
   securityText: {
     fontSize: 12,
+  },
+  versionText: {
+    marginTop: 4,
+    alignSelf: 'center',
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
 });

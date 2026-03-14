@@ -1,7 +1,8 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -11,11 +12,12 @@ import type {
   CarSpecEditableFieldKey,
   CarSpecFieldUpdateSubmission,
 } from '@/types/models';
-import { dayjs } from '@/utils/day';
+import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
 type CarInfoBottomSheetProps = {
   visible: boolean;
   carSpec: CarSpec;
+  lastOdometer: number;
   onClose: () => void;
   onSaveFieldEdit: (submission: CarSpecFieldUpdateSubmission) => void;
 };
@@ -39,21 +41,20 @@ const EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
 ];
 
 function parseExistingDate(value: string): Date {
-  const parsed = dayjs(value);
+  const parsed = dayjs(normalizeIndianDate(value), INDIA_DATE_FORMAT, true);
   if (!parsed.isValid()) {
     return new Date();
   }
   return parsed.toDate();
 }
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
+export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors } = useAppTheme();
   const [rendered, setRendered] = useState(visible);
   const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
   const [draftDate, setDraftDate] = useState<Date>(new Date());
   const [draftCost, setDraftCost] = useState('');
+  const [draftOdometer, setDraftOdometer] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const translateY = useRef(new Animated.Value(420)).current;
@@ -92,6 +93,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
       setRendered(false);
       setActiveField(null);
       setDraftCost('');
+      setDraftOdometer('');
       setShowDatePicker(false);
     });
   }, [overlayOpacity, translateY, visible]);
@@ -109,7 +111,6 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
       { key: 'engineNumber', label: 'Engine No', value: carSpec.engineNumber, editable: false, canCopy: true },
       { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
       { key: 'registrationDate', label: 'Registration Date', value: carSpec.registrationDate, editable: false },
-      { key: 'registrationYear', label: 'Registration Year', value: carSpec.registrationYear, editable: false },
       { key: 'manufacturingYear', label: 'Manufacturing Year', value: carSpec.manufacturingYear, editable: false },
       { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
       { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
@@ -132,15 +133,22 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
   }, [nonEditableRows]);
 
   const beginEdit = (field: CarSpecEditableFieldKey) => {
+    if (activeField === field) {
+      cancelEdit();
+      return;
+    }
+
     setActiveField(field);
     setDraftDate(parseExistingDate(carSpec[field]));
     setDraftCost('');
+    setDraftOdometer(String(lastOdometer));
     setShowDatePicker(false);
   };
 
   const cancelEdit = () => {
     setActiveField(null);
     setDraftCost('');
+    setDraftOdometer('');
     setShowDatePicker(false);
   };
 
@@ -149,7 +157,7 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
       return;
     }
 
-    const nextValue = dayjs(draftDate).format('DD MMM YYYY');
+    const nextValue = dayjs(draftDate).format(INDIA_DATE_FORMAT);
     const config = EDITABLE_CONFIG.find((item) => item.key === activeField);
     if (!config) {
       return;
@@ -161,23 +169,49 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
     }
 
     const parsedCost = draftCost.trim() ? Number(draftCost) : undefined;
+    const parsedOdometer = Number(draftOdometer);
+
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
+      Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
+      return;
+    }
+    if (parsedOdometer < lastOdometer) {
+      Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
+      return;
+    }
+    if (parsedOdometer - lastOdometer > 500) {
+      Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
+      return;
+    }
 
     onSaveFieldEdit({
       field: activeField,
       label: config.label,
       previousValue: carSpec[activeField],
       value: nextValue,
+      odometer: parsedOdometer,
       cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
     });
 
     setActiveField(null);
     setDraftCost('');
+    setDraftOdometer('');
     setShowDatePicker(false);
   };
 
-  const changeDraftDate = (unit: 'day' | 'month' | 'year', delta: number) => {
-    const next = dayjs(draftDate).add(delta, unit);
-    setDraftDate(next.toDate());
+  const handleDatePickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+
+    if (selectedDate) {
+      setDraftDate(selectedDate);
+    }
+
+    if (Platform.OS !== 'ios') {
+      setShowDatePicker(false);
+    }
   };
 
   const copyValue = async (label: string, value: string) => {
@@ -225,82 +259,84 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
               const isActive = row.editable && row.key === activeField;
 
               return (
-                <View key={row.key} style={[styles.rowCard, { borderColor: colors.border, backgroundColor: colors.card }]}> 
-                  <View style={styles.rowTop}>
+                <View
+                  key={row.key}
+                  style={[
+                    styles.rowCard,
+                    styles.rowShell,
+                    {
+                      borderColor: isActive ? colors.textPrimary : colors.border,
+                      backgroundColor: isActive ? colors.background : colors.card,
+                    },
+                  ]}>
+                  <View
+                    style={styles.rowTop}>
                     <View style={styles.rowTitleWrap}>
                       <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                       <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
                     </View>
                     {row.editable ? (
-                      <Pressable onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)} style={styles.editIconBtn}>
-                        <MaterialIcons name="edit" size={18} color={colors.textPrimary} />
+                      <Pressable
+                        onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)}
+                        style={[
+                          styles.editIconBtn,
+                          {
+                            borderColor: isActive ? colors.textPrimary : colors.border,
+                            backgroundColor: isActive ? colors.textPrimary : colors.backgroundSecondary,
+                          },
+                        ]}>
+                        <MaterialIcons
+                          name={isActive ? 'expand-less' : 'edit'}
+                          size={18}
+                          color={isActive ? colors.invertedText : colors.textPrimary}
+                        />
                       </Pressable>
                     ) : null}
                   </View>
 
                   {isActive ? (
-                    <View style={[styles.inlineEditor, { borderTopColor: colors.border }]}> 
+                    <View style={[styles.inlineEditor, { borderTopColor: colors.border }]}>
+                      <View style={[styles.editorBadgeRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                        <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
+                        <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>
+                          Previous odometer {lastOdometer} km
+                        </Text>
+                      </View>
+
                       <Pressable
                         style={[styles.dateSelect, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
                         onPress={() => setShowDatePicker((prev) => !prev)}>
                         <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
-                        <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(draftDate).format('DD MMM YYYY')}</Text>
+                        <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
+                          {dayjs(draftDate).format(INDIA_DATE_FORMAT)}
+                        </Text>
                       </Pressable>
 
                       {showDatePicker ? (
                         <View style={[styles.customDatePicker, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                          <View style={styles.datePickerPreview}>
-                            <Text style={[styles.datePickerPreviewText, { color: colors.textPrimary }]}>
-                              {dayjs(draftDate).format('DD MMM YYYY')}
-                            </Text>
-                          </View>
-
-                          <View style={styles.pickerControlRow}>
-                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>DAY</Text>
-                            <View style={styles.pickerButtons}>
-                              <Pressable onPress={() => changeDraftDate('day', -1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
-                                {dayjs(draftDate).date()}
-                              </Text>
-                              <Pressable onPress={() => changeDraftDate('day', 1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                            </View>
-                          </View>
-
-                          <View style={styles.pickerControlRow}>
-                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>MONTH</Text>
-                            <View style={styles.pickerButtons}>
-                              <Pressable onPress={() => changeDraftDate('month', -1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
-                                {MONTH_NAMES[dayjs(draftDate).month()]}
-                              </Text>
-                              <Pressable onPress={() => changeDraftDate('month', 1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                            </View>
-                          </View>
-
-                          <View style={styles.pickerControlRow}>
-                            <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>YEAR</Text>
-                            <View style={styles.pickerButtons}>
-                              <Pressable onPress={() => changeDraftDate('year', -1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="remove" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                              <Text style={[styles.pickerValue, { color: colors.textPrimary }]}>
-                                {dayjs(draftDate).year()}
-                              </Text>
-                              <Pressable onPress={() => changeDraftDate('year', 1)} style={styles.pickerBtn}>
-                                <MaterialIcons name="add" size={18} color={colors.textPrimary} />
-                              </Pressable>
-                            </View>
-                          </View>
+                          <DateTimePicker
+                            mode="date"
+                            value={draftDate}
+                            display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                            onChange={handleDatePickerChange}
+                          />
+                          {Platform.OS === 'ios' ? (
+                            <Pressable
+                              onPress={() => setShowDatePicker(false)}
+                              style={[styles.datePickerDoneBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                              <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>
+                            </Pressable>
+                          ) : null}
                         </View>
                       ) : null}
+
+                      <AppTextField
+                        label="Odometer Reading"
+                        value={draftOdometer}
+                        onChangeText={setDraftOdometer}
+                        keyboardType="numeric"
+                        placeholder={`>= ${lastOdometer}`}
+                      />
 
                       <AppTextField
                         label="Cost (Rs) - Optional"
@@ -440,14 +476,22 @@ const styles = StyleSheet.create({
   },
   rowCard: {
     borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 10,
+  },
+  rowShell: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
   },
   rowTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 10,
   },
   rowTitleWrap: {
@@ -464,8 +508,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editIconBtn: {
-    width: 24,
-    height: 24,
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -477,14 +523,30 @@ const styles = StyleSheet.create({
   },
   inlineEditor: {
     borderTopWidth: 1,
-    paddingTop: 10,
-    gap: 10,
+    paddingTop: 14,
+    gap: 12,
+  },
+  editorBadgeRow: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  editorBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  editorHintText: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   dateSelect: {
     borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     gap: 4,
   },
   dateLabel: {
@@ -504,41 +566,18 @@ const styles = StyleSheet.create({
   },
   customDatePicker: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
     gap: 8,
   },
-  datePickerPreview: {
-    alignItems: 'center',
-  },
-  datePickerPreviewText: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  pickerControlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  pickerLabel: {
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  pickerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pickerBtn: {
-    width: 26,
-    height: 26,
+  datePickerDoneBtn: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickerValue: {
-    minWidth: 52,
-    textAlign: 'center',
+  datePickerDoneText: {
     fontSize: 13,
     fontWeight: '700',
   },

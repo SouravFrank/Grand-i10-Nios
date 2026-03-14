@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
-import { dayjs } from '@/utils/day';
+import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
 type HistoryItemCardProps = {
   entry: EntryRecord;
@@ -20,6 +20,11 @@ function prettyFieldName(value: string): string {
     .replace(/_/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeSpecHistoryValue(value: string): string {
+  const normalized = normalizeIndianDate(value);
+  return normalized === value ? value : normalized;
 }
 
 export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle, onPressSharedTripToggle }: HistoryItemCardProps) {
@@ -69,7 +74,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
   const specUpdateLines =
     entry.specUpdateDetails?.map((detail) => {
       const label = detail.label || prettyFieldName(detail.field);
-      return `${label}: ${detail.previousValue} -> ${detail.nextValue}`;
+      return `${label}: ${normalizeSpecHistoryValue(detail.previousValue)} -> ${normalizeSpecHistoryValue(detail.nextValue)}`;
     }) ??
     entry.specUpdatedFields?.map((field) => `Updated: ${prettyFieldName(field)}`) ??
     [];
@@ -153,7 +158,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
 
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
           <Text style={[styles.date, { color: colors.textSecondary }]}>
-            {dayjs(entry.createdAt).format('DD MMM YYYY')}
+            {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
           </Text>
           {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
             <Text style={[styles.distance, { color: colors.textSecondary }]}>DISTANCE TRAVELLED: {distanceKm} KM</Text>

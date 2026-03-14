@@ -21,7 +21,7 @@ import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, EntryType } from '@/types/models';
-import { dayjs } from '@/utils/day';
+import { dayjs, INDIA_DATE_FORMAT, INDIA_MONTH_FORMAT } from '@/utils/day';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'History'>;
 
@@ -107,7 +107,7 @@ export function HistoryScreen({ navigation }: Props) {
     }
 
     if (selectedMonth !== 'all') {
-      pills.push(dayjs(`${selectedMonth}-01`).format('MMM YYYY'));
+      pills.push(dayjs(`${selectedMonth}-01`).format(INDIA_MONTH_FORMAT));
     }
 
     if (datePreset !== 'all') {
@@ -118,11 +118,11 @@ export function HistoryScreen({ navigation }: Props) {
     }
 
     if (fromDate) {
-      pills.push(`From ${dayjs(fromDate).format('DD MMM YYYY')}`);
+      pills.push(`From ${dayjs(fromDate).format(INDIA_DATE_FORMAT)}`);
     }
 
     if (toDate) {
-      pills.push(`To ${dayjs(toDate).format('DD MMM YYYY')}`);
+      pills.push(`To ${dayjs(toDate).format(INDIA_DATE_FORMAT)}`);
     }
 
     return pills;
@@ -408,7 +408,7 @@ export function HistoryScreen({ navigation }: Props) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {monthOptions.map((month) => {
                 const active = month === selectedMonth;
-                const label = month === 'all' ? 'All months' : dayjs(`${month}-01`).format('MMM YYYY');
+                const label = month === 'all' ? 'All months' : dayjs(`${month}-01`).format(INDIA_MONTH_FORMAT);
 
                 return (
                   <Pressable
@@ -473,7 +473,7 @@ export function HistoryScreen({ navigation }: Props) {
                     <View style={styles.datePickValueRow}>
                       <MaterialIcons name="calendar-month" size={16} color={colors.textPrimary} />
                       <Text style={[styles.datePickValue, { color: colors.textPrimary }]}>
-                        {selected ? dayjs(selected).format('DD MMM YYYY') : 'Select date'}
+                        {selected ? dayjs(selected).format(INDIA_DATE_FORMAT) : 'Select date'}
                       </Text>
                     </View>
                   </Pressable>
@@ -509,7 +509,7 @@ export function HistoryScreen({ navigation }: Props) {
                   themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
                 />
                 <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
-                  Range starts from {MIN_FILTER_DATE.format('DD MMM YYYY')}
+                  Range starts from {MIN_FILTER_DATE.format(INDIA_DATE_FORMAT)}
                 </Text>
               </View>
             ) : null}

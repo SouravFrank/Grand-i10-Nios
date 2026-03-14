@@ -8,12 +8,13 @@ type CarDisplayCardProps = {
   registrationText: string;
   subtitle: string;
   onPress: () => void;
+  onLongPressRegistration?: () => void;
 };
 
 const carLeft = require('../../assets/images/carL.png');
 const carRight = require('../../assets/images/carR.png');
 
-export function CarDisplayCard({ registrationText, subtitle, onPress }: CarDisplayCardProps) {
+export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPressRegistration }: CarDisplayCardProps) {
   const { colors } = useAppTheme();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const imageSources = [carLeft, carRight] as const;
@@ -43,7 +44,9 @@ export function CarDisplayCard({ registrationText, subtitle, onPress }: CarDispl
         </View>
       </View>
 
-      <Text style={[styles.registration, { color: colors.textPrimary }]}>{registrationText}</Text>
+      <Pressable onLongPress={onLongPressRegistration} delayLongPress={250}>
+        <Text style={[styles.registration, { color: colors.textPrimary }]}>{registrationText}</Text>
+      </Pressable>
       <Text style={[styles.subMeta, { color: colors.textSecondary }]}>{subtitle}</Text>
     </View>
   );

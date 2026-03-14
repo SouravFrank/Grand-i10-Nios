@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -16,16 +16,6 @@ import type { ExpenseCategory } from '@/types/models';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ExpenseEntryModal'>;
 
-const categoryValues = ['shield_safety', 'care_comfort', 'maintenance_lab', 'utility_addon', 'other'] as const;
-
-const categoryOptions: { value: ExpenseCategory; label: string }[] = [
-  { value: 'shield_safety', label: 'Shield & Safety' },
-  { value: 'care_comfort', label: 'Care & Comfort' },
-  { value: 'maintenance_lab', label: 'Maintenance Lab' },
-  { value: 'utility_addon', label: 'Utility Add-ons' },
-  { value: 'other', label: 'Other' },
-];
-
 const quickExpenseTitles = [
   'Last Maintenance',
   'Engine Oil Change',
@@ -36,6 +26,33 @@ const quickExpenseTitles = [
   'Tax Renewal',
   'FASTag Recharge',
 ] as const;
+
+const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
+  shield_safety: { label: 'Shield & Safety', icon: 'verified-user' },
+  care_comfort: { label: 'Care & Comfort', icon: 'weekend' },
+  maintenance_lab: { label: 'Maintenance Lab', icon: 'build-circle' },
+  utility_addon: { label: 'Utility Add-ons', icon: 'bolt' },
+  other: { label: 'Other', icon: 'apps' },
+};
+
+const keywordCategoryRules: Array<{ keywords: string[]; category: ExpenseCategory }> = [
+  { keywords: ['maintenance', 'service', 'engine oil', 'oil', 'coolant', 'filter', 'alignment', 'balancing', 'repair'], category: 'maintenance_lab' },
+  { keywords: ['insurance', 'pucc', 'cover', 'rat', 'protector', 'safety', 'helmet'], category: 'shield_safety' },
+  { keywords: ['fastag', 'fast tag', 'tax', 'fitness', 'recharge', 'challan', 'tag'], category: 'utility_addon' },
+  { keywords: ['seat', 'clean', 'wash', 'mat', 'perfume', 'comfort', 'vacuum'], category: 'care_comfort' },
+];
+
+function inferExpenseCategory(title: string): ExpenseCategory {
+  const normalized = title.trim().toLowerCase();
+  if (!normalized) {
+    return 'other';
+  }
+
+  const matchedRule = keywordCategoryRules.find((rule) =>
+    rule.keywords.some((keyword) => normalized.includes(keyword)),
+  );
+  return matchedRule?.category ?? 'other';
+}
 
 const expenseSchema = z.object({
   odometer: z
@@ -49,7 +66,6 @@ const expenseSchema = z.object({
     .trim()
     .min(1, 'Cost is required.')
     .refine((value) => Number(value) > 0, 'Cost must be positive.'),
-  category: z.enum(categoryValues),
 });
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
@@ -72,14 +88,14 @@ export function ExpenseEntryScreen({ navigation }: Props) {
       odometer: String(lastOdometer),
       expenseTitle: '',
       cost: '',
-      category: 'shield_safety',
     },
   });
 
-  const selectedCategory = watch('category');
   const selectedExpenseTitle = watch('expenseTitle');
+  const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
+  const inferredCategoryMeta = categoryMeta[inferredCategory];
 
-  const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost, category }) => {
+  const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost }) => {
     if (!currentUser) {
       Alert.alert('Session expired', 'Please login again.');
       return;
@@ -103,7 +119,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
         userId: currentUser.id,
         userName: currentUser.name,
         odometer: parsedOdometer,
-        expenseCategory: category,
+        expenseCategory: inferExpenseCategory(expenseTitle),
         expenseTitle: expenseTitle.trim(),
         cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
       });
@@ -117,7 +133,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={[styles.headerStrip, { backgroundColor: colors.invertedBackground }]}>
           <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
             <MaterialIcons name="arrow-back" size={22} color={colors.invertedText} />
@@ -126,11 +142,93 @@ export function ExpenseEntryScreen({ navigation }: Props) {
           <View style={styles.iconBtn} />
         </View>
 
-        <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-            <Text style={[styles.info, { color: colors.textSecondary }]}>
-              Previous odometer: {lastOdometer} km
-            </Text>
+        <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <View style={styles.heroTop}>
+            <View style={[styles.heroIcon, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <MaterialIcons name="receipt-long" size={22} color={colors.textPrimary} />
+            </View>
+            <View style={styles.heroCopy}>
+              <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Log an expense</Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+                The app auto-detects the category from the title you enter.
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.inferredBadge, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialIcons name={inferredCategoryMeta.icon} size={18} color={colors.textPrimary} />
+            <View style={styles.inferredCopy}>
+              <Text style={[styles.inferredLabel, { color: colors.textSecondary }]}>Detected category</Text>
+              <Text style={[styles.inferredValue, { color: colors.textPrimary }]}>{inferredCategoryMeta.label}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.quickWrap}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
+          <View style={styles.quickGrid}>
+            {quickExpenseTitles.map((title) => {
+              const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
+              return (
+                <Pressable
+                  key={title}
+                  onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
+                  style={[
+                    styles.quickChip,
+                    {
+                      borderColor: active ? colors.textPrimary : colors.border,
+                      backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                    },
+                  ]}>
+                  {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                  <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                    {title}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <View style={styles.formSection}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Expense Details</Text>
+            <Controller
+              control={control}
+              name="expenseTitle"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Expense title"
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="e.g. Insurance Renewal"
+                  autoCapitalize="sentences"
+                  error={errors.expenseTitle?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="cost"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Amount (Rs)"
+                  value={value}
+                  onChangeText={onChange}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g. 950"
+                  error={errors.cost?.message}
+                />
+              )}
+            />
+          </View>
+
+          <View style={[styles.odoPanel, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <View style={styles.odoHead}>
+              <Text style={[styles.odoLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
+              <Text style={[styles.odoHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
+            </View>
             <Controller
               control={control}
               name="odometer"
@@ -146,95 +244,17 @@ export function ExpenseEntryScreen({ navigation }: Props) {
             />
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>FANCY CATEGORY</Text>
-          <View style={styles.categoryWrap}>
-            {categoryOptions.map((category) => {
-              const active = selectedCategory === category.value;
-              return (
-                <Pressable
-                  key={category.value}
-                  onPress={() => setValue('category', category.value, { shouldValidate: true })}
-                  style={[
-                    styles.categoryChip,
-                    {
-                      borderColor: active ? colors.textPrimary : colors.border,
-                      backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                    },
-                  ]}>
-                  {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                  <Text style={[styles.categoryChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                    {category.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
-          <View style={styles.categoryWrap}>
-            {quickExpenseTitles.map((title) => {
-              const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
-              return (
-                <Pressable
-                  key={title}
-                  onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
-                  style={[
-                    styles.categoryChip,
-                    {
-                      borderColor: active ? colors.textPrimary : colors.border,
-                      backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                    },
-                  ]}>
-                  {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                  <Text style={[styles.categoryChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                    {title}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Controller
-            control={control}
-            name="expenseTitle"
-            render={({ field: { onChange, value } }) => (
-              <AppTextField
-                label="Expense title"
-                value={value}
-                onChangeText={onChange}
-                placeholder="e.g. Car Cover"
-                autoCapitalize="sentences"
-                error={errors.expenseTitle?.message}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="cost"
-            render={({ field: { onChange, value } }) => (
-              <AppTextField
-                label="Cost (Rs)"
-                value={value}
-                onChangeText={onChange}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 950"
-                error={errors.cost?.message}
-              />
-            )}
-          />
-
           <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} />
         </View>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    gap: 12,
+    gap: 14,
+    paddingBottom: 28,
   },
   headerStrip: {
     height: 52,
@@ -255,21 +275,61 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.9,
   },
-  form: {
+  heroCard: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 12,
+    borderRadius: 22,
+    padding: 16,
+    gap: 16,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  heroIcon: {
+    borderWidth: 1,
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  heroSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  inferredBadge: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
-  section: {
-    borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
-    gap: 8,
+  inferredCopy: {
+    gap: 2,
   },
-  info: {
-    fontSize: 12,
-    letterSpacing: 0.2,
+  inferredLabel: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  inferredValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  quickWrap: {
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 11,
@@ -277,12 +337,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     textTransform: 'uppercase',
   },
-  categoryWrap: {
+  quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  categoryChip: {
+  quickChip: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 11,
@@ -291,9 +351,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  categoryChipText: {
+  quickChipText: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  formCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 16,
+    gap: 16,
+  },
+  formSection: {
+    gap: 12,
+  },
+  odoPanel: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+  },
+  odoHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  odoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  odoHint: {
+    fontSize: 12,
   },
 });
