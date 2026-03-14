@@ -12,6 +12,8 @@ type HistoryItemCardProps = {
   index: number;
   showSharedTripToggle?: boolean;
   onPressSharedTripToggle?: () => void;
+  canEdit?: boolean;
+  onPressEdit?: () => void;
 };
 
 function prettyFieldName(value: string): string {
@@ -27,7 +29,15 @@ function normalizeSpecHistoryValue(value: string): string {
   return normalized === value ? value : normalized;
 }
 
-export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle, onPressSharedTripToggle }: HistoryItemCardProps) {
+export function HistoryItemCard({
+  entry,
+  distanceKm,
+  index,
+  showSharedTripToggle,
+  onPressSharedTripToggle,
+  canEdit,
+  onPressEdit,
+}: HistoryItemCardProps) {
   const { colors, isDark } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
@@ -202,19 +212,29 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
         ) : null}
 
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
-          <View style={styles.footerItem}>
-            <MaterialIcons name="schedule" size={13} color={colors.textSecondary} />
-            <Text style={[styles.date, { color: colors.textSecondary }]}>
-              {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
-            </Text>
-          </View>
-          {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
+          <View style={styles.footerMetaRow}>
             <View style={styles.footerItem}>
-              <MaterialIcons name="route" size={13} color={colors.textSecondary} />
-              <Text style={[styles.distance, { color: colors.textSecondary }]}>
-                {distanceKm} km
+              <MaterialIcons name="schedule" size={13} color={colors.textSecondary} />
+              <Text style={[styles.date, { color: colors.textSecondary }]}>
+                {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
               </Text>
             </View>
+            {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
+              <View style={styles.footerItem}>
+                <MaterialIcons name="route" size={13} color={colors.textSecondary} />
+                <Text style={[styles.distance, { color: colors.textSecondary }]}>
+                  {distanceKm} km
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          {canEdit ? (
+            <Pressable
+              onPress={onPressEdit}
+              style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <MaterialIcons name="edit" size={15} color={colors.textPrimary} />
+              <Text style={[styles.editButtonText, { color: colors.textPrimary }]}>Edit</Text>
+            </Pressable>
           ) : null}
         </View>
       </View>
@@ -325,8 +345,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 8,
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  footerMetaRow: {
+    flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    flex: 1,
   },
   footerItem: {
     flexDirection: 'row',
@@ -339,5 +366,18 @@ const styles = StyleSheet.create({
   distance: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  editButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  editButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -23,10 +24,27 @@ export function DashboardSummaryCard({
   onRetrySync,
 }: DashboardSummaryCardProps) {
   const { colors } = useAppTheme();
+  const syncButtonDisabled = syncStatus === 'syncing';
+  const syncIconName = syncStatus === 'syncing' ? 'sync' : 'refresh';
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LAST ODOMETER</Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LAST ODOMETER</Text>
+        <Pressable
+          onPress={onRetrySync}
+          disabled={syncButtonDisabled}
+          style={[
+            styles.syncButton,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundSecondary,
+              opacity: syncButtonDisabled ? 0.55 : 1,
+            },
+          ]}>
+          <MaterialIcons name={syncIconName} size={18} color={colors.textPrimary} />
+        </Pressable>
+      </View>
       <Text style={[styles.odometer, { color: colors.textPrimary }]}>
         {latestEntry ? `${latestEntry.odometer} km` : '-- km'}
       </Text>
@@ -60,9 +78,23 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
   sectionLabel: {
     fontSize: 11,
     letterSpacing: 1,
+  },
+  syncButton: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   odometer: {
     fontSize: 32,

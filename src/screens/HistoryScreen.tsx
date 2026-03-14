@@ -278,7 +278,7 @@ export function HistoryScreen({ navigation }: Props) {
   }, [activeDateTarget, fromDate, toDate]);
 
   const handleSharedTripToggle = (row: HistoryRow) => {
-    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer' || row.entry.userId === currentUser.id) {
+    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer') {
       return;
     }
 
@@ -506,7 +506,6 @@ export function HistoryScreen({ navigation }: Props) {
                   mode="date"
                   value={pickerDate}
                   accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                  design={Platform.OS === 'android' ? 'material' : undefined}
                   display={Platform.OS === 'ios' ? 'spinner' : undefined}
                   minimumDate={activeDateTarget === 'from' ? MIN_FILTER_DATE.toDate() : fromDate ?? MIN_FILTER_DATE.toDate()}
                   maximumDate={
@@ -521,7 +520,6 @@ export function HistoryScreen({ navigation }: Props) {
                   negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
                   textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
                   themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
-                  title={Platform.OS === 'android' ? `Choose ${activeDateTarget === 'from' ? 'From' : 'To'} Date` : undefined}
                 />
                 <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
                   Range starts from {MIN_FILTER_DATE.format(INDIA_DATE_FORMAT)}
@@ -542,8 +540,15 @@ export function HistoryScreen({ navigation }: Props) {
             entry={item.entry}
             distanceKm={item.distanceKm}
             index={index}
-            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer' && item.entry.userId !== currentUser.id)}
+            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer')}
             onPressSharedTripToggle={() => handleSharedTripToggle(item)}
+            canEdit={Boolean(currentUser && item.entry.userId === currentUser.id && (item.entry.type === 'fuel' || item.entry.type === 'expense'))}
+            onPressEdit={() =>
+              navigation.navigate(
+                item.entry.type === 'fuel' ? 'FuelEntryModal' : 'ExpenseEntryModal',
+                { entryId: item.entry.id },
+              )
+            }
           />
         )}
       />

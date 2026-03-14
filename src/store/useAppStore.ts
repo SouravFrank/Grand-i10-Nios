@@ -73,6 +73,16 @@ type SharedTripActor = {
   userName: string;
 };
 
+type UpdateEntryInput = {
+  odometer: number;
+  fuelAmount?: number;
+  fuelLiters?: number;
+  fullTank?: boolean;
+  expenseCategory?: ExpenseCategory;
+  expenseTitle?: string;
+  cost?: number;
+};
+
 const DEFAULT_CAR_SPEC: CarSpec = {
   registrationNumber: "WB12BP0584",
   engineNumber: "G4LAPM522487",
@@ -167,6 +177,10 @@ type AppState = PersistedAppData & {
   }) => Promise<void>;
   logout: () => Promise<void>;
   addEntryOfflineFirst: (entry: AddEntryInput) => Promise<EntryRecord>;
+  updateEntryOfflineFirst: (
+    entryId: string,
+    updates: UpdateEntryInput,
+  ) => Promise<EntryRecord>;
   markEntriesSynced: (entryIds: string[]) => void;
   updatePendingQueue: (nextQueue: PendingQueueItem[]) => void;
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
@@ -213,6 +227,38 @@ function normalizeQueue(queue: PendingQueueItem[]): PendingQueueItem[] {
     seen.add(item.entryId);
     return true;
   });
+}
+
+function recalculateLastOdometer(entries: Array<Pick<EntryRecord, "odometer">>): number {
+  return entries.reduce((maxValue, entry) => Math.max(maxValue, entry.odometer), 0);
+}
+
+function validateUpdatedEntryOdometer(entries: EntryRecord[], entryId: string, nextOdometer: number): void {
+  if (!Number.isFinite(nextOdometer) || nextOdometer <= 0) {
+    throw new Error("Enter a valid odometer reading.");
+  }
+
+  const chronologicalEntries = [...entries].sort((a, b) => a.createdAt - b.createdAt);
+  const targetIndex = chronologicalEntries.findIndex((entry) => entry.id === entryId);
+
+  if (targetIndex === -1) {
+    throw new Error("Entry not found.");
+  }
+
+  const previousEntry = chronologicalEntries[targetIndex - 1];
+  const nextEntry = chronologicalEntries[targetIndex + 1];
+
+  if (previousEntry && nextOdometer < previousEntry.odometer) {
+    throw new Error("Edited odometer cannot be less than the previous recorded value.");
+  }
+
+  if (nextEntry && nextOdometer > nextEntry.odometer) {
+    throw new Error("Edited odometer cannot exceed the next recorded value.");
+  }
+
+  if (previousEntry && nextOdometer - previousEntry.odometer > 500) {
+    throw new Error("Single odometer entry cannot exceed 500 km from the previous reading.");
+  }
 }
 
 export const useAppStore = create<AppState>()(
@@ -343,6 +389,10 @@ export const useAppStore = create<AppState>()(
 
         const entryOdometer = payload.odometer;
 
+        if (!Number.isFinite(entryOdometer) || entryOdometer <= 0) {
+          throw new Error("Enter a valid odometer reading.");
+        }
+
         if (entryOdometer < lastOdometerValue) {
           throw new Error(
             "New odometer entry cannot be less than the previous value.",
@@ -392,14 +442,78 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           entries: [entryRecord, ...state.entries],
           pendingQueue: nextQueue,
-          lastOdometerValue: Math.max(
-            state.lastOdometerValue,
-            entryRecord.odometer,
-          ),
+          lastOdometerValue: recalculateLastOdometer([
+            entryRecord,
+            ...state.entries,
+          ]),
           syncStatus: "failed",
         }));
 
         return entryRecord;
+      },
+
+      updateEntryOfflineFirst: async (entryId, updates) => {
+        const { entries, pendingQueue } = get();
+        const targetEntry = entries.find((entry) => entry.id === entryId);
+
+        if (!targetEntry) {
+          throw new Error("Entry not found.");
+        }
+
+        if (targetEntry.type !== "fuel" && targetEntry.type !== "expense") {
+          throw new Error("Only fuel and expense entries can be edited.");
+        }
+
+        validateUpdatedEntryOdometer(entries, entryId, updates.odometer);
+
+        const secret = await ensureIntegritySecret();
+        const updatedEntry: Entry = {
+          ...targetEntry,
+          odometer: updates.odometer,
+          fuelAmount:
+            targetEntry.type === "fuel" ? updates.fuelAmount : undefined,
+          fuelLiters:
+            targetEntry.type === "fuel" ? updates.fuelLiters : undefined,
+          fullTank: targetEntry.type === "fuel" ? updates.fullTank : undefined,
+          expenseCategory:
+            targetEntry.type === "expense"
+              ? updates.expenseCategory
+              : undefined,
+          expenseTitle:
+            targetEntry.type === "expense" ? updates.expenseTitle : undefined,
+          cost: updates.cost,
+          synced: false,
+        };
+        const integrityHash = await buildEntryIntegrityHash(
+          updatedEntry,
+          secret,
+        );
+        const nextQueue = normalizeQueue([
+          ...pendingQueue,
+          {
+            entryId,
+            retries: 0,
+          },
+        ]);
+        const nextRecord: EntryRecord = {
+          ...updatedEntry,
+          integrityHash,
+        };
+
+        set((state) => {
+          const nextEntries = state.entries.map((entry) =>
+            entry.id === entryId ? nextRecord : entry,
+          );
+
+          return {
+            entries: nextEntries,
+            pendingQueue: nextQueue,
+            lastOdometerValue: recalculateLastOdometer(nextEntries),
+            syncStatus: "failed",
+          };
+        });
+
+        return nextRecord;
       },
 
       markEntriesSynced: (entryIds) => {
@@ -550,7 +664,6 @@ export const useAppStore = create<AppState>()(
         if (
           !targetEntry ||
           targetEntry.type !== "odometer" ||
-          targetEntry.userId === actor.userId ||
           targetEntry.sharedTrip
         ) {
           return;
@@ -674,10 +787,10 @@ export const useAppStore = create<AppState>()(
             (a, b) => b.createdAt - a.createdAt,
           ),
           pendingQueue: nextQueue,
-          lastOdometerValue: Math.max(
-            state.lastOdometerValue,
-            ...hashedEntries.map((entry) => entry.odometer),
-          ),
+          lastOdometerValue: recalculateLastOdometer([
+            ...state.entries,
+            ...hashedEntries,
+          ]),
           syncStatus: "failed",
         });
       },

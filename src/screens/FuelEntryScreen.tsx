@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { z } from 'zod';
@@ -16,6 +17,8 @@ import { useAppTheme } from '@/theme/useAppTheme';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'FuelEntryModal'>;
 
+const GRAND_I10_NIOS_TANK_CAPACITY_LITERS = 37;
+
 const fuelSchema = z
   .object({
     odometer: z
@@ -26,43 +29,76 @@ const fuelSchema = z
     fuelAmount: z
       .string()
       .trim()
-      .optional()
-      .refine((value) => value === undefined || value === '' || Number(value) > 0, 'Fuel amount must be positive.'),
+      .min(1, 'Fuel amount is required.')
+      .refine((value) => Number(value) > 0, 'Fuel amount must be positive.'),
     fuelLiters: z
       .string()
       .trim()
-      .optional()
-      .refine((value) => value === undefined || value === '' || Number(value) > 0, 'Fuel liters must be positive.'),
+      .min(1, 'Fuel liters is required.')
+      .refine((value) => Number(value) > 0, 'Fuel liters must be positive.'),
     fullTank: z.boolean(),
   })
-  .refine((data) => Boolean(data.fullTank || data.fuelAmount || data.fuelLiters), {
-    message: 'Enter Fuel Amount, Fuel Liters, or enable Full Tank.',
-    path: ['fuelAmount'],
+  .superRefine((data, context) => {
+    const liters = Number(data.fuelLiters);
+
+    if (Number.isFinite(liters) && liters > GRAND_I10_NIOS_TANK_CAPACITY_LITERS) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Fuel liters cannot exceed ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`,
+        path: ['fuelLiters'],
+      });
+    }
+
+    if (data.fullTank && Number.isFinite(liters) && liters !== GRAND_I10_NIOS_TANK_CAPACITY_LITERS) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Full tank is fixed at ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`,
+        path: ['fuelLiters'],
+      });
+    }
   });
 
 type FuelForm = z.infer<typeof fuelSchema>;
 
-export function FuelEntryScreen({ navigation }: Props) {
+export function FuelEntryScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const updateEntryOfflineFirst = useAppStore((state) => state.updateEntryOfflineFirst);
+  const entries = useAppStore((state) => state.entries);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
+  const editingEntry = route.params?.entryId
+    ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'fuel')
+    : undefined;
+  const isEditing = Boolean(editingEntry);
 
   const {
     control,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FuelForm>({
     resolver: zodResolver(fuelSchema),
     defaultValues: {
-      odometer: String(lastOdometer),
-      fuelAmount: '',
-      fuelLiters: '',
-      fullTank: false,
+      odometer: String(editingEntry?.odometer ?? lastOdometer),
+      fuelAmount: editingEntry?.fuelAmount ? String(editingEntry.fuelAmount) : '',
+      fuelLiters: editingEntry?.fuelLiters ? String(editingEntry.fuelLiters) : '',
+      fullTank: editingEntry?.fullTank ?? false,
     },
   });
+  const fullTankSelected = watch('fullTank');
+
+  useEffect(() => {
+    if (fullTankSelected) {
+      setValue('fuelLiters', String(GRAND_I10_NIOS_TANK_CAPACITY_LITERS), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [fullTankSelected, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
     if (!currentUser) {
@@ -70,35 +106,60 @@ export function FuelEntryScreen({ navigation }: Props) {
       return;
     }
 
+    if (isEditing && !editingEntry) {
+      Alert.alert('Entry not found', 'This fuel entry is no longer available.');
+      navigation.goBack();
+      return;
+    }
+    if (editingEntry && editingEntry.userId !== currentUser.id) {
+      Alert.alert('Edit not allowed', 'You can only edit your own fuel entries.');
+      return;
+    }
+
     const parsedOdometer = Number(values.odometer);
-    if (parsedOdometer < lastOdometer) {
+    const odometerFloor = isEditing ? null : lastOdometer;
+
+    if (odometerFloor !== null && parsedOdometer < odometerFloor) {
       Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
       return;
     }
-    if (parsedOdometer - lastOdometer > 500) {
+    if (odometerFloor !== null && parsedOdometer - odometerFloor > 500) {
       Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
       return;
     }
 
-    const amount = values.fuelAmount ? Number(values.fuelAmount) : undefined;
-    const liters = values.fuelLiters ? Number(values.fuelLiters) : undefined;
+    const amount = Number(values.fuelAmount);
+    const liters = Number(values.fuelLiters);
 
     try {
-      await addEntryOfflineFirst({
-        type: 'fuel',
-        userId: currentUser.id,
-        userName: currentUser.name,
-        odometer: parsedOdometer,
-        fuelAmount: Number.isFinite(amount) ? amount : undefined,
-        fuelLiters: Number.isFinite(liters) ? liters : undefined,
-        cost: Number.isFinite(amount) ? amount : undefined,
-        fullTank: values.fullTank,
-      });
+      if (editingEntry) {
+        await updateEntryOfflineFirst(editingEntry.id, {
+          odometer: parsedOdometer,
+          fuelAmount: amount,
+          fuelLiters: liters,
+          cost: amount,
+          fullTank: values.fullTank,
+        });
+      } else {
+        await addEntryOfflineFirst({
+          type: 'fuel',
+          userId: currentUser.id,
+          userName: currentUser.name,
+          odometer: parsedOdometer,
+          fuelAmount: amount,
+          fuelLiters: liters,
+          cost: amount,
+          fullTank: values.fullTank,
+        });
+      }
 
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert('Could not save fuel entry', error instanceof Error ? error.message : 'Unknown error');
+      Alert.alert(
+        isEditing ? 'Could not update fuel entry' : 'Could not save fuel entry',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   });
 
@@ -123,7 +184,7 @@ export function FuelEntryScreen({ navigation }: Props) {
 
               <View style={styles.headerCopy}>
                 <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>FUEL ENTRY</Text>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Refill Fuel</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{isEditing ? 'Edit Fuel Entry' : 'Refill Fuel'}</Text>
               </View>
 
               <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
@@ -132,7 +193,7 @@ export function FuelEntryScreen({ navigation }: Props) {
             </View>
 
             <View style={[styles.odoBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>Last odometer</Text>
+              <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>{isEditing ? 'Latest odometer' : 'Last odometer'}</Text>
               <Text style={[styles.odoBadgeValue, { color: colors.textPrimary }]}>{lastOdometer} km</Text>
             </View>
           </View>
@@ -172,14 +233,20 @@ export function FuelEntryScreen({ navigation }: Props) {
                 control={control}
                 name="fuelLiters"
                 render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Fuel Liters"
-                    value={value ?? ''}
-                    onChangeText={onChange}
-                    keyboardType="decimal-pad"
-                    placeholder="e.g. 24.6"
-                    error={errors.fuelLiters?.message}
-                  />
+                  <View style={styles.fieldWrap}>
+                    <AppTextField
+                      label="Fuel Liters"
+                      value={value ?? ''}
+                      onChangeText={onChange}
+                      keyboardType="decimal-pad"
+                      placeholder="e.g. 24.6"
+                      error={errors.fuelLiters?.message}
+                      editable={!fullTankSelected}
+                    />
+                    <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
+                      Full tank fills {GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L for Grand i10 Nios 2023 petrol.
+                    </Text>
+                  </View>
                 )}
               />
             </View>
@@ -202,7 +269,7 @@ export function FuelEntryScreen({ navigation }: Props) {
               />
             </View>
 
-            <PrimaryButton label="SAVE FUEL ENTRY" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+            <PrimaryButton label={isEditing ? 'UPDATE FUEL ENTRY' : 'SAVE FUEL ENTRY'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -295,6 +362,12 @@ const styles = StyleSheet.create({
   },
   fieldsGroup: {
     gap: 6,
+  },
+  fieldWrap: {
+    gap: 4,
+  },
+  fieldHint: {
+    fontSize: 12,
   },
   switchRow: {
     borderWidth: 1,

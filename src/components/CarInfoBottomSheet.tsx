@@ -30,10 +30,15 @@ type SpecRow = {
   canCopy?: boolean;
 };
 
-const EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
+type CarSpecTab = 'health' | 'legal';
+
+const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
   { key: 'lastMaintenanceDate', label: 'Last Maintenance Date' },
   { key: 'lastEngineOilChangedOn', label: 'Last Engine Oil Changed' },
   { key: 'lastCoolantRefillOn', label: 'Last Coolant Refill' },
+];
+
+const LEGAL_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
   { key: 'puccExpireDate', label: 'PUCC Expire Date' },
   { key: 'insuranceValidUpTo', label: 'Insurance Valid UpTo' },
   { key: 'fitnessValidUpTo', label: 'Fitness Valid UpTo' },
@@ -49,8 +54,9 @@ function parseExistingDate(value: string): Date {
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const [rendered, setRendered] = useState(visible);
+  const [activeTab, setActiveTab] = useState<CarSpecTab>('health');
   const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
   const [draftDate, setDraftDate] = useState<Date>(new Date());
   const [draftCost, setDraftCost] = useState('');
@@ -92,14 +98,34 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     ]).start(() => {
       setRendered(false);
       setActiveField(null);
+      setActiveTab('health');
       setDraftCost('');
       setDraftOdometer('');
       setShowDatePicker(false);
     });
   }, [overlayOpacity, translateY, visible]);
 
-  const rows = useMemo<SpecRow[]>(() => {
-    const editableRows: SpecRow[] = EDITABLE_CONFIG.map((item) => ({
+  const healthRows = useMemo<SpecRow[]>(() => {
+    const editableRows: SpecRow[] = HEALTH_EDITABLE_CONFIG.map((item) => ({
+      key: item.key,
+      label: item.label,
+      value: carSpec[item.key],
+      editable: true,
+    }));
+
+    const staticRows: SpecRow[] = [
+      { key: 'model', label: 'Model', value: carSpec.model, editable: false },
+      { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
+      { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
+      { key: 'carColor', label: 'Car Color', value: carSpec.carColor, editable: false },
+      { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
+    ];
+
+    return [...editableRows, ...staticRows];
+  }, [carSpec]);
+
+  const legalRows = useMemo<SpecRow[]>(() => {
+    const editableRows: SpecRow[] = LEGAL_EDITABLE_CONFIG.map((item) => ({
       key: item.key,
       label: item.label,
       value: carSpec[item.key],
@@ -111,19 +137,16 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       { key: 'engineNumber', label: 'Engine No', value: carSpec.engineNumber, editable: false, canCopy: true },
       { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
       { key: 'registrationDate', label: 'Registration Date', value: carSpec.registrationDate, editable: false },
+      { key: 'registrationYear', label: 'Registration Year', value: carSpec.registrationYear, editable: false },
       { key: 'manufacturingYear', label: 'Manufacturing Year', value: carSpec.manufacturingYear, editable: false },
-      { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
-      { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
-      { key: 'model', label: 'Model', value: carSpec.model, editable: false },
-      { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
-      { key: 'carColor', label: 'Car Color', value: carSpec.carColor, editable: false },
     ];
 
     return [...editableRows, ...staticRows];
   }, [carSpec]);
 
-  const editableRows = useMemo(() => rows.filter((row) => row.editable), [rows]);
-  const nonEditableRows = useMemo(() => rows.filter((row) => !row.editable), [rows]);
+  const activeRows = activeTab === 'health' ? healthRows : legalRows;
+  const editableRows = useMemo(() => activeRows.filter((row) => row.editable), [activeRows]);
+  const nonEditableRows = useMemo(() => activeRows.filter((row) => !row.editable), [activeRows]);
   const nonEditableGridRows = useMemo(() => {
     const pairs: SpecRow[][] = [];
     for (let index = 0; index < nonEditableRows.length; index += 2) {
@@ -158,7 +181,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     }
 
     const nextValue = dayjs(draftDate).format(INDIA_DATE_FORMAT);
-    const config = EDITABLE_CONFIG.find((item) => item.key === activeField);
+    const config = [...HEALTH_EDITABLE_CONFIG, ...LEGAL_EDITABLE_CONFIG].find((item) => item.key === activeField);
     if (!config) {
       return;
     }
@@ -248,13 +271,42 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
           </View>
 
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPEC SHEET</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPECS</Text>
             <Pressable onPress={onClose} style={styles.iconBtn}>
               <MaterialIcons name="close" size={22} color={colors.textPrimary} />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentWrap}>
+            <View style={[styles.tabRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              {([
+                { key: 'health', label: 'Car Health' },
+                { key: 'legal', label: 'Car Legal Info' },
+              ] as { key: CarSpecTab; label: string }[]).map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <Pressable
+                    key={tab.key}
+                    onPress={() => {
+                      setActiveTab(tab.key);
+                      setActiveField(null);
+                      setShowDatePicker(false);
+                    }}
+                    style={[
+                      styles.tabButton,
+                      {
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                      },
+                    ]}>
+                    <Text style={[styles.tabButtonText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             {editableRows.map((row) => {
               const isActive = row.editable && row.key === activeField;
 
@@ -318,14 +370,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                             mode="date"
                             value={draftDate}
                             accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                            design={Platform.OS === 'android' ? 'material' : undefined}
                             display={Platform.OS === 'ios' ? 'inline' : undefined}
                             onChange={handleDatePickerChange}
                             positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined}
                             negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
                             textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                            themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
-                            title={Platform.OS === 'android' ? `Select ${row.label}` : undefined}
+                            themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
                           />
                           {Platform.OS === 'ios' ? (
                             <Pressable
@@ -369,7 +419,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             })}
 
             <View style={[styles.nonEditablePanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Vehicle Details</Text>
+              <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>
+                {activeTab === 'health' ? 'Health Snapshot' : 'Legal Snapshot'}
+              </Text>
               {nonEditableGridRows.map((pair, rowIndex) => (
                 <View key={`grid-${rowIndex}`} style={styles.nonEditableGridRow}>
                   {pair.map((row, cellIndex) => (
@@ -449,6 +501,27 @@ const styles = StyleSheet.create({
   contentWrap: {
     gap: 10,
     paddingBottom: 10,
+  },
+  tabRow: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 6,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tabButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   nonEditablePanel: {
     borderWidth: 1,

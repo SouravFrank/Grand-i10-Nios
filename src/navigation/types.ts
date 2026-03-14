@@ -3,8 +3,8 @@ export type AppStackParamList = {
   History: undefined;
   SyncLogs: undefined;
   StartingCarModal: undefined;
-  FuelEntryModal: undefined;
-  ExpenseEntryModal: undefined;
+  FuelEntryModal: { entryId?: string } | undefined;
+  ExpenseEntryModal: { entryId?: string } | undefined;
 };
 
 export type AuthStackParamList = {

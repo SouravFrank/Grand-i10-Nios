@@ -71,13 +71,19 @@ const expenseSchema = z.object({
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
 
-export function ExpenseEntryScreen({ navigation }: Props) {
+export function ExpenseEntryScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const updateEntryOfflineFirst = useAppStore((state) => state.updateEntryOfflineFirst);
+  const entries = useAppStore((state) => state.entries);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
+  const editingEntry = route.params?.entryId
+    ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'expense')
+    : undefined;
+  const isEditing = Boolean(editingEntry);
 
   const {
     control,
@@ -88,9 +94,9 @@ export function ExpenseEntryScreen({ navigation }: Props) {
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
-      odometer: String(lastOdometer),
-      expenseTitle: '',
-      cost: '',
+      odometer: String(editingEntry?.odometer ?? lastOdometer),
+      expenseTitle: editingEntry?.expenseTitle ?? '',
+      cost: editingEntry?.cost ? String(editingEntry.cost) : '',
     },
   });
 
@@ -104,33 +110,56 @@ export function ExpenseEntryScreen({ navigation }: Props) {
       return;
     }
 
+    if (isEditing && !editingEntry) {
+      Alert.alert('Entry not found', 'This expense entry is no longer available.');
+      navigation.goBack();
+      return;
+    }
+    if (editingEntry && editingEntry.userId !== currentUser.id) {
+      Alert.alert('Edit not allowed', 'You can only edit your own expense entries.');
+      return;
+    }
+
     const parsedOdometer = Number(odometer);
     const parsedCost = Number(cost);
+    const odometerFloor = isEditing ? null : lastOdometer;
 
-    if (parsedOdometer < lastOdometer) {
+    if (odometerFloor !== null && parsedOdometer < odometerFloor) {
       Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
       return;
     }
-    if (parsedOdometer - lastOdometer > 500) {
+    if (odometerFloor !== null && parsedOdometer - odometerFloor > 500) {
       Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
       return;
     }
 
     try {
-      await addEntryOfflineFirst({
-        type: 'expense',
-        userId: currentUser.id,
-        userName: currentUser.name,
-        odometer: parsedOdometer,
-        expenseCategory: inferExpenseCategory(expenseTitle),
-        expenseTitle: expenseTitle.trim(),
-        cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
-      });
+      if (editingEntry) {
+        await updateEntryOfflineFirst(editingEntry.id, {
+          odometer: parsedOdometer,
+          expenseCategory: inferExpenseCategory(expenseTitle),
+          expenseTitle: expenseTitle.trim(),
+          cost: parsedCost,
+        });
+      } else {
+        await addEntryOfflineFirst({
+          type: 'expense',
+          userId: currentUser.id,
+          userName: currentUser.name,
+          odometer: parsedOdometer,
+          expenseCategory: inferExpenseCategory(expenseTitle),
+          expenseTitle: expenseTitle.trim(),
+          cost: parsedCost,
+        });
+      }
 
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert('Could not save expense', error instanceof Error ? error.message : 'Unknown error');
+      Alert.alert(
+        isEditing ? 'Could not update expense' : 'Could not save expense',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   });
 
@@ -155,7 +184,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
 
               <View style={styles.headerCopy}>
                 <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>EXPENSE ENTRY</Text>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Expense</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{isEditing ? 'Edit Expense' : 'Add Expense'}</Text>
               </View>
 
               <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
@@ -170,7 +199,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
                 <MaterialIcons name="receipt-long" size={22} color={colors.textPrimary} />
               </View>
               <View style={styles.heroCopy}>
-                <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Log an expense</Text>
+                <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>{isEditing ? 'Update expense' : 'Log an expense'}</Text>
                 <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
                   The app auto-detects the category from the title you enter.
                 </Text>
@@ -249,7 +278,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
             <View style={[styles.odoPanel, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
               <View style={styles.odoHead}>
                 <Text style={[styles.odoLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
-                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
+                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>{isEditing ? `Latest ${lastOdometer} km` : `Previous ${lastOdometer} km`}</Text>
               </View>
               <Controller
                 control={control}
@@ -266,7 +295,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
               />
             </View>
 
-            <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+            <PrimaryButton label={isEditing ? 'UPDATE EXPENSE' : 'SAVE EXPENSE'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
