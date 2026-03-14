@@ -3,7 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -104,106 +104,119 @@ export function FuelEntryScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
+      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[styles.scrollContent, styles.container]}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
 
-        <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.headerRow}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-              <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
-            </Pressable>
+          <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
+              </Pressable>
 
-            <View style={styles.headerCopy}>
-              <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>FUEL ENTRY</Text>
-              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Refill Fuel</Text>
+              <View style={styles.headerCopy}>
+                <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>FUEL ENTRY</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Refill Fuel</Text>
+              </View>
+
+              <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
+                <MaterialCommunityIcons name="fuel" size={20} color={colors.textPrimary} />
+              </View>
             </View>
 
-            <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
-              <MaterialCommunityIcons name="fuel" size={20} color={colors.textPrimary} />
+            <View style={[styles.odoBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>Last odometer</Text>
+              <Text style={[styles.odoBadgeValue, { color: colors.textPrimary }]}>{lastOdometer} km</Text>
             </View>
           </View>
 
-          <View style={[styles.odoBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-            <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>Last odometer</Text>
-            <Text style={[styles.odoBadgeValue, { color: colors.textPrimary }]}>{lastOdometer} km</Text>
-          </View>
-        </View>
+          <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.fieldsGroup}>
+              <Controller
+                control={control}
+                name="odometer"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Odometer"
+                    value={value}
+                    onChangeText={onChange}
+                    keyboardType="numeric"
+                    error={errors.odometer?.message}
+                  />
+                )}
+              />
 
-        <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.fieldsGroup}>
-            <Controller
-              control={control}
-              name="odometer"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Odometer"
-                  value={value}
-                  onChangeText={onChange}
-                  keyboardType="numeric"
-                  error={errors.odometer?.message}
-                />
-              )}
-            />
+              <Controller
+                control={control}
+                name="fuelAmount"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Fuel Amount (Rs)"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 2000"
+                    error={errors.fuelAmount?.message}
+                  />
+                )}
+              />
 
-            <Controller
-              control={control}
-              name="fuelAmount"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Fuel Amount (Rs)"
-                  value={value ?? ''}
-                  onChangeText={onChange}
-                  keyboardType="decimal-pad"
-                  placeholder="e.g. 2000"
-                  error={errors.fuelAmount?.message}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="fuelLiters"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Fuel Liters"
-                  value={value ?? ''}
-                  onChangeText={onChange}
-                  keyboardType="decimal-pad"
-                  placeholder="e.g. 24.6"
-                  error={errors.fuelLiters?.message}
-                />
-              )}
-            />
-          </View>
-
-          <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-            <View style={styles.switchCopy}>
-              <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
+              <Controller
+                control={control}
+                name="fuelLiters"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Fuel Liters"
+                    value={value ?? ''}
+                    onChangeText={onChange}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 24.6"
+                    error={errors.fuelLiters?.message}
+                  />
+                )}
+              />
             </View>
-            <Controller
-              control={control}
-              name="fullTank"
-              render={({ field: { onChange, value } }) => (
-                <Switch
-                  value={value}
-                  onValueChange={onChange}
-                  trackColor={{ false: colors.border, true: colors.textSecondary }}
-                  thumbColor={isDark ? colors.textPrimary : colors.background}
-                />
-              )}
-            />
-          </View>
 
-          <PrimaryButton label="SAVE FUEL ENTRY" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
-        </View>
-      </ScrollView>
+            <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <View style={styles.switchCopy}>
+                <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
+              </View>
+              <Controller
+                control={control}
+                name="fullTank"
+                render={({ field: { onChange, value } }) => (
+                  <Switch
+                    value={value}
+                    onValueChange={onChange}
+                    trackColor={{ false: colors.border, true: colors.textSecondary }}
+                    thumbColor={isDark ? colors.textPrimary : colors.background}
+                  />
+                )}
+              />
+            </View>
+
+            <PrimaryButton label="SAVE FUEL ENTRY" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     gap: 14,
     paddingBottom: 28,

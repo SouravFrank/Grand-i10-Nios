@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -136,138 +136,151 @@ export function ExpenseEntryScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
+      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[styles.scrollContent, styles.container]}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
 
-        <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.headerRow}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-              <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
-            </Pressable>
+          <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
+              </Pressable>
 
-            <View style={styles.headerCopy}>
-              <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>EXPENSE ENTRY</Text>
-              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Expense</Text>
-            </View>
+              <View style={styles.headerCopy}>
+                <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>EXPENSE ENTRY</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Expense</Text>
+              </View>
 
-            <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
-              <MaterialCommunityIcons name="receipt-text-outline" size={20} color={colors.textPrimary} />
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <View style={styles.heroTop}>
-            <View style={[styles.heroIcon, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-              <MaterialIcons name="receipt-long" size={22} color={colors.textPrimary} />
-            </View>
-            <View style={styles.heroCopy}>
-              <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Log an expense</Text>
-              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-                The app auto-detects the category from the title you enter.
-              </Text>
+              <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
+                <MaterialCommunityIcons name="receipt-text-outline" size={20} color={colors.textPrimary} />
+              </View>
             </View>
           </View>
 
-          <View style={[styles.inferredBadge, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-            <MaterialIcons name={inferredCategoryMeta.icon} size={18} color={colors.textPrimary} />
-            <View style={styles.inferredCopy}>
-              <Text style={[styles.inferredLabel, { color: colors.textSecondary }]}>Detected category</Text>
-              <Text style={[styles.inferredValue, { color: colors.textPrimary }]}>{inferredCategoryMeta.label}</Text>
+          <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={styles.heroTop}>
+              <View style={[styles.heroIcon, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                <MaterialIcons name="receipt-long" size={22} color={colors.textPrimary} />
+              </View>
+              <View style={styles.heroCopy}>
+                <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Log an expense</Text>
+                <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+                  The app auto-detects the category from the title you enter.
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.inferredBadge, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <MaterialIcons name={inferredCategoryMeta.icon} size={18} color={colors.textPrimary} />
+              <View style={styles.inferredCopy}>
+                <Text style={[styles.inferredLabel, { color: colors.textSecondary }]}>Detected category</Text>
+                <Text style={[styles.inferredValue, { color: colors.textPrimary }]}>{inferredCategoryMeta.label}</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.quickWrap}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
-          <View style={styles.quickGrid}>
-            {quickExpenseTitles.map((title) => {
-              const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
-              return (
-                <Pressable
-                  key={title}
-                  onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
-                  style={[
-                    styles.quickChip,
-                    {
-                      borderColor: active ? colors.textPrimary : colors.border,
-                      backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                    },
-                  ]}>
-                  {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                  <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                    {title}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <View style={styles.formSection}>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Expense Details</Text>
-            <Controller
-              control={control}
-              name="expenseTitle"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Expense title"
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="e.g. Insurance Renewal"
-                  autoCapitalize="sentences"
-                  error={errors.expenseTitle?.message}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="cost"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Amount (Rs)"
-                  value={value}
-                  onChangeText={onChange}
-                  keyboardType="decimal-pad"
-                  placeholder="e.g. 950"
-                  error={errors.cost?.message}
-                />
-              )}
-            />
-          </View>
-
-          <View style={[styles.odoPanel, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-            <View style={styles.odoHead}>
-              <Text style={[styles.odoLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
-              <Text style={[styles.odoHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
+          <View style={styles.quickWrap}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
+            <View style={styles.quickGrid}>
+              {quickExpenseTitles.map((title) => {
+                const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
+                return (
+                  <Pressable
+                    key={title}
+                    onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
+                    style={[
+                      styles.quickChip,
+                      {
+                        borderColor: active ? colors.textPrimary : colors.border,
+                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                      },
+                    ]}>
+                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                      {title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-            <Controller
-              control={control}
-              name="odometer"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  label="Odometer"
-                  value={value}
-                  onChangeText={onChange}
-                  keyboardType="numeric"
-                  error={errors.odometer?.message}
-                />
-              )}
-            />
           </View>
 
-          <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
-        </View>
-      </ScrollView>
+          <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={styles.formSection}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Expense Details</Text>
+              <Controller
+                control={control}
+                name="expenseTitle"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Expense title"
+                    value={value}
+                    onChangeText={onChange}
+                    placeholder="e.g. Insurance Renewal"
+                    autoCapitalize="sentences"
+                    error={errors.expenseTitle?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="cost"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Amount (Rs)"
+                    value={value}
+                    onChangeText={onChange}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 950"
+                    error={errors.cost?.message}
+                  />
+                )}
+              />
+            </View>
+
+            <View style={[styles.odoPanel, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <View style={styles.odoHead}>
+                <Text style={[styles.odoLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
+                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
+              </View>
+              <Controller
+                control={control}
+                name="odometer"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    label="Odometer"
+                    value={value}
+                    onChangeText={onChange}
+                    keyboardType="numeric"
+                    error={errors.odometer?.message}
+                  />
+                )}
+              />
+            </View>
+
+            <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     gap: 14,
     paddingBottom: 28,
