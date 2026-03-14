@@ -31,6 +31,15 @@ type SpecRow = {
 };
 
 type CarSpecTab = 'health' | 'legal';
+type LegalGalleryKey = 'pucc' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate';
+
+type LegalGalleryItem = {
+  key: LegalGalleryKey;
+  title: string;
+  subtitle: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  accent: string;
+};
 
 const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
   { key: 'lastMaintenanceDate', label: 'Last Maintenance Date' },
@@ -45,6 +54,14 @@ const LEGAL_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] =
   { key: 'taxValidUpTo', label: 'Tax Valid UpTo' },
 ];
 
+const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
+  { key: 'pucc', title: 'PUCC', subtitle: 'Pollution certificate', icon: 'eco', accent: '#2F7D32' },
+  { key: 'rc', title: 'RC', subtitle: 'Registration certificate', icon: 'description', accent: '#0057B8' },
+  { key: 'fitness', title: 'Fitness', subtitle: 'Fitness certificate', icon: 'verified', accent: '#8E5A00' },
+  { key: 'roadTax', title: 'Road Tax', subtitle: 'Tax payment proof', icon: 'account-balance-wallet', accent: '#7A1FA2' },
+  { key: 'numberPlate', title: 'Number Plate', subtitle: 'Registration plate photo', icon: 'directions-car', accent: '#455A64' },
+];
+
 function parseExistingDate(value: string): Date {
   const parsed = dayjs(normalizeIndianDate(value), INDIA_DATE_FORMAT, true);
   if (!parsed.isValid()) {
@@ -53,11 +70,37 @@ function parseExistingDate(value: string): Date {
   return parsed.toDate();
 }
 
+function getHealthReminder(value: string): string | null {
+  const parsed = dayjs(normalizeIndianDate(value), INDIA_DATE_FORMAT, true);
+  if (!parsed.isValid()) {
+    return null;
+  }
+
+  const dueDate = parsed.add(300, 'day').startOf('day');
+  const today = dayjs().startOf('day');
+  const remainingDays = dueDate.diff(today, 'day');
+
+  if (remainingDays > 60) {
+    return null;
+  }
+
+  if (remainingDays < 0) {
+    return `Overdue by ${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
+  }
+
+  if (remainingDays === 0) {
+    return 'Due today';
+  }
+
+  return `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
+}
+
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors, isDark } = useAppTheme();
   const [rendered, setRendered] = useState(visible);
   const [activeTab, setActiveTab] = useState<CarSpecTab>('health');
   const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
+  const [selectedGalleryItem, setSelectedGalleryItem] = useState<LegalGalleryKey | null>(null);
   const [draftDate, setDraftDate] = useState<Date>(new Date());
   const [draftCost, setDraftCost] = useState('');
   const [draftOdometer, setDraftOdometer] = useState('');
@@ -99,6 +142,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       setRendered(false);
       setActiveField(null);
       setActiveTab('health');
+      setSelectedGalleryItem(null);
       setDraftCost('');
       setDraftOdometer('');
       setShowDatePicker(false);
@@ -145,6 +189,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   }, [carSpec]);
 
   const activeRows = activeTab === 'health' ? healthRows : legalRows;
+  const selectedGalleryCard = useMemo(
+    () => LEGAL_GALLERY_ITEMS.find((item) => item.key === selectedGalleryItem) ?? null,
+    [selectedGalleryItem],
+  );
   const editableRows = useMemo(() => activeRows.filter((row) => row.editable), [activeRows]);
   const nonEditableRows = useMemo(() => activeRows.filter((row) => !row.editable), [activeRows]);
   const nonEditableGridRows = useMemo(() => {
@@ -309,6 +357,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
             {editableRows.map((row) => {
               const isActive = row.editable && row.key === activeField;
+              const healthReminder = activeTab === 'health' ? getHealthReminder(row.value) : null;
 
               return (
                 <View
@@ -326,6 +375,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                     <View style={styles.rowTitleWrap}>
                       <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                       <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
+                      {healthReminder ? (
+                        <Text style={styles.healthReminderText}>{healthReminder}</Text>
+                      ) : null}
                     </View>
                     {row.editable ? (
                       <Pressable
@@ -451,9 +503,75 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 </View>
               ))}
             </View>
+
+            {activeTab === 'legal' ? (
+              <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                <View style={styles.galleryHeader}>
+                  <View style={styles.galleryCopy}>
+                    <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Photo Gallery</Text>
+                    <Text style={[styles.galleryHint, { color: colors.textSecondary }]}>
+                      Open quick previews for PUCC, RC, Fitness, Road Tax, and Number Plate.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.galleryGrid}>
+                  {LEGAL_GALLERY_ITEMS.map((item) => (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => setSelectedGalleryItem(item.key)}
+                      style={[
+                        styles.galleryCard,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: colors.backgroundSecondary,
+                        },
+                      ]}>
+                      <View style={[styles.galleryIconWrap, { backgroundColor: item.accent }]}>
+                        <MaterialIcons name={item.icon} size={18} color="#FFFFFF" />
+                      </View>
+                      <Text style={[styles.galleryTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                      <Text style={[styles.gallerySubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
           </ScrollView>
         </Animated.View>
       </View>
+
+      {selectedGalleryCard ? (
+        <View style={styles.viewerOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setSelectedGalleryItem(null)} />
+          <View style={[styles.viewerCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={styles.viewerHeader}>
+              <View>
+                <Text style={[styles.viewerTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
+                <Text style={[styles.viewerSubtitle, { color: colors.textSecondary }]}>{selectedGalleryCard.subtitle}</Text>
+              </View>
+              <Pressable
+                onPress={() => setSelectedGalleryItem(null)}
+                style={[styles.viewerCloseBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialIcons name="close" size={18} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <View style={[styles.viewerPreview, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              <View style={[styles.viewerBadge, { backgroundColor: selectedGalleryCard.accent }]}>
+                <MaterialIcons name={selectedGalleryCard.icon} size={28} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.viewerDocTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
+              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                Preview slot ready for document image asset.
+              </Text>
+              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                Replace this card with a scanned image when the final files are available.
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </Modal>
   );
 }
@@ -529,6 +647,53 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 8,
   },
+  galleryPanel: {
+    borderWidth: 1,
+    borderRadius: 2,
+    padding: 10,
+    gap: 10,
+  },
+  galleryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  galleryCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  galleryHint: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  galleryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  galleryCard: {
+    width: '48%',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    gap: 6,
+  },
+  galleryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  gallerySubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
   nonEditableTitle: {
     fontSize: 12,
     fontWeight: '700',
@@ -586,6 +751,12 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  healthReminderText: {
+    fontSize: 11,
+    color: '#C62828',
+    fontWeight: '700',
+    lineHeight: 16,
   },
   editIconBtn: {
     width: 34,
@@ -649,6 +820,65 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     gap: 8,
+  },
+  viewerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  viewerCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+  },
+  viewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  viewerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  viewerSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  viewerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerPreview: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 20,
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  viewerBadge: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerDocTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  viewerDocMeta: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   datePickerDoneBtn: {
     borderWidth: 1,

@@ -278,7 +278,7 @@ export function HistoryScreen({ navigation }: Props) {
   }, [activeDateTarget, fromDate, toDate]);
 
   const handleSharedTripToggle = (row: HistoryRow) => {
-    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer') {
+    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer' || row.entry.userId === currentUser.id) {
       return;
     }
 
@@ -540,7 +540,7 @@ export function HistoryScreen({ navigation }: Props) {
             entry={item.entry}
             distanceKm={item.distanceKm}
             index={index}
-            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer')}
+            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer' && item.entry.userId !== currentUser.id)}
             onPressSharedTripToggle={() => handleSharedTripToggle(item)}
             canEdit={Boolean(currentUser && item.entry.userId === currentUser.id && (item.entry.type === 'fuel' || item.entry.type === 'expense'))}
             onPressEdit={() =>

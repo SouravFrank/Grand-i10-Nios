@@ -25,6 +25,7 @@ import {
   setStoredSession,
 } from "@/services/storage/sessionStorage";
 import type {
+  ActiveTrip,
   AppUser,
   AuthStatus,
   CarSpec,
@@ -46,6 +47,7 @@ type PersistedAppData = {
   pendingQueue: PendingQueueItem[];
   lastSyncTime: number | null;
   lastOdometerValue: number;
+  activeTrip: ActiveTrip | null;
   currentUser: AppUser | null;
   biometricEnabled: boolean;
   carSpec: CarSpec;
@@ -57,6 +59,9 @@ type AddEntryInput = {
   userId: string;
   userName: string;
   odometer?: number;
+  tripId?: string;
+  tripStage?: "start" | "end";
+  tripDistanceKm?: number;
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
@@ -176,6 +181,16 @@ type AppState = PersistedAppData & {
     biometricEnabled: boolean;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  startTrip: (params: {
+    userId: string;
+    userName: string;
+    odometer: number;
+  }) => Promise<EntryRecord>;
+  endTrip: (params: {
+    userId: string;
+    userName: string;
+    odometer: number;
+  }) => Promise<EntryRecord>;
   addEntryOfflineFirst: (entry: AddEntryInput) => Promise<EntryRecord>;
   updateEntryOfflineFirst: (
     entryId: string,
@@ -200,6 +215,7 @@ const initialPersistedState: PersistedAppData = {
   pendingQueue: [],
   lastSyncTime: null,
   lastOdometerValue: 0,
+  activeTrip: null,
   currentUser: null,
   biometricEnabled: false,
   carSpecDirty: false,
@@ -380,6 +396,57 @@ export const useAppStore = create<AppState>()(
         });
       },
 
+      startTrip: async ({ userId, userName, odometer }) => {
+        const tripId = createId("trip");
+        const entry = await get().addEntryOfflineFirst({
+          type: "odometer",
+          userId,
+          userName,
+          odometer,
+          tripId,
+          tripStage: "start",
+        });
+
+        set({
+          activeTrip: {
+            tripId,
+            startEntryId: entry.id,
+            startOdometer: odometer,
+            startedAt: entry.createdAt,
+            userId,
+            userName,
+          },
+        });
+
+        return entry;
+      },
+
+      endTrip: async ({ userId, userName, odometer }) => {
+        const activeTrip = get().activeTrip;
+
+        if (!activeTrip) {
+          throw new Error("No active trip found.");
+        }
+
+        if (odometer < activeTrip.startOdometer) {
+          throw new Error("Trip end odometer cannot be less than the trip start reading.");
+        }
+
+        const entry = await get().addEntryOfflineFirst({
+          type: "odometer",
+          userId,
+          userName,
+          odometer,
+          tripId: activeTrip.tripId,
+          tripStage: "end",
+          tripDistanceKm: odometer - activeTrip.startOdometer,
+        });
+
+        set({ activeTrip: null });
+
+        return entry;
+      },
+
       addEntryOfflineFirst: async (payload) => {
         const { lastOdometerValue, pendingQueue } = get();
 
@@ -411,6 +478,9 @@ export const useAppStore = create<AppState>()(
           userId: payload.userId,
           userName: payload.userName,
           odometer: entryOdometer,
+          tripId: payload.tripId,
+          tripStage: payload.tripStage,
+          tripDistanceKm: payload.tripDistanceKm,
           fuelAmount: payload.fuelAmount,
           fuelLiters: payload.fuelLiters,
           fullTank: payload.fullTank,
@@ -628,6 +698,10 @@ export const useAppStore = create<AppState>()(
             entries: validEntries.sort((a, b) => b.createdAt - a.createdAt),
             pendingQueue: filteredQueue,
             lastOdometerValue: recalculatedLastOdometer,
+            activeTrip:
+              state.activeTrip && validIds.has(state.activeTrip.startEntryId)
+                ? state.activeTrip
+                : null,
             syncStatus: filteredQueue.length > 0 ? "failed" : "synced",
             securityIssue: integrityIssue
               ? "Local data integrity check failed. Invalid records were removed."
@@ -664,6 +738,7 @@ export const useAppStore = create<AppState>()(
         if (
           !targetEntry ||
           targetEntry.type !== "odometer" ||
+          targetEntry.userId === actor.userId ||
           targetEntry.sharedTrip
         ) {
           return;
@@ -807,6 +882,7 @@ export const useAppStore = create<AppState>()(
         biometricEnabled: state.biometricEnabled,
         carSpec: state.carSpec,
         carSpecDirty: state.carSpecDirty,
+        activeTrip: state.activeTrip,
       }),
       merge: (persistedState, currentState) => {
         const typedPersistedState = (persistedState as Partial<AppState>) ?? {};

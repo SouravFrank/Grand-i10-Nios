@@ -24,6 +24,7 @@ export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const currentUser = useAppStore((state) => state.currentUser);
   const entries = useAppStore((state) => state.entries);
+  const activeTrip = useAppStore((state) => state.activeTrip);
   const carSpec = useAppStore((state) => state.carSpec);
   const updateCarSpec = useAppStore((state) => state.updateCarSpec);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
@@ -126,28 +127,76 @@ export function HomeScreen({ navigation }: Props) {
             onRetrySync={() => void runSyncCycle()}
           />
 
+          {activeTrip ? (
+            <View style={[styles.tripBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <Text style={[styles.tripBannerLabel, { color: colors.textSecondary }]}>ACTIVE TRIP</Text>
+              <Text style={[styles.tripBannerValue, { color: colors.textPrimary }]}>Started at {activeTrip.startOdometer} km</Text>
+            </View>
+          ) : null}
+
           <View style={styles.ctaRow}>
-            <SharpButton
-              label="START THE CAR"
-              variant="primary"
-              iconName="steering"
-              style={styles.primaryCtaButton}
-              onPress={() => navigation.navigate('StartingCarModal')}
-            />
-            <SharpButton
-              label="ADD FUEL"
-              variant="secondary"
-              iconName="fuel"
-              style={styles.secondaryCtaButton}
-              onPress={() => navigation.navigate('FuelEntryModal')}
-            />
+            {activeTrip ? (
+              <>
+                <SharpButton
+                  label="END TRIP"
+                  variant="primary"
+                  iconName="flag-checkered"
+                  style={styles.equalCtaButton}
+                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'end' })}
+                />
+                <SharpButton
+                  label="START NEW TRIP"
+                  variant="secondary"
+                  iconName="plus-circle-outline"
+                  style={styles.equalCtaButton}
+                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'restart' })}
+                />
+              </>
+            ) : (
+              <>
+                <SharpButton
+                  label="START TRIP"
+                  variant="primary"
+                  iconName="steering"
+                  style={styles.primaryCtaButton}
+                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'start' })}
+                />
+                <SharpButton
+                  label="ADD FUEL"
+                  variant="secondary"
+                  iconName="fuel"
+                  style={styles.secondaryCtaButton}
+                  onPress={() => navigation.navigate('FuelEntryModal')}
+                />
+              </>
+            )}
           </View>
-          <SharpButton
-            label="ADD EXPENSE"
-            variant="secondary"
-            iconName="wallet-plus-outline"
-            onPress={() => navigation.navigate('ExpenseEntryModal')}
-          />
+
+          {activeTrip ? (
+            <View style={styles.ctaRow}>
+              <SharpButton
+                label="ADD FUEL"
+                variant="secondary"
+                iconName="fuel"
+                style={styles.equalCtaButton}
+                onPress={() => navigation.navigate('FuelEntryModal')}
+              />
+              <SharpButton
+                label="ADD EXPENSE"
+                variant="secondary"
+                iconName="wallet-plus-outline"
+                style={styles.equalCtaButton}
+                onPress={() => navigation.navigate('ExpenseEntryModal')}
+              />
+            </View>
+          ) : (
+            <SharpButton
+              label="ADD EXPENSE"
+              variant="secondary"
+              iconName="wallet-plus-outline"
+              onPress={() => navigation.navigate('ExpenseEntryModal')}
+            />
+          )}
 
           <Pressable onPress={() => navigation.navigate('History')} style={styles.historyWrap}>
             <View style={styles.historyRow}>
@@ -219,10 +268,29 @@ const styles = StyleSheet.create({
     gap: 14,
     width: '100%',
   },
+  tripBanner: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  tripBannerLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  tripBannerValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   primaryCtaButton: {
     flex: 1.65,
   },
   secondaryCtaButton: {
+    flex: 1,
+  },
+  equalCtaButton: {
     flex: 1,
   },
   historyWrap: {

@@ -61,7 +61,11 @@ export function HistoryItemCard({
   }, [index, opacity, translateY]);
 
   const entryTypeLabel =
-    entry.type === 'fuel'
+    entry.type === 'odometer' && entry.tripStage === 'start'
+      ? 'TRIP START'
+      : entry.type === 'odometer' && entry.tripStage === 'end'
+        ? 'TRIP END'
+        : entry.type === 'fuel'
       ? 'FUEL ENTRY'
       : entry.type === 'spec_update'
         ? 'SPECS UPDATE'
@@ -130,8 +134,16 @@ export function HistoryItemCard({
     detailChips.push({ icon: 'speed', text: `${entry.odometer} km` });
   }
 
-  if (entry.type === 'odometer' && distanceKm !== null) {
+  if (entry.type === 'odometer' && distanceKm !== null && entry.tripStage !== 'end') {
     detailChips.push({ icon: 'route', text: `${distanceKm} km` });
+  }
+
+  if (entry.type === 'odometer' && entry.tripStage === 'start') {
+    detailChips.push({ icon: 'play-arrow', text: 'Trip started' });
+  }
+
+  if (entry.type === 'odometer' && entry.tripStage === 'end' && typeof entry.tripDistanceKm === 'number') {
+    detailChips.push({ icon: 'flag', text: `${entry.tripDistanceKm} km trip` });
   }
 
   return (

@@ -1,12 +1,12 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 
-import { AppTextField } from '@/components/AppTextField';
+import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
@@ -20,17 +20,31 @@ const schema = z.object({
     .string()
     .trim()
     .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,7}$/.test(value), 'Use up to 7 digits.'),
+    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-export function StartingCarScreen({ navigation }: Props) {
+export function StartingCarScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
+  const activeTrip = useAppStore((state) => state.activeTrip);
   const currentUser = useAppStore((state) => state.currentUser);
-  const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const startTrip = useAppStore((state) => state.startTrip);
+  const endTrip = useAppStore((state) => state.endTrip);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const tripMode = route.params?.mode ?? 'start';
+  const isEndingTrip = tripMode === 'end';
+  const isRestartingTrip = tripMode === 'restart';
+  const title = isEndingTrip ? 'End Trip' : isRestartingTrip ? 'Start New Trip' : 'Start Trip';
+  const buttonLabel = isEndingTrip ? 'END TRIP' : 'START TRIP';
+  const description = isEndingTrip
+    ? 'Enter the current odometer reading to close the active trip.'
+    : isRestartingTrip
+      ? 'Start a fresh trip if the previous trip was not ended.'
+      : 'Enter the odometer reading before you move.';
+  const formattedLastOdometer = String(lastOdometer).padStart(6, '0');
+  const formattedTripStartOdometer = String(activeTrip?.startOdometer ?? lastOdometer).padStart(6, '0');
 
   const {
     control,
@@ -49,6 +63,12 @@ export function StartingCarScreen({ navigation }: Props) {
       return;
     }
 
+    if (isEndingTrip && !activeTrip) {
+      Alert.alert('No active trip', 'Start a trip before trying to end it.');
+      navigation.goBack();
+      return;
+    }
+
     const parsedOdometer = Number(odometer);
 
     if (parsedOdometer < lastOdometer) {
@@ -59,19 +79,33 @@ export function StartingCarScreen({ navigation }: Props) {
       Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
       return;
     }
+    if (isEndingTrip && activeTrip && parsedOdometer < activeTrip.startOdometer) {
+      Alert.alert('Invalid odometer', 'Trip end odometer cannot be less than the trip start reading.');
+      return;
+    }
 
     try {
-      await addEntryOfflineFirst({
-        type: 'odometer',
-        userId: currentUser.id,
-        userName: currentUser.name,
-        odometer: parsedOdometer,
-      });
+      if (isEndingTrip) {
+        await endTrip({
+          userId: currentUser.id,
+          userName: currentUser.name,
+          odometer: parsedOdometer,
+        });
+      } else {
+        await startTrip({
+          userId: currentUser.id,
+          userName: currentUser.name,
+          odometer: parsedOdometer,
+        });
+      }
 
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
+      Alert.alert(
+        isEndingTrip ? 'Could not end trip' : 'Could not start trip',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   });
 
@@ -81,42 +115,47 @@ export function StartingCarScreen({ navigation }: Props) {
 
       <View style={[styles.popup, { backgroundColor: colors.background, borderColor: colors.border }]}>
         <View style={styles.headerRow}>
-          <View style={styles.headerCopy}>
-            <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>TRIP ENTRY</Text>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Log Start Reading</Text>
+          <View style={[styles.iconStrip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.iconBadge, { backgroundColor: accentTone }]}>
+              <MaterialCommunityIcons name="car-sports" size={20} color={colors.textPrimary} />
+            </View>
+            <View style={styles.iconCopy}>
+              <Text style={[styles.iconTitle, { color: colors.textPrimary }]}>{title}</Text>
+              <Text style={[styles.iconText, { color: colors.textSecondary }]}>{description}</Text>
+            </View>
           </View>
+
           <Pressable
             onPress={() => navigation.goBack()}
             style={[styles.closeBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-            <MaterialIcons name="close" size={20} color={colors.textPrimary} />
+            <MaterialIcons name="close" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
 
-        <View style={[styles.iconStrip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.iconBadge, { backgroundColor: accentTone }]}>
-            <MaterialCommunityIcons name="car-sports" size={20} color={colors.textPrimary} />
-          </View>
-          <View style={styles.iconCopy}>
-            <Text style={[styles.iconTitle, { color: colors.textPrimary }]}>Start trip</Text>
-            <Text style={[styles.iconText, { color: colors.textSecondary }]}>Enter the odometer reading before you move.</Text>
-          </View>
+        <View style={[styles.metaPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Last odometer</Text>
+          <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{formattedLastOdometer} km</Text>
+          {activeTrip ? (
+            <Text style={[styles.metaHint, { color: colors.textSecondary }]}>
+              Active trip started at {formattedTripStartOdometer} km
+            </Text>
+          ) : null}
         </View>
 
         <Controller
           control={control}
           name="odometer"
           render={({ field: { onChange, value } }) => (
-            <AppTextField
-              label="Odometer"
+            <OdometerDigitInput
+              label="Current Odometer"
               value={value}
               onChangeText={onChange}
-              keyboardType="numeric"
               error={errors.odometer?.message}
             />
           )}
         />
 
-        <PrimaryButton label="START TRIP" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+        <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
       </View>
     </View>
   );
@@ -137,32 +176,19 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
   },
-  headerCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
   closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   iconStrip: {
+    flex: 1,
     borderWidth: 1,
     borderRadius: 18,
     paddingHorizontal: 12,
@@ -170,6 +196,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minWidth: 0,
   },
   iconBadge: {
     width: 42,
@@ -187,6 +214,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   iconText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  metaPanel: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 2,
+  },
+  metaLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  metaValue: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  metaHint: {
     fontSize: 12,
     lineHeight: 18,
   },

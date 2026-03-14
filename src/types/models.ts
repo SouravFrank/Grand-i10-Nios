@@ -15,6 +15,9 @@ export type Entry = {
   userId: string;
   userName: string;
   odometer: number;
+  tripId?: string;
+  tripStage?: 'start' | 'end';
+  tripDistanceKm?: number;
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
@@ -32,6 +35,15 @@ export type Entry = {
 
 export type EntryRecord = Entry & {
   integrityHash: string;
+};
+
+export type ActiveTrip = {
+  tripId: string;
+  startEntryId: string;
+  startOdometer: number;
+  startedAt: number;
+  userId: string;
+  userName: string;
 };
 
 export type PendingQueueItem = {

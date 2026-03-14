@@ -93,8 +93,35 @@ function buildPayloadV4(entry: Omit<EntryRecord, 'integrityHash'>): string {
   ].join('|');
 }
 
+function buildPayloadV5(entry: Omit<EntryRecord, 'integrityHash'>): string {
+  const updatedFields = entry.specUpdatedFields?.join(',') ?? '';
+  const specUpdateDetails = buildSpecUpdateDetailSignature(entry);
+  return [
+    entry.id,
+    entry.type,
+    entry.userId,
+    entry.userName,
+    entry.odometer,
+    entry.tripId ?? '',
+    entry.tripStage ?? '',
+    entry.tripDistanceKm ?? '',
+    entry.fuelAmount ?? '',
+    entry.fuelLiters ?? '',
+    entry.fullTank ?? '',
+    entry.sharedTrip ?? '',
+    entry.sharedTripMarkedById ?? '',
+    entry.sharedTripMarkedByName ?? '',
+    entry.expenseCategory ?? '',
+    entry.expenseTitle ?? '',
+    entry.cost ?? '',
+    updatedFields,
+    specUpdateDetails,
+    entry.createdAt,
+  ].join('|');
+}
+
 export async function buildEntryIntegrityHash(entry: Omit<EntryRecord, 'integrityHash'>, secret: string) {
-  const payload = buildPayloadV4(entry);
+  const payload = buildPayloadV5(entry);
 
   return sha256(`${payload}|${secret}`);
 }
@@ -102,6 +129,7 @@ export async function buildEntryIntegrityHash(entry: Omit<EntryRecord, 'integrit
 export async function verifyEntryIntegrity(entry: EntryRecord, secret: string): Promise<boolean> {
   const { integrityHash, ...rest } = entry;
   const checks = await Promise.all([
+    sha256(`${buildPayloadV5(rest)}|${secret}`),
     sha256(`${buildPayloadV4(rest)}|${secret}`),
     sha256(`${buildPayloadV3(rest)}|${secret}`),
     sha256(`${buildPayloadV2(rest)}|${secret}`),
