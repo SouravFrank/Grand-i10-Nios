@@ -1,7 +1,12 @@
+import Constants from 'expo-constants';
+
 type SyncLogPayload = Record<string, unknown> | undefined;
 
 const SYNC_LOG_PREFIX = '[SYNC_DEBUG]';
-const isSyncDebugEnabled = __DEV__ || process.env.EXPO_PUBLIC_SYNC_DEBUG === '1';
+const isSyncDebugEnabled =
+  __DEV__ ||
+  process.env.EXPO_PUBLIC_SYNC_DEBUG === '1' ||
+  Constants.expoConfig?.extra?.syncDebug === '1';
 
 function write(level: 'log' | 'warn' | 'error', message: string, payload?: SyncLogPayload) {
   if (!isSyncDebugEnabled) {

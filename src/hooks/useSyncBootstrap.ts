@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
-import { ensureAnonymousFirebaseAuth, getFirebaseDb } from '@/config/firebase';
+import { ensureAnonymousFirebaseAuth, getFirebaseConfigErrorMessage, getFirebaseDb } from '@/config/firebase';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger';
@@ -48,7 +48,7 @@ export function useSyncBootstrap() {
 
         if (!getFirebaseDb()) {
           syncWarn('bootstrap_firebase_db_missing');
-          setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
+          setSyncOutcome('failed', `Sync not configured. ${getFirebaseConfigErrorMessage()}`);
         } else if (online) {
           const authState = await ensureAnonymousFirebaseAuth();
           if (!authState.ok) {

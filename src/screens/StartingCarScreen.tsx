@@ -56,7 +56,7 @@ export function StartingCarScreen({ navigation }: Props) {
     const parsedOdometer = Number(odometer);
 
     if (parsedOdometer < lastOdometer) {
-      Alert.alert('Invalid odometer', 'Odometer must be greater than or equal to the previous value.');
+      Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
       return;
     }
     if (parsedOdometer - lastOdometer > 500) {

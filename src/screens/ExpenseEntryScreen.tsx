@@ -26,7 +26,23 @@ const categoryOptions: { value: ExpenseCategory; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+const quickExpenseTitles = [
+  'Last Maintenance',
+  'Engine Oil Change',
+  'Coolant Refill',
+  'PUCC Renewal',
+  'Insurance Renewal',
+  'Fitness Renewal',
+  'Tax Renewal',
+  'FASTag Recharge',
+] as const;
+
 const expenseSchema = z.object({
+  odometer: z
+    .string()
+    .trim()
+    .min(1, 'Odometer is required.')
+    .refine((value) => /^\d{1,7}$/.test(value), 'Use up to 7 digits.'),
   expenseTitle: z.string().trim().min(2, 'Expense title is required.').max(48, 'Keep title under 48 characters.'),
   cost: z
     .string()
@@ -53,6 +69,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
+      odometer: String(lastOdometer),
       expenseTitle: '',
       cost: '',
       category: 'shield_safety',
@@ -60,20 +77,32 @@ export function ExpenseEntryScreen({ navigation }: Props) {
   });
 
   const selectedCategory = watch('category');
+  const selectedExpenseTitle = watch('expenseTitle');
 
-  const onSubmit = handleSubmit(async ({ expenseTitle, cost, category }) => {
+  const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost, category }) => {
     if (!currentUser) {
       Alert.alert('Session expired', 'Please login again.');
       return;
     }
 
+    const parsedOdometer = Number(odometer);
     const parsedCost = Number(cost);
+
+    if (parsedOdometer < lastOdometer) {
+      Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
+      return;
+    }
+    if (parsedOdometer - lastOdometer > 500) {
+      Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
+      return;
+    }
 
     try {
       await addEntryOfflineFirst({
         type: 'expense',
         userId: currentUser.id,
         userName: currentUser.name,
+        odometer: parsedOdometer,
         expenseCategory: category,
         expenseTitle: expenseTitle.trim(),
         cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
@@ -100,8 +129,21 @@ export function ExpenseEntryScreen({ navigation }: Props) {
         <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
             <Text style={[styles.info, { color: colors.textSecondary }]}>
-              Odometer auto-linked to current reading: {lastOdometer} km
+              Previous odometer: {lastOdometer} km
             </Text>
+            <Controller
+              control={control}
+              name="odometer"
+              render={({ field: { onChange, value } }) => (
+                <AppTextField
+                  label="Odometer"
+                  value={value}
+                  onChangeText={onChange}
+                  keyboardType="numeric"
+                  error={errors.odometer?.message}
+                />
+              )}
+            />
           </View>
 
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>FANCY CATEGORY</Text>
@@ -122,6 +164,30 @@ export function ExpenseEntryScreen({ navigation }: Props) {
                   {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
                   <Text style={[styles.categoryChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
                     {category.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
+          <View style={styles.categoryWrap}>
+            {quickExpenseTitles.map((title) => {
+              const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
+              return (
+                <Pressable
+                  key={title}
+                  onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      borderColor: active ? colors.textPrimary : colors.border,
+                      backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                    },
+                  ]}>
+                  {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                  <Text style={[styles.categoryChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                    {title}
                   </Text>
                 </Pressable>
               );

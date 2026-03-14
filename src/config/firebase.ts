@@ -17,6 +17,12 @@ type FirebaseExtra = {
   firebaseDatabaseUrl?: string;
 };
 
+type FirebaseConfigDiagnostics = {
+  missingKeys: string[];
+  envKeysPresent: string[];
+  extraKeysPresent: string[];
+};
+
 function getExpoPublicEnv(): FirebaseExtra {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
@@ -44,12 +50,16 @@ function getFirebaseOptions(): FirebaseOptions | null {
     firebaseDatabaseUrl: envExtra.firebaseDatabaseUrl ?? configExtra.firebaseDatabaseUrl,
   };
 
-  if (!extra.firebaseApiKey || !extra.firebaseProjectId || !extra.firebaseAppId) {
+  if (!extra.firebaseApiKey || !extra.firebaseProjectId || !extra.firebaseAppId || !extra.firebaseDatabaseUrl) {
+    const diagnostics = getFirebaseConfigDiagnostics();
     syncWarn('firebase_options_missing', {
       hasApiKey: Boolean(extra.firebaseApiKey),
       hasProjectId: Boolean(extra.firebaseProjectId),
       hasAppId: Boolean(extra.firebaseAppId),
       hasDatabaseUrl: Boolean(extra.firebaseDatabaseUrl),
+      missingKeys: diagnostics.missingKeys,
+      envKeysPresent: diagnostics.envKeysPresent,
+      extraKeysPresent: diagnostics.extraKeysPresent,
     });
     return null;
   }
@@ -63,6 +73,49 @@ function getFirebaseOptions(): FirebaseOptions | null {
     appId: extra.firebaseAppId,
     databaseURL: extra.firebaseDatabaseUrl,
   };
+}
+
+export function getFirebaseConfigDiagnostics(): FirebaseConfigDiagnostics {
+  const configExtra = (Constants.expoConfig?.extra ?? {}) as FirebaseExtra;
+  const envExtra = getExpoPublicEnv();
+  const combined: FirebaseExtra = {
+    firebaseApiKey: envExtra.firebaseApiKey ?? configExtra.firebaseApiKey,
+    firebaseAuthDomain: envExtra.firebaseAuthDomain ?? configExtra.firebaseAuthDomain,
+    firebaseProjectId: envExtra.firebaseProjectId ?? configExtra.firebaseProjectId,
+    firebaseStorageBucket: envExtra.firebaseStorageBucket ?? configExtra.firebaseStorageBucket,
+    firebaseMessagingSenderId: envExtra.firebaseMessagingSenderId ?? configExtra.firebaseMessagingSenderId,
+    firebaseAppId: envExtra.firebaseAppId ?? configExtra.firebaseAppId,
+    firebaseDatabaseUrl: envExtra.firebaseDatabaseUrl ?? configExtra.firebaseDatabaseUrl,
+  };
+
+  const requiredEntries = [
+    ['firebaseApiKey', combined.firebaseApiKey],
+    ['firebaseProjectId', combined.firebaseProjectId],
+    ['firebaseAppId', combined.firebaseAppId],
+    ['firebaseDatabaseUrl', combined.firebaseDatabaseUrl],
+  ] as const;
+
+  const envKeysPresent = Object.entries(envExtra)
+    .filter(([, value]) => Boolean(value))
+    .map(([key]) => key);
+  const extraKeysPresent = Object.entries(configExtra)
+    .filter(([, value]) => Boolean(value))
+    .map(([key]) => key);
+
+  return {
+    missingKeys: requiredEntries.filter(([, value]) => !value).map(([key]) => key),
+    envKeysPresent,
+    extraKeysPresent,
+  };
+}
+
+export function getFirebaseConfigErrorMessage(): string {
+  const diagnostics = getFirebaseConfigDiagnostics();
+  if (diagnostics.missingKeys.length === 0) {
+    return 'Firebase is configured.';
+  }
+
+  return `Firebase config missing: ${diagnostics.missingKeys.join(', ')}.`;
 }
 
 let cachedApp: FirebaseApp | null = null;
@@ -145,7 +198,7 @@ export async function ensureAnonymousFirebaseAuth(): Promise<{ ok: true } | { ok
   const auth = getFirebaseAuthClient();
   if (!auth) {
     syncWarn('firebase_anonymous_auth_skipped_no_client');
-    return { ok: false, reason: 'Firebase is not configured.' };
+    return { ok: false, reason: getFirebaseConfigErrorMessage() };
   }
 
   if (auth.currentUser) {

@@ -46,6 +46,9 @@ export function DashboardSummaryCard({
         lastSyncError={lastSyncError}
         onRetry={syncStatus === 'failed' ? onRetrySync : undefined}
       />
+      {syncStatus === 'failed' && lastSyncError ? (
+        <Text style={[styles.errorText, { color: colors.textSecondary }]}>{lastSyncError}</Text>
+      ) : null}
     </View>
   );
 }
@@ -72,5 +75,9 @@ const styles = StyleSheet.create({
   metaHighlight: {
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  errorText: {
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

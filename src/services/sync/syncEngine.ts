@@ -1,4 +1,4 @@
-import { ensureAnonymousFirebaseAuth, getFirebaseDb } from '@/config/firebase';
+import { ensureAnonymousFirebaseAuth, getFirebaseConfigErrorMessage, getFirebaseDb } from '@/config/firebase';
 import type { PendingQueueItem } from '@/types/models';
 import {
   pullCarSpecFromRealtimeDb,
@@ -43,7 +43,7 @@ async function runSyncCycleInternal(): Promise<void> {
 
   if (!getFirebaseDb()) {
     syncWarn('sync_cycle_failed_no_firebase_db');
-    useAppStore.getState().setSyncOutcome('failed', 'Sync not configured. Firebase is not configured.');
+    useAppStore.getState().setSyncOutcome('failed', `Sync not configured. ${getFirebaseConfigErrorMessage()}`);
     return;
   }
 

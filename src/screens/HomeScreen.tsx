@@ -48,7 +48,7 @@ export function HomeScreen({ navigation }: Props) {
   }, [isOnline, pendingQueue.length]);
 
   const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
-    const { field, value, cost } = submission;
+    const { field, label, previousValue, value, cost } = submission;
     updateCarSpec({ [field]: value });
 
     if (!currentUser) {
@@ -63,6 +63,14 @@ export function HomeScreen({ navigation }: Props) {
         odometer: lastOdometerValue,
         cost,
         specUpdatedFields: [field],
+        specUpdateDetails: [
+          {
+            field,
+            label,
+            previousValue,
+            nextValue: value,
+          },
+        ],
       });
       void runSyncCycle();
     } catch {

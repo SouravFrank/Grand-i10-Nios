@@ -66,6 +66,14 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
               ? 'OTHER'
               : null;
 
+  const specUpdateLines =
+    entry.specUpdateDetails?.map((detail) => {
+      const label = detail.label || prettyFieldName(detail.field);
+      return `${label}: ${detail.previousValue} -> ${detail.nextValue}`;
+    }) ??
+    entry.specUpdatedFields?.map((field) => `Updated: ${prettyFieldName(field)}`) ??
+    [];
+
   return (
     <Animated.View
       style={{
@@ -86,7 +94,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
 
         <Text style={[styles.odometer, { color: colors.textPrimary }]}>
           {entry.type === 'spec_update'
-            ? 'SPECIFICATIONS UPDATED'
+            ? specUpdateLines[0]?.toUpperCase() ?? 'SPECIFICATIONS UPDATED'
             : entry.type === 'expense'
               ? entry.expenseTitle
                 ? entry.expenseTitle.toUpperCase()
@@ -103,11 +111,13 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
           </Text>
         ) : null}
 
-        {entry.type === 'spec_update' && entry.specUpdatedFields?.length ? (
-          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-            UPDATED: {entry.specUpdatedFields.map((field) => prettyFieldName(field)).join(', ').toUpperCase()}
-          </Text>
-        ) : null}
+        {entry.type === 'spec_update' && specUpdateLines.length > 1
+          ? specUpdateLines.slice(1).map((line) => (
+              <Text key={line} style={[styles.fuelMeta, { color: colors.textSecondary }]}>
+                {line.toUpperCase()}
+              </Text>
+            ))
+          : null}
 
         {typeof entry.cost === 'number' ? (
           <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>COST: ₹{entry.cost}</Text>

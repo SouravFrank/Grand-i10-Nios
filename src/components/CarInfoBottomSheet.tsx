@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -24,6 +25,7 @@ type SpecRow = {
   label: string;
   value: string;
   editable: boolean;
+  canCopy?: boolean;
 };
 
 const EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
@@ -31,8 +33,9 @@ const EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
   { key: 'lastEngineOilChangedOn', label: 'Last Engine Oil Changed' },
   { key: 'lastCoolantRefillOn', label: 'Last Coolant Refill' },
   { key: 'puccExpireDate', label: 'PUCC Expire Date' },
-  { key: 'insuranceFirstPartyExpiry', label: 'Insurance First Party Expiry' },
-  { key: 'insuranceThirdPartyExpiry', label: 'Insurance Third Party Expiry' },
+  { key: 'insuranceValidUpTo', label: 'Insurance Valid UpTo' },
+  { key: 'fitnessValidUpTo', label: 'Fitness Valid UpTo' },
+  { key: 'taxValidUpTo', label: 'Tax Valid UpTo' },
 ];
 
 function parseExistingDate(value: string): Date {
@@ -102,7 +105,10 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
     }));
 
     const staticRows: SpecRow[] = [
-      { key: 'registrationNumber', label: 'Registration Number', value: carSpec.registrationNumber, editable: false },
+      { key: 'registrationNumber', label: 'Registration Number', value: carSpec.registrationNumber, editable: false, canCopy: true },
+      { key: 'engineNumber', label: 'Engine No', value: carSpec.engineNumber, editable: false, canCopy: true },
+      { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
+      { key: 'registrationDate', label: 'Registration Date', value: carSpec.registrationDate, editable: false },
       { key: 'registrationYear', label: 'Registration Year', value: carSpec.registrationYear, editable: false },
       { key: 'manufacturingYear', label: 'Manufacturing Year', value: carSpec.manufacturingYear, editable: false },
       { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
@@ -143,11 +149,24 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
       return;
     }
 
+    const nextValue = dayjs(draftDate).format('DD MMM YYYY');
+    const config = EDITABLE_CONFIG.find((item) => item.key === activeField);
+    if (!config) {
+      return;
+    }
+
+    if (carSpec[activeField] === nextValue) {
+      cancelEdit();
+      return;
+    }
+
     const parsedCost = draftCost.trim() ? Number(draftCost) : undefined;
 
     onSaveFieldEdit({
       field: activeField,
-      value: dayjs(draftDate).format('DD MMM YYYY'),
+      label: config.label,
+      previousValue: carSpec[activeField],
+      value: nextValue,
       cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
     });
 
@@ -159,6 +178,15 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
   const changeDraftDate = (unit: 'day' | 'month' | 'year', delta: number) => {
     const next = dayjs(draftDate).add(delta, unit);
     setDraftDate(next.toDate());
+  };
+
+  const copyValue = async (label: string, value: string) => {
+    try {
+      await Clipboard.setStringAsync(value);
+      Alert.alert('Copied', `${label} copied to clipboard.`);
+    } catch {
+      Alert.alert('Copy failed', `Could not copy ${label.toLowerCase()}.`);
+    }
   };
 
   if (!rendered) {
@@ -313,7 +341,14 @@ export function CarInfoBottomSheet({ visible, carSpec, onClose, onSaveFieldEdit 
                         },
                         cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 },
                       ]}>
-                      <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+                      <View style={styles.staticCellHead}>
+                        <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+                        {row.canCopy ? (
+                          <Pressable onPress={() => void copyValue(row.label, row.value)} style={styles.copyIconBtn}>
+                            <MaterialIcons name="content-copy" size={16} color={colors.textPrimary} />
+                          </Pressable>
+                        ) : null}
+                      </View>
                       <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
                     </View>
                   ))}
@@ -394,6 +429,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 4,
   },
+  staticCellHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   nonEditableCellSpacer: {
     flex: 1,
     marginLeft: 4,
@@ -426,6 +466,12 @@ const styles = StyleSheet.create({
   editIconBtn: {
     width: 24,
     height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copyIconBtn: {
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

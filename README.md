@@ -45,6 +45,7 @@ cp .env.example .env
 - `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `EXPO_PUBLIC_FIREBASE_APP_ID`
 - `EXPO_PUBLIC_FIREBASE_DATABASE_URL`
+- `EXPO_PUBLIC_SYNC_DEBUG=1` (optional, enables `[SYNC_DEBUG]` logs on device/builds)
 
 If Firebase config is not set, the app still works fully offline and keeps queueing writes locally.
 

@@ -34,6 +34,7 @@ import type {
   ExpenseCategory,
   PendingQueueItem,
   RemoteEntryDocument,
+  SpecUpdateDetail,
   SyncStatus,
 } from "@/types/models";
 import { dayjs } from "@/utils/day";
@@ -63,6 +64,7 @@ type AddEntryInput = {
   expenseTitle?: string;
   cost?: number;
   specUpdatedFields?: string[];
+  specUpdateDetails?: SpecUpdateDetail[];
   createdAt?: number;
 };
 
@@ -117,6 +119,9 @@ const initialPersistedState: PersistedAppData = {
   carSpecDirty: false,
   carSpec: {
     registrationNumber: "WB12BP0584",
+    engineNumber: "G4LAPM522487",
+    chassisNumber: "MALB351CLPM464714",
+    registrationDate: "09 AUG 2023",
     registrationYear: "Aug-2023",
     manufacturingYear: "JULY 2023",
     initialOdometer: 29810,
@@ -128,8 +133,9 @@ const initialPersistedState: PersistedAppData = {
     lastEngineOilChangedOn: "12 JAN 2026",
     lastCoolantRefillOn: "04 NOV 2025",
     puccExpireDate: "20 SEP 2026",
-    insuranceFirstPartyExpiry: "31 AUG 2026",
-    insuranceThirdPartyExpiry: "31 AUG 2028",
+    insuranceValidUpTo: "26 FEB 2027",
+    fitnessValidUpTo: "08 AUG 2038",
+    taxValidUpTo: "06 AUG 2028",
   },
 };
 
@@ -278,20 +284,16 @@ export const useAppStore = create<AppState>()(
       addEntryOfflineFirst: async (payload) => {
         const { lastOdometerValue, pendingQueue } = get();
 
-        if (
-          payload.type !== "expense" &&
-          typeof payload.odometer !== "number"
-        ) {
+        if (typeof payload.odometer !== "number") {
           throw new Error("Odometer is required.");
         }
 
-        const entryOdometer =
-          payload.type === "expense"
-            ? (payload.odometer ?? lastOdometerValue)
-            : (payload.odometer as number);
+        const entryOdometer = payload.odometer;
 
         if (entryOdometer < lastOdometerValue) {
-          throw new Error("Odometer rollback detected.");
+          throw new Error(
+            "New odometer entry cannot be less than the previous value.",
+          );
         }
         if (entryOdometer - lastOdometerValue > 500) {
           throw new Error(
@@ -313,6 +315,7 @@ export const useAppStore = create<AppState>()(
           expenseTitle: payload.expenseTitle,
           cost: payload.cost,
           specUpdatedFields: payload.specUpdatedFields,
+          specUpdateDetails: payload.specUpdateDetails,
           createdAt,
           synced: false,
         };

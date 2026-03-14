@@ -2,6 +2,13 @@ export type EntryType = 'odometer' | 'fuel' | 'spec_update' | 'expense';
 
 export type ExpenseCategory = 'shield_safety' | 'care_comfort' | 'maintenance_lab' | 'utility_addon' | 'other';
 
+export type SpecUpdateDetail = {
+  field: string;
+  label: string;
+  previousValue: string;
+  nextValue: string;
+};
+
 export type Entry = {
   id: string;
   type: EntryType;
@@ -18,6 +25,7 @@ export type Entry = {
   expenseTitle?: string;
   cost?: number;
   specUpdatedFields?: string[];
+  specUpdateDetails?: SpecUpdateDetail[];
   createdAt: number;
   synced: boolean;
 };
@@ -57,6 +65,9 @@ export type RemoteEntryDocument = Omit<Entry, 'synced'>;
 
 export type CarSpec = {
   registrationNumber: string;
+  engineNumber: string;
+  chassisNumber: string;
+  registrationDate: string;
   registrationYear: string;
   manufacturingYear: string;
   initialOdometer: number;
@@ -68,8 +79,9 @@ export type CarSpec = {
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
   puccExpireDate: string;
-  insuranceFirstPartyExpiry: string;
-  insuranceThirdPartyExpiry: string;
+  insuranceValidUpTo: string;
+  fitnessValidUpTo: string;
+  taxValidUpTo: string;
 };
 
 export type CarSpecEditableFields = {
@@ -77,14 +89,17 @@ export type CarSpecEditableFields = {
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
   puccExpireDate: string;
-  insuranceFirstPartyExpiry: string;
-  insuranceThirdPartyExpiry: string;
+  insuranceValidUpTo: string;
+  fitnessValidUpTo: string;
+  taxValidUpTo: string;
 };
 
 export type CarSpecEditableFieldKey = keyof CarSpecEditableFields;
 
 export type CarSpecFieldUpdateSubmission = {
   field: CarSpecEditableFieldKey;
+  label: string;
+  previousValue: string;
   value: string;
   cost?: number;
 };

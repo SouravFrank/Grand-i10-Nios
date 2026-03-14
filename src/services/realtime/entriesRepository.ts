@@ -34,6 +34,7 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
     expenseTitle: entry.expenseTitle,
     cost: entry.cost,
     specUpdatedFields: entry.specUpdatedFields,
+    specUpdateDetails: entry.specUpdateDetails,
     createdAt: entry.createdAt,
   };
   const sanitizedPayload = stripUndefined(payload);
