@@ -1,7 +1,7 @@
-import Constants from 'expo-constants';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Constants from 'expo-constants';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -100,10 +100,13 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>
-            Welcome {currentUser?.name ?? 'User'}
-          </Text>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              <Text style={{ fontSize: 18, color: colors.textSecondary, fontWeight: '400' }}>
+              Welcome{' '}
+              </Text>
+              {currentUser?.name ?? 'User'}
+            </Text>
 
           {offlineBannerText ? (
             <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
@@ -127,30 +130,42 @@ export function HomeScreen({ navigation }: Props) {
             onRetrySync={() => void runSyncCycle()}
           />
 
-          {activeTrip ? (
-            <View style={[styles.tripBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.tripBannerLabel, { color: colors.textSecondary }]}>ACTIVE TRIP</Text>
-              <Text style={[styles.tripBannerValue, { color: colors.textPrimary }]}>Started at {activeTrip.startOdometer} km</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.ctaRow}>
+          <View style={styles.ctaStack}>
             {activeTrip ? (
               <>
-                <SharpButton
-                  label="END TRIP"
-                  variant="primary"
-                  iconName="flag-checkered"
-                  style={styles.equalCtaButton}
-                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'end' })}
-                />
-                <SharpButton
-                  label="START NEW TRIP"
-                  variant="secondary"
-                  iconName="plus-circle-outline"
-                  style={styles.equalCtaButton}
-                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'restart' })}
-                />
+                <View style={styles.ctaRow}>
+                  <SharpButton
+                    label="END TRIP"
+                    variant="primary"
+                    iconName="flag-checkered"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('StartingCarModal', { mode: 'end' })}
+                  />
+                  <SharpButton
+                    label="START NEW TRIP"
+                    variant="secondary"
+                    iconName="plus-circle-outline"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('StartingCarModal', { mode: 'restart' })}
+                  />
+                </View>
+
+                <View style={styles.ctaRow}>
+                  <SharpButton
+                    label="ADD FUEL"
+                    variant="secondary"
+                    iconName="fuel"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('FuelEntryModal')}
+                  />
+                  <SharpButton
+                    label="ADD EXPENSE"
+                    variant="secondary"
+                    iconName="wallet-plus-outline"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('ExpenseEntryModal')}
+                  />
+                </View>
               </>
             ) : (
               <>
@@ -158,45 +173,29 @@ export function HomeScreen({ navigation }: Props) {
                   label="START TRIP"
                   variant="primary"
                   iconName="steering"
-                  style={styles.primaryCtaButton}
+                  style={styles.fullWidthCtaButton}
                   onPress={() => navigation.navigate('StartingCarModal', { mode: 'start' })}
                 />
-                <SharpButton
-                  label="ADD FUEL"
-                  variant="secondary"
-                  iconName="fuel"
-                  style={styles.secondaryCtaButton}
-                  onPress={() => navigation.navigate('FuelEntryModal')}
-                />
+
+                <View style={styles.ctaRow}>
+                  <SharpButton
+                    label="ADD FUEL"
+                    variant="secondary"
+                    iconName="fuel"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('FuelEntryModal')}
+                  />
+                  <SharpButton
+                    label="ADD EXPENSE"
+                    variant="secondary"
+                    iconName="wallet-plus-outline"
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('ExpenseEntryModal')}
+                  />
+                </View>
               </>
             )}
           </View>
-
-          {activeTrip ? (
-            <View style={styles.ctaRow}>
-              <SharpButton
-                label="ADD FUEL"
-                variant="secondary"
-                iconName="fuel"
-                style={styles.equalCtaButton}
-                onPress={() => navigation.navigate('FuelEntryModal')}
-              />
-              <SharpButton
-                label="ADD EXPENSE"
-                variant="secondary"
-                iconName="wallet-plus-outline"
-                style={styles.equalCtaButton}
-                onPress={() => navigation.navigate('ExpenseEntryModal')}
-              />
-            </View>
-          ) : (
-            <SharpButton
-              label="ADD EXPENSE"
-              variant="secondary"
-              iconName="wallet-plus-outline"
-              onPress={() => navigation.navigate('ExpenseEntryModal')}
-            />
-          )}
 
           <Pressable onPress={() => navigation.navigate('History')} style={styles.historyWrap}>
             <View style={styles.historyRow}>
@@ -265,7 +264,12 @@ const styles = StyleSheet.create({
   },
   ctaRow: {
     flexDirection: 'row',
-    gap: 14,
+    alignItems: 'stretch',
+    gap: 12,
+    width: '100%',
+  },
+  ctaStack: {
+    gap: 12,
     width: '100%',
   },
   tripBanner: {
@@ -284,14 +288,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  primaryCtaButton: {
-    flex: 1.65,
+  fullWidthCtaButton: {
+    width: '100%',
   },
-  secondaryCtaButton: {
+  splitCtaButton: {
     flex: 1,
-  },
-  equalCtaButton: {
-    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
   },
   historyWrap: {
     alignItems: 'center',
@@ -302,8 +305,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   historyLink: {
-    fontSize: 13,
-    textDecorationLine: 'underline',
+    fontSize: 16,
     letterSpacing: 0.5,
     textAlign: 'center',
   },

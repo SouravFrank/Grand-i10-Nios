@@ -54,10 +54,10 @@ export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPres
 
 const styles = StyleSheet.create({
   wrapper: {
-    gap: 8,
+    gap: 0,
   },
   imagePressable: {
-    height: 286,
+    height: 246,
     width: '100%',
   },
   imageRow: {
