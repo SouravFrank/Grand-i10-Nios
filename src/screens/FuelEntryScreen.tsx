@@ -1,8 +1,9 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -46,6 +47,8 @@ export function FuelEntryScreen({ navigation }: Props) {
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
 
   const {
     control,
@@ -101,18 +104,35 @@ export function FuelEntryScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.container}>
-        <View style={[styles.headerStrip, { backgroundColor: colors.invertedBackground }]}> 
-          <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
-            <MaterialIcons name="arrow-back" size={22} color={colors.invertedText} />
-          </Pressable>
-          <Text style={[styles.title, { color: colors.invertedText }]}>ADD FUEL ENTRY</Text>
-          <View style={styles.iconBtn} />
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
+
+        <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.headerRow}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
+            </Pressable>
+
+            <View style={styles.headerCopy}>
+              <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>FUEL ENTRY</Text>
+              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Refill Fuel</Text>
+            </View>
+
+            <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
+              <MaterialCommunityIcons name="fuel" size={20} color={colors.textPrimary} />
+            </View>
+          </View>
+
+          <View style={[styles.odoBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+            <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>Last odometer</Text>
+            <Text style={[styles.odoBadgeValue, { color: colors.textPrimary }]}>{lastOdometer} km</Text>
+          </View>
         </View>
 
-        <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
-            <Text style={[styles.info, { color: colors.textSecondary }]}>Previous odometer: {lastOdometer} km</Text>
+        <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.fieldsGroup}>
             <Controller
               control={control}
               name="odometer"
@@ -126,9 +146,7 @@ export function FuelEntryScreen({ navigation }: Props) {
                 />
               )}
             />
-          </View>
 
-          <View style={[styles.section, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}> 
             <Controller
               control={control}
               name="fuelAmount"
@@ -160,8 +178,10 @@ export function FuelEntryScreen({ navigation }: Props) {
             />
           </View>
 
-          <View style={[styles.switchRow, { borderColor: colors.textPrimary }]}> 
-            <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
+          <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+            <View style={styles.switchCopy}>
+              <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
+            </View>
             <Controller
               control={control}
               name="fullTank"
@@ -176,64 +196,113 @@ export function FuelEntryScreen({ navigation }: Props) {
             />
           </View>
 
-          <PrimaryButton label="SAVE FUEL ENTRY" onPress={onSubmit} loading={isSubmitting} />
+          <PrimaryButton label="SAVE FUEL ENTRY" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
         </View>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    gap: 12,
+    gap: 14,
+    paddingBottom: 28,
+    position: 'relative',
   },
-  headerStrip: {
-    height: 52,
+  orbTop: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -30,
+    right: -50,
+  },
+  headerCard: {
+    borderWidth: 1,
+    borderRadius: 26,
+    padding: 16,
+    gap: 16,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    borderRadius: 2,
+    gap: 12,
   },
-  iconBtn: {
-    width: 24,
-    height: 24,
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 16,
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  headerEyebrow: {
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.9,
+    letterSpacing: 1,
   },
-  form: {
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  headerIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  odoBadge: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 12,
-    gap: 10,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 3,
   },
-  section: {
+  odoBadgeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  odoBadgeValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  formCard: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
-    gap: 8,
+    borderRadius: 26,
+    padding: 16,
+    gap: 12,
   },
-  info: {
-    fontSize: 13,
+  fieldsGroup: {
+    gap: 6,
   },
   switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    height: 46,
-    backgroundColor: 'transparent',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  switchCopy: {
+    flex: 1,
   },
   switchLabel: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  primaryAction: {
+    height: 54,
+    borderRadius: 16,
+    marginTop: 2,
   },
 });
