@@ -260,7 +260,7 @@ export function ExpenseEntryScreen({ navigation }: Props) {
             />
           </View>
 
-          <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} />
+          <PrimaryButton label="SAVE EXPENSE" onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -430,5 +430,9 @@ const styles = StyleSheet.create({
   },
   odoHint: {
     fontSize: 12,
+  },
+  primaryAction: {
+    height: 54,
+    borderRadius: 16,
   },
 });

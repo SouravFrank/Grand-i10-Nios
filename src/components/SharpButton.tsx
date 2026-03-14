@@ -74,13 +74,13 @@ export function SharpButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 48,
+    height: 52,
     width: '100%',
     borderWidth: 1,
-    borderRadius: 2,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
   },
   label: {
     fontSize: 14,

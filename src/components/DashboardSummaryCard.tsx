@@ -56,9 +56,9 @@ export function DashboardSummaryCard({
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderRadius: 2,
-    padding: 14,
-    gap: 7,
+    borderRadius: 24,
+    padding: 16,
+    gap: 8,
   },
   sectionLabel: {
     fontSize: 11,

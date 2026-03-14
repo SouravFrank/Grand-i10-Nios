@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   offlineBanner: {
     borderWidth: 1,
-    borderRadius: 2,
+    borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
