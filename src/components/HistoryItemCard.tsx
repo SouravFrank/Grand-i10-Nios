@@ -28,9 +28,10 @@ function normalizeSpecHistoryValue(value: string): string {
 }
 
 export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle, onPressSharedTripToggle }: HistoryItemCardProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
+  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
 
   useEffect(() => {
     Animated.parallel([
@@ -79,6 +80,50 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
     entry.specUpdatedFields?.map((field) => `Updated: ${prettyFieldName(field)}`) ??
     [];
 
+  const entryIcon =
+    entry.type === 'fuel'
+      ? 'local-gas-station'
+      : entry.type === 'spec_update'
+        ? 'tune'
+        : entry.type === 'expense'
+          ? 'receipt-long'
+          : 'speed';
+
+  const primaryText =
+    entry.type === 'spec_update'
+      ? specUpdateLines[0] ?? 'Specifications updated'
+      : entry.type === 'expense'
+        ? entry.expenseTitle || 'Expense logged'
+        : `${entry.odometer} km`;
+
+  const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string }> = [];
+
+  if (entry.type === 'fuel') {
+    if (typeof entry.fuelAmount === 'number') {
+      detailChips.push({ icon: 'currency-rupee', text: `${entry.fuelAmount}` });
+    }
+    if (typeof entry.fuelLiters === 'number') {
+      detailChips.push({ icon: 'water-drop', text: `${entry.fuelLiters} L` });
+    }
+    if (entry.fullTank) {
+      detailChips.push({ icon: 'check-circle', text: 'Full tank' });
+    }
+  }
+
+  if (entry.type === 'expense') {
+    if (typeof entry.cost === 'number') {
+      detailChips.push({ icon: 'currency-rupee', text: `${entry.cost}` });
+    }
+    if (expenseCategoryLabel) {
+      detailChips.push({ icon: 'sell', text: expenseCategoryLabel });
+    }
+    detailChips.push({ icon: 'speed', text: `${entry.odometer} km` });
+  }
+
+  if (entry.type === 'odometer' && distanceKm !== null) {
+    detailChips.push({ icon: 'route', text: `${distanceKm} km` });
+  }
+
   return (
     <Animated.View
       style={{
@@ -87,57 +132,57 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
       }}>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
         <View style={styles.topRow}>
-          <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName.toUpperCase()}</Text>
-          <Text style={[styles.separator, { color: colors.textSecondary }]}>|</Text>
-          <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
+          <View style={[styles.typeIconWrap, { backgroundColor: accentTone }]}>
+            <MaterialIcons name={entryIcon} size={18} color={colors.textPrimary} />
+          </View>
+
+          <View style={styles.topCopy}>
+            <View style={styles.metaRow}>
+              <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
+              <View style={[styles.userChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName}</Text>
+              </View>
+            </View>
+
+            <Text style={[styles.primaryText, { color: colors.textPrimary }]} numberOfLines={2}>
+              {primaryText}
+            </Text>
+          </View>
+
           {entry.sharedTrip ? (
             <View style={[styles.sharedTripTag, { borderColor: colors.textPrimary, backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.sharedTripTagText, { color: colors.textPrimary }]}>SHARED TRIP</Text>
+              <MaterialIcons name="people-alt" size={12} color={colors.textPrimary} />
+              <Text style={[styles.sharedTripTagText, { color: colors.textPrimary }]}>Shared</Text>
             </View>
           ) : null}
         </View>
 
-        <Text style={[styles.odometer, { color: colors.textPrimary }]}>
-          {entry.type === 'spec_update'
-            ? specUpdateLines[0]?.toUpperCase() ?? 'SPECIFICATIONS UPDATED'
-            : entry.type === 'expense'
-              ? entry.expenseTitle
-                ? entry.expenseTitle.toUpperCase()
-                : 'EXPENSE LOGGED'
-              : `${entry.odometer} km`}
-        </Text>
-
-        {entry.type === 'fuel' ? (
-          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-            {entry.fuelAmount ? `₹${entry.fuelAmount}` : ''}
-            {entry.fuelAmount && entry.fuelLiters ? ' | ' : ''}
-            {entry.fuelLiters ? `${entry.fuelLiters} L` : ''}
-            {entry.fullTank ? ' | FULL TANK' : ''}
-          </Text>
+        {detailChips.length > 0 ? (
+          <View style={styles.infoRow}>
+            {detailChips.map((item) => (
+              <View
+                key={`${item.icon}-${item.text}`}
+                style={[styles.infoChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialIcons name={item.icon} size={12} color={colors.textPrimary} />
+                <Text style={[styles.infoChipText, { color: colors.textPrimary }]} numberOfLines={1}>
+                  {item.text}
+                </Text>
+              </View>
+            ))}
+          </View>
         ) : null}
 
         {entry.type === 'spec_update' && specUpdateLines.length > 1
           ? specUpdateLines.slice(1).map((line) => (
-              <Text key={line} style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-                {line.toUpperCase()}
+              <Text key={line} style={[styles.secondaryLine, { color: colors.textSecondary }]}>
+                {line}
               </Text>
             ))
           : null}
 
-        {typeof entry.cost === 'number' ? (
-          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>COST: ₹{entry.cost}</Text>
-        ) : null}
-
-        {entry.type === 'expense' ? (
-          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-            {expenseCategoryLabel ? `${expenseCategoryLabel} | ` : ''}
-            ODOMETER: {entry.odometer} KM
-          </Text>
-        ) : null}
-
         {entry.sharedTrip && entry.sharedTripMarkedByName ? (
-          <Text style={[styles.fuelMeta, { color: colors.textSecondary }]}>
-            MARKED SHARED BY: {entry.sharedTripMarkedByName.toUpperCase()}
+          <Text style={[styles.secondaryLine, { color: colors.textSecondary }]}>
+            Shared by {entry.sharedTripMarkedByName}
           </Text>
         ) : null}
 
@@ -147,7 +192,7 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
             style={[styles.sharedTripToggleRow, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
             <MaterialIcons
               name={entry.sharedTrip ? 'check-box' : 'check-box-outline-blank'}
-              size={20}
+              size={18}
               color={entry.sharedTrip ? colors.textPrimary : colors.textSecondary}
             />
             <Text style={[styles.sharedTripToggleText, { color: colors.textPrimary }]}>
@@ -157,11 +202,19 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
         ) : null}
 
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
-          <Text style={[styles.date, { color: colors.textSecondary }]}>
-            {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
-          </Text>
+          <View style={styles.footerItem}>
+            <MaterialIcons name="schedule" size={13} color={colors.textSecondary} />
+            <Text style={[styles.date, { color: colors.textSecondary }]}>
+              {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
+            </Text>
+          </View>
           {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
-            <Text style={[styles.distance, { color: colors.textSecondary }]}>DISTANCE TRAVELLED: {distanceKm} KM</Text>
+            <View style={styles.footerItem}>
+              <MaterialIcons name="route" size={13} color={colors.textSecondary} />
+              <Text style={[styles.distance, { color: colors.textSecondary }]}>
+                {distanceKm} km
+              </Text>
+            </View>
           ) : null}
         </View>
       </View>
@@ -172,51 +225,91 @@ export function HistoryItemCard({ entry, distanceKm, index, showSharedTripToggle
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderRadius: 2,
+    borderRadius: 22,
     padding: 14,
     gap: 8,
   },
   topRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  typeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
-  userName: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  separator: {
-    fontSize: 13,
-  },
-  entryType: {
-    fontSize: 12,
-    letterSpacing: 0.6,
-  },
-  sharedTripTag: {
-    marginLeft: 'auto',
+  userChip: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  userName: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  entryType: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  primaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  sharedTripTag: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   sharedTripTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '700',
   },
-  odometer: {
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  infoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  fuelMeta: {
-    fontSize: 12,
-    letterSpacing: 0.4,
+  infoChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: '100%',
+  },
+  infoChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  secondaryLine: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   sharedTripToggleRow: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -231,13 +324,20 @@ const styles = StyleSheet.create({
   bottomRow: {
     borderTopWidth: 1,
     paddingTop: 8,
-    gap: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  footerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   date: {
-    fontSize: 12,
+    fontSize: 11,
   },
   distance: {
     fontSize: 11,
-    letterSpacing: 0.8,
+    fontWeight: '600',
   },
 });

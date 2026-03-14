@@ -305,23 +305,32 @@ export function HistoryScreen({ navigation }: Props) {
 
   return (
     <ScreenContainer>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
-          <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-        </Pressable>
+      <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }]} />
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>HISTORY</Text>
+      <View style={[styles.headerCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={[styles.backButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
+          </Pressable>
 
-        <Pressable
-          onPress={() => setIsFilterOpen((prev) => !prev)}
-          style={[styles.filterToggleBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <MaterialIcons name={isFilterOpen ? 'tune' : 'filter-list'} size={18} color={colors.textPrimary} />
-          {activeFilterPills.length > 0 ? (
-            <View style={[styles.filterCountBadge, { backgroundColor: colors.textPrimary }]}>
-              <Text style={[styles.filterCountText, { color: colors.invertedText }]}>{activeFilterPills.length}</Text>
-            </View>
-          ) : null}
-        </Pressable>
+          <View style={styles.headerCopy}>
+            <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>TIMELINE</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>History</Text>
+          </View>
+
+          <Pressable
+            onPress={() => setIsFilterOpen((prev) => !prev)}
+            style={[styles.filterToggleBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialIcons name={isFilterOpen ? 'tune' : 'filter-list'} size={18} color={colors.textPrimary} />
+            {activeFilterPills.length > 0 ? (
+              <View style={[styles.filterCountBadge, { backgroundColor: colors.textPrimary }]}>
+                <Text style={[styles.filterCountText, { color: colors.invertedText }]}>{activeFilterPills.length}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       </View>
 
       {isFilterOpen ? (
@@ -543,28 +552,52 @@ export function HistoryScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  orbTop: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -30,
+    right: -50,
+  },
+  headerCard: {
+    borderWidth: 1,
+    borderRadius: 26,
+    padding: 16,
     marginBottom: 12,
   },
-  iconBtn: {
-    width: 32,
-    height: 32,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  headerEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
-    letterSpacing: 1.1,
+    letterSpacing: 0.2,
   },
   filterToggleBtn: {
-    width: 34,
-    height: 34,
+    width: 42,
+    height: 42,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
