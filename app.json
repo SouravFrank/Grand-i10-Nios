@@ -4,16 +4,16 @@
     "slug": "grand-i10-Nios",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/g-i10-App-icon.png",
+    "icon": "./assets/images/g-i10-App-icon-launcher.png",
     "scheme": "grandi10nios",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/g-i10-App-icon.png"
+      "icon": "./assets/images/g-i10-App-icon-launcher.png"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/g-i10-App-icon.png"
+        "foregroundImage": "./assets/images/g-i10-App-icon-launcher.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

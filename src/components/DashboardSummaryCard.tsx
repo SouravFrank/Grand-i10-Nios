@@ -46,9 +46,9 @@ export function DashboardSummaryCard({
         lastSyncError={lastSyncError}
         onRetry={syncStatus === 'failed' ? onRetrySync : undefined}
       />
-      {syncStatus === 'failed' && lastSyncError ? (
+      {/* {syncStatus === 'failed' && lastSyncError ? (
         <Text style={[styles.errorText, { color: colors.textSecondary }]}>{lastSyncError}</Text>
-      ) : null}
+      ) : null} */}
     </View>
   );
 }
