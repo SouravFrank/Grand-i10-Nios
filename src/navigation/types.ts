@@ -1,6 +1,7 @@
 export type AppStackParamList = {
   Home: undefined;
   History: undefined;
+  SyncLogs: undefined;
   StartingCarModal: undefined;
   FuelEntryModal: undefined;
   ExpenseEntryModal: undefined;

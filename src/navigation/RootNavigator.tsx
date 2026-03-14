@@ -14,6 +14,7 @@ import { HistoryScreen } from '@/screens/HistoryScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { StartingCarScreen } from '@/screens/StartingCarScreen';
+import { SyncLogsScreen } from '@/screens/SyncLogsScreen';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { AppStackParamList, AuthStackParamList } from '@/navigation/types';
@@ -46,6 +47,11 @@ function MainNavigator() {
     <AppStack.Navigator screenOptions={{ headerShown: false }}>
       <AppStack.Screen name="Home" component={HomeScreen} />
       <AppStack.Screen name="History" component={HistoryScreen} />
+      <AppStack.Screen
+        name="SyncLogs"
+        component={SyncLogsScreen}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
       <AppStack.Screen
         name="StartingCarModal"
         component={StartingCarScreen}

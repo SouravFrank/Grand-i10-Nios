@@ -1,132 +1,83 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import Animated, { Easing, Keyframe } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
-const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
-const DURATION = 600;
+const SPLASH_DURATION_MS = 1050;
 
 export function AnimatedSplashOverlay() {
   const [visible, setVisible] = useState(true);
 
-  if (!visible) return null;
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setVisible(false);
+    }, SPLASH_DURATION_MS);
 
-  const splashKeyframe = new Keyframe({
-    0: {
-      transform: [{ scale: INITIAL_SCALE_FACTOR }],
-      opacity: 1,
-    },
-    20: {
-      opacity: 1,
-    },
-    70: {
-      opacity: 0,
-      easing: Easing.elastic(0.7),
-    },
-    100: {
-      opacity: 0,
-      transform: [{ scale: 1 }],
-      easing: Easing.elastic(0.7),
-    },
-  });
+    return () => clearTimeout(timeout);
+  }, []);
+
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <Animated.View
-      entering={splashKeyframe.duration(DURATION).withCallback((finished) => {
-        'worklet';
-        if (finished) {
-          scheduleOnRN(setVisible, false);
-        }
-      })}
-      style={styles.backgroundSolidColor}
-    />
+    <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(220)} style={styles.overlay}>
+      <Animated.View entering={ZoomIn.duration(340)} style={styles.brandPanel}>
+        <View style={styles.iconFrame}>
+          <Image contentFit="contain" source={require('@/assets/images/g-i10-App-icon.png')} style={styles.image} />
+        </View>
+        <Text style={styles.brandEyebrow}>HYUNDAI DRIVE LOG</Text>
+        <Text style={styles.brandTitle}>Grand i10 Nios</Text>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: INITIAL_SCALE_FACTOR }],
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const logoKeyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-  },
-  40: {
-    transform: [{ scale: 1.3 }],
-    opacity: 0,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    opacity: 1,
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(0.7),
-  },
-});
-
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '0deg' }],
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
-
 export function AnimatedIcon() {
   return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
-
-      <Animated.View entering={keyframe.duration(DURATION)} style={styles.background} />
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
-      </Animated.View>
+    <View style={styles.iconFrame}>
+      <Image contentFit="contain" source={require('@/assets/images/g-i10-App-icon.png')} style={styles.image} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  imageContainer: {
-    justifyContent: 'center',
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-  },
-  glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
-  },
-  iconContainer: {
     justifyContent: 'center',
+  },
+  brandPanel: {
     alignItems: 'center',
-    width: 128,
-    height: 128,
-    zIndex: 100,
+    gap: 14,
+  },
+  iconFrame: {
+    width: 152,
+    height: 152,
+    borderRadius: 40,
+    borderWidth: 1,
+    borderColor: '#D9D9D9',
+    backgroundColor: '#F6F6F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
   },
   image: {
-    position: 'absolute',
-    width: 76,
-    height: 71,
+    width: 112,
+    height: 112,
   },
-  background: {
-    borderRadius: 40,
-    experimental_backgroundImage: `linear-gradient(180deg, #3C9FFE, #0274DF)`,
-    width: 128,
-    height: 128,
-    position: 'absolute',
+  brandEyebrow: {
+    fontSize: 11,
+    letterSpacing: 2.2,
+    fontWeight: '700',
+    color: '#777777',
   },
-  backgroundSolidColor: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#208AEF',
-    zIndex: 1000,
+  brandTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    color: '#000000',
   },
 });

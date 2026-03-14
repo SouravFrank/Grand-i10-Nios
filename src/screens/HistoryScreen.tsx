@@ -496,7 +496,9 @@ export function HistoryScreen({ navigation }: Props) {
                 <DateTimePicker
                   mode="date"
                   value={pickerDate}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                  design={Platform.OS === 'android' ? 'material' : undefined}
+                  display={Platform.OS === 'ios' ? 'spinner' : undefined}
                   minimumDate={activeDateTarget === 'from' ? MIN_FILTER_DATE.toDate() : fromDate ?? MIN_FILTER_DATE.toDate()}
                   maximumDate={
                     activeDateTarget === 'from'
@@ -506,7 +508,11 @@ export function HistoryScreen({ navigation }: Props) {
                       : MAX_FILTER_DATE.toDate()
                   }
                   onChange={handleDatePickerChange}
+                  positiveButton={Platform.OS === 'android' ? { label: 'Apply', textColor: colors.textPrimary } : undefined}
+                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
+                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
                   themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
+                  title={Platform.OS === 'android' ? `Choose ${activeDateTarget === 'from' ? 'From' : 'To'} Date` : undefined}
                 />
                 <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
                   Range starts from {MIN_FILTER_DATE.format(INDIA_DATE_FORMAT)}

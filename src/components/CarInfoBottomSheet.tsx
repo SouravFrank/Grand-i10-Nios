@@ -317,8 +317,15 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                           <DateTimePicker
                             mode="date"
                             value={draftDate}
-                            display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                            accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                            design={Platform.OS === 'android' ? 'material' : undefined}
+                            display={Platform.OS === 'ios' ? 'inline' : undefined}
                             onChange={handleDatePickerChange}
+                            positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined}
+                            negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
+                            textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                            themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
+                            title={Platform.OS === 'android' ? `Select ${row.label}` : undefined}
                           />
                           {Platform.OS === 'ios' ? (
                             <Pressable

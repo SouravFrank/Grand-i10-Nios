@@ -1,30 +1,63 @@
 import Constants from 'expo-constants';
+import { useSyncExternalStore } from 'react';
 
 type SyncLogPayload = Record<string, unknown> | undefined;
+export type SyncLogEntry = {
+  id: string;
+  level: 'log' | 'warn' | 'error';
+  line: string;
+  timestamp: string;
+};
 
 const SYNC_LOG_PREFIX = '[SYNC_DEBUG]';
 const isSyncDebugEnabled =
   __DEV__ ||
   process.env.EXPO_PUBLIC_SYNC_DEBUG === '1' ||
   Constants.expoConfig?.extra?.syncDebug === '1';
+const MAX_SYNC_LOG_ENTRIES = 300;
+let syncLogEntries: SyncLogEntry[] = [];
+const listeners = new Set<() => void>();
+
+function notifyListeners() {
+  listeners.forEach((listener) => listener());
+}
+
+function pushSyncLogEntry(level: 'log' | 'warn' | 'error', line: string) {
+  syncLogEntries = [
+    {
+      id: `${Date.now()}_${Math.random()}`,
+      level,
+      line,
+      timestamp: new Date().toISOString(),
+    },
+    ...syncLogEntries,
+  ].slice(0, MAX_SYNC_LOG_ENTRIES);
+  notifyListeners();
+}
 
 function write(level: 'log' | 'warn' | 'error', message: string, payload?: SyncLogPayload) {
-  if (!isSyncDebugEnabled) {
-    return;
-  }
-
   const line = `${SYNC_LOG_PREFIX} ${new Date().toISOString()} ${message}`;
   if (payload) {
     try {
       const payloadString = JSON.stringify(payload);
-      console[level](`${line} ${payloadString}`);
+      const fullLine = `${line} ${payloadString}`;
+      pushSyncLogEntry(level, fullLine);
+      if (isSyncDebugEnabled) {
+        console[level](fullLine);
+      }
     } catch {
-      console[level](line, payload);
+      pushSyncLogEntry(level, line);
+      if (isSyncDebugEnabled) {
+        console[level](line, payload);
+      }
     }
     return;
   }
 
-  console[level](line);
+  pushSyncLogEntry(level, line);
+  if (isSyncDebugEnabled) {
+    console[level](line);
+  }
 }
 
 export function syncLog(message: string, payload?: SyncLogPayload) {
@@ -53,4 +86,24 @@ export function toErrorPayload(error: unknown): Record<string, unknown> {
   return {
     message: String(error),
   };
+}
+
+export function getSyncLogEntries(): SyncLogEntry[] {
+  return syncLogEntries;
+}
+
+export function clearSyncLogEntries() {
+  syncLogEntries = [];
+  notifyListeners();
+}
+
+export function subscribeSyncLogs(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function useSyncLogEntries() {
+  return useSyncExternalStore(subscribeSyncLogs, getSyncLogEntries, getSyncLogEntries);
 }

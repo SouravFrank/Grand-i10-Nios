@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/g-i10-App-icon.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -32,10 +32,71 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/g-i10-App-icon.png",
+          "imageWidth": 144,
           "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+            "image": "./assets/images/g-i10-App-icon.png",
+            "imageWidth": 144
+          },
+          "ios": {
+            "image": "./assets/images/g-i10-App-icon.png",
+            "imageWidth": 144
+          }
+        }
+      ],
+      [
+        "@react-native-community/datetimepicker",
+        {
+          "android": {
+            "datePicker": {
+              "colorAccent": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              },
+              "colorControlActivated": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              },
+              "colorControlHighlight": {
+                "light": "#E6E6E6",
+                "dark": "#2A2A2A"
+              },
+              "textColorPrimary": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              },
+              "textColorSecondary": {
+                "light": "#555555",
+                "dark": "#BBBBBB"
+              },
+              "windowBackground": {
+                "light": "#FFFFFF",
+                "dark": "#000000"
+              }
+            },
+            "timePicker": {
+              "background": {
+                "light": "#FFFFFF",
+                "dark": "#000000"
+              },
+              "headerBackground": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              },
+              "numbersBackgroundColor": {
+                "light": "#F5F5F5",
+                "dark": "#121212"
+              },
+              "numbersSelectorColor": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              },
+              "numbersTextColor": {
+                "light": "#000000",
+                "dark": "#FFFFFF"
+              }
+            }
           }
         }
       ],
