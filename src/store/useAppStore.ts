@@ -1,22 +1,29 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
-import { STORAGE_KEYS } from '@/constants/storage';
-import { canUseBiometricAuth } from '@/services/auth/authService';
-import { sha256 } from '@/services/security/hash';
-import { buildEntryIntegrityHash, verifyEntryIntegrity } from '@/services/security/integrity';
+import { STORAGE_KEYS } from "@/constants/storage";
+import { canUseBiometricAuth } from "@/services/auth/authService";
+import { sha256 } from "@/services/security/hash";
+import {
+  buildEntryIntegrityHash,
+  verifyEntryIntegrity,
+} from "@/services/security/integrity";
 import {
   deleteAuthToken,
-  getAuthToken,
   deleteSecureUser,
+  getAuthToken,
   getIntegritySecret,
   getSecureUser,
   setAuthToken,
   setIntegritySecret,
   setSecureUser,
-} from '@/services/storage/secureStore';
-import { clearStoredSession, getStoredSession, setStoredSession } from '@/services/storage/sessionStorage';
+} from "@/services/storage/secureStore";
+import {
+  clearStoredSession,
+  getStoredSession,
+  setStoredSession,
+} from "@/services/storage/sessionStorage";
 import type {
   AppUser,
   AuthStatus,
@@ -28,10 +35,10 @@ import type {
   PendingQueueItem,
   RemoteEntryDocument,
   SyncStatus,
-} from '@/types/models';
-import { dayjs } from '@/utils/day';
-import { createId } from '@/utils/id';
-import { syncLog } from '@/utils/syncLogger';
+} from "@/types/models";
+import { dayjs } from "@/utils/day";
+import { createId } from "@/utils/id";
+import { syncLog } from "@/utils/syncLogger";
 
 type PersistedAppData = {
   entries: EntryRecord[];
@@ -45,7 +52,7 @@ type PersistedAppData = {
 };
 
 type AddEntryInput = {
-  type: Entry['type'];
+  type: Entry["type"];
   userId: string;
   userName: string;
   odometer?: number;
@@ -79,7 +86,11 @@ type AppState = PersistedAppData & {
   bootstrapAuth: () => Promise<void>;
   unlockWithBiometric: () => void;
   fallbackToPassword: () => void;
-  login: (params: { user: AppUser; credentialHash: string; biometricEnabled: boolean }) => Promise<void>;
+  login: (params: {
+    user: AppUser;
+    credentialHash: string;
+    biometricEnabled: boolean;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   addEntryOfflineFirst: (entry: AddEntryInput) => Promise<EntryRecord>;
   markEntriesSynced: (entryIds: string[]) => void;
@@ -89,7 +100,10 @@ type AppState = PersistedAppData & {
   updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
   markCarSpecSynced: () => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
-  markEntrySharedTrip: (entryId: string, actor: SharedTripActor) => Promise<void>;
+  markEntrySharedTrip: (
+    entryId: string,
+    actor: SharedTripActor,
+  ) => Promise<void>;
   ensureDemoData: () => Promise<void>;
 };
 
@@ -102,20 +116,20 @@ const initialPersistedState: PersistedAppData = {
   biometricEnabled: false,
   carSpecDirty: false,
   carSpec: {
-    registrationNumber: 'WB12BP0584',
-    registrationYear: 'Aug-2023',
-    manufacturingYear: 'JULY 2023',
+    registrationNumber: "WB12BP0584",
+    registrationYear: "Aug-2023",
+    manufacturingYear: "JULY 2023",
     initialOdometer: 29810,
-    fuelType: 'Petrol',
-    model: 'Hyundai GRAND I10 NIOS',
-    variant: 'SPORTZ 1.2 KAPPA VTVT - 2023',
-    carColor: 'Spark Green Pearl',
-    lastMaintenanceDate: '12 JAN 2026',
-    lastEngineOilChangedOn: '12 JAN 2026',
-    lastCoolantRefillOn: '04 NOV 2025',
-    puccExpireDate: '20 SEP 2026',
-    insuranceFirstPartyExpiry: '31 AUG 2026',
-    insuranceThirdPartyExpiry: '31 AUG 2028',
+    fuelType: "Petrol",
+    model: "Hyundai GRAND i10 NIOS",
+    variant: "SPORTZ 1.2 KAPPA VTVT - 2023",
+    carColor: "Spark Green Pearl",
+    lastMaintenanceDate: "12 JAN 2026",
+    lastEngineOilChangedOn: "12 JAN 2026",
+    lastCoolantRefillOn: "04 NOV 2025",
+    puccExpireDate: "20 SEP 2026",
+    insuranceFirstPartyExpiry: "31 AUG 2026",
+    insuranceThirdPartyExpiry: "31 AUG 2028",
   },
 };
 
@@ -125,7 +139,7 @@ async function ensureIntegritySecret(): Promise<string> {
     return existing;
   }
 
-  const seed = `${Date.now()}_${Math.random()}_${createId('int')}`;
+  const seed = `${Date.now()}_${Math.random()}_${createId("int")}`;
   const secret = await sha256(seed);
   await setIntegritySecret(secret);
   return secret;
@@ -146,8 +160,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...initialPersistedState,
-      authStatus: 'booting',
-      syncStatus: 'synced',
+      authStatus: "booting",
+      syncStatus: "synced",
       isOnline: false,
       isHydrated: false,
       isSyncing: false,
@@ -160,12 +174,12 @@ export const useAppStore = create<AppState>()(
 
       setSyncing: () => {
         const queueLength = get().pendingQueue.length;
-        syncLog('store_set_syncing', { queueLength });
-        set({ syncStatus: 'syncing', isSyncing: true, lastSyncError: null });
+        syncLog("store_set_syncing", { queueLength });
+        set({ syncStatus: "syncing", isSyncing: true, lastSyncError: null });
       },
 
       setSyncOutcome: (status, error = null) => {
-        syncLog('store_set_sync_outcome', {
+        syncLog("store_set_sync_outcome", {
           status,
           error,
           pendingQueueLength: get().pendingQueue.length,
@@ -174,17 +188,18 @@ export const useAppStore = create<AppState>()(
           syncStatus: status,
           isSyncing: false,
           lastSyncError: error,
-          lastSyncTime: status === 'synced' ? Date.now() : get().lastSyncTime,
+          lastSyncTime: status === "synced" ? Date.now() : get().lastSyncTime,
         });
       },
 
       bootstrapAuth: async () => {
-        const [session, secureUser, biometricAvailable, secureToken] = await Promise.all([
-          getStoredSession(),
-          getSecureUser(),
-          canUseBiometricAuth(),
-          getAuthToken(),
-        ]);
+        const [session, secureUser, biometricAvailable, secureToken] =
+          await Promise.all([
+            getStoredSession(),
+            getSecureUser(),
+            canUseBiometricAuth(),
+            getAuthToken(),
+          ]);
 
         if (
           !session ||
@@ -194,7 +209,7 @@ export const useAppStore = create<AppState>()(
           secureToken !== session.sessionToken
         ) {
           set({
-            authStatus: 'unauthenticated',
+            authStatus: "unauthenticated",
             currentUser: null,
             biometricEnabled: false,
           });
@@ -203,17 +218,22 @@ export const useAppStore = create<AppState>()(
 
         set({
           currentUser: secureUser.user,
-          biometricEnabled: Boolean(session.biometricEnabled && biometricAvailable),
-          authStatus: session.biometricEnabled && biometricAvailable ? 'biometric' : 'authenticated',
+          biometricEnabled: Boolean(
+            session.biometricEnabled && biometricAvailable,
+          ),
+          authStatus:
+            session.biometricEnabled && biometricAvailable
+              ? "biometric"
+              : "authenticated",
         });
       },
 
       unlockWithBiometric: () => {
-        set({ authStatus: 'authenticated' });
+        set({ authStatus: "authenticated" });
       },
 
       fallbackToPassword: () => {
-        set({ authStatus: 'unauthenticated' });
+        set({ authStatus: "unauthenticated" });
       },
 
       login: async ({ user, credentialHash, biometricEnabled }) => {
@@ -232,19 +252,23 @@ export const useAppStore = create<AppState>()(
         ]);
 
         set({
-          authStatus: 'authenticated',
+          authStatus: "authenticated",
           currentUser: user,
           biometricEnabled,
         });
       },
 
       logout: async () => {
-        await Promise.all([clearStoredSession(), deleteSecureUser(), deleteAuthToken()]);
+        await Promise.all([
+          clearStoredSession(),
+          deleteSecureUser(),
+          deleteAuthToken(),
+        ]);
 
         set({
           ...initialPersistedState,
-          authStatus: 'unauthenticated',
-          syncStatus: 'synced',
+          authStatus: "unauthenticated",
+          syncStatus: "synced",
           isSyncing: false,
           lastSyncError: null,
           securityIssue: null,
@@ -254,22 +278,30 @@ export const useAppStore = create<AppState>()(
       addEntryOfflineFirst: async (payload) => {
         const { lastOdometerValue, pendingQueue } = get();
 
-        if (payload.type !== 'expense' && typeof payload.odometer !== 'number') {
-          throw new Error('Odometer is required.');
+        if (
+          payload.type !== "expense" &&
+          typeof payload.odometer !== "number"
+        ) {
+          throw new Error("Odometer is required.");
         }
 
-        const entryOdometer = payload.type === 'expense' ? (payload.odometer ?? lastOdometerValue) : (payload.odometer as number);
+        const entryOdometer =
+          payload.type === "expense"
+            ? (payload.odometer ?? lastOdometerValue)
+            : (payload.odometer as number);
 
         if (entryOdometer < lastOdometerValue) {
-          throw new Error('Odometer rollback detected.');
+          throw new Error("Odometer rollback detected.");
         }
         if (entryOdometer - lastOdometerValue > 500) {
-          throw new Error('Single odometer entry cannot exceed 500 km from the previous reading.');
+          throw new Error(
+            "Single odometer entry cannot exceed 500 km from the previous reading.",
+          );
         }
 
         const createdAt = payload.createdAt ?? Date.now();
         const baseEntry: Entry = {
-          id: createId('entry'),
+          id: createId("entry"),
           type: payload.type,
           userId: payload.userId,
           userName: payload.userName,
@@ -304,8 +336,11 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           entries: [entryRecord, ...state.entries],
           pendingQueue: nextQueue,
-          lastOdometerValue: Math.max(state.lastOdometerValue, entryRecord.odometer),
-          syncStatus: 'failed',
+          lastOdometerValue: Math.max(
+            state.lastOdometerValue,
+            entryRecord.odometer,
+          ),
+          syncStatus: "failed",
         }));
 
         return entryRecord;
@@ -323,7 +358,9 @@ export const useAppStore = create<AppState>()(
                 }
               : entry,
           ),
-          pendingQueue: state.pendingQueue.filter((item) => !ids.has(item.entryId)),
+          pendingQueue: state.pendingQueue.filter(
+            (item) => !ids.has(item.entryId),
+          ),
         }));
       },
 
@@ -343,7 +380,10 @@ export const useAppStore = create<AppState>()(
             ...remoteEntry,
             synced: true,
           };
-          const integrityHash = await buildEntryIntegrityHash(baseEntry, secret);
+          const integrityHash = await buildEntryIntegrityHash(
+            baseEntry,
+            secret,
+          );
           remoteRecords.push({ ...baseEntry, integrityHash });
         }
 
@@ -353,13 +393,21 @@ export const useAppStore = create<AppState>()(
             byId.set(remoteEntry.id, remoteEntry);
           }
 
-          const allEntries = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
+          const allEntries = Array.from(byId.values()).sort(
+            (a, b) => b.createdAt - a.createdAt,
+          );
           const lastOdometerValue = allEntries.reduce(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
             state.lastOdometerValue,
           );
-          const unsyncedIds = new Set(allEntries.filter((entry) => !entry.synced).map((entry) => entry.id));
-          const filteredQueue = state.pendingQueue.filter((item) => unsyncedIds.has(item.entryId));
+          const unsyncedIds = new Set(
+            allEntries
+              .filter((entry) => !entry.synced)
+              .map((entry) => entry.id),
+          );
+          const filteredQueue = state.pendingQueue.filter((item) =>
+            unsyncedIds.has(item.entryId),
+          );
 
           return {
             entries: allEntries,
@@ -385,7 +433,9 @@ export const useAppStore = create<AppState>()(
           }
         }
 
-        const sortedByTimeAsc = [...validEntries].sort((a, b) => a.createdAt - b.createdAt);
+        const sortedByTimeAsc = [...validEntries].sort(
+          (a, b) => a.createdAt - b.createdAt,
+        );
         let maxOdometer = 0;
         for (const entry of sortedByTimeAsc) {
           if (entry.odometer < maxOdometer) {
@@ -400,15 +450,17 @@ export const useAppStore = create<AppState>()(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
             0,
           );
-          const filteredQueue = state.pendingQueue.filter((item) => validIds.has(item.entryId));
+          const filteredQueue = state.pendingQueue.filter((item) =>
+            validIds.has(item.entryId),
+          );
 
           return {
             entries: validEntries.sort((a, b) => b.createdAt - a.createdAt),
             pendingQueue: filteredQueue,
             lastOdometerValue: recalculatedLastOdometer,
-            syncStatus: filteredQueue.length > 0 ? 'failed' : 'synced',
+            syncStatus: filteredQueue.length > 0 ? "failed" : "synced",
             securityIssue: integrityIssue
-              ? 'Local data integrity check failed. Invalid records were removed.'
+              ? "Local data integrity check failed. Invalid records were removed."
               : null,
           };
         });
@@ -438,7 +490,12 @@ export const useAppStore = create<AppState>()(
       markEntrySharedTrip: async (entryId, actor) => {
         const { entries, pendingQueue } = get();
         const targetEntry = entries.find((entry) => entry.id === entryId);
-        if (!targetEntry || targetEntry.type !== 'odometer' || targetEntry.userId === actor.userId || targetEntry.sharedTrip) {
+        if (
+          !targetEntry ||
+          targetEntry.type !== "odometer" ||
+          targetEntry.userId === actor.userId ||
+          targetEntry.sharedTrip
+        ) {
           return;
         }
 
@@ -450,7 +507,10 @@ export const useAppStore = create<AppState>()(
           sharedTripMarkedByName: actor.userName,
           synced: false,
         };
-        const integrityHash = await buildEntryIntegrityHash(updatedEntry, secret);
+        const integrityHash = await buildEntryIntegrityHash(
+          updatedEntry,
+          secret,
+        );
         const nextQueue = normalizeQueue([
           ...pendingQueue,
           {
@@ -469,7 +529,7 @@ export const useAppStore = create<AppState>()(
               : entry,
           ),
           pendingQueue: nextQueue,
-          syncStatus: 'failed',
+          syncStatus: "failed",
         }));
       },
 
@@ -478,59 +538,61 @@ export const useAppStore = create<AppState>()(
         const secret = await ensureIntegritySecret();
         const baseEntries: Entry[] = [
           {
-            id: 'entry_actual_20260227_fuel_ayan',
-            type: 'fuel',
-            userId: 'ayan',
-            userName: 'Ayan',
+            id: "entry_actual_20260227_fuel_ayan",
+            type: "fuel",
+            userId: "ayan",
+            userName: "Ayan",
             odometer: 29841,
             fuelAmount: 2000,
             fuelLiters: 18.98,
             fullTank: false,
             cost: 2000,
-            createdAt: dayjs('2026-02-27T20:15:00').valueOf(),
+            createdAt: dayjs("2026-02-27T20:15:00").valueOf(),
             synced: false,
           },
           {
-            id: 'entry_actual_20260228_expense_cover_sourav',
-            type: 'expense',
-            userId: 'sourav',
-            userName: 'Sourav',
+            id: "entry_actual_20260228_expense_cover_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
             odometer: 29841,
-            expenseCategory: 'shield_safety',
-            expenseTitle: 'Car Cover',
+            expenseCategory: "shield_safety",
+            expenseTitle: "Car Cover",
             cost: 950,
-            createdAt: dayjs('2026-02-28T11:10:00').valueOf(),
+            createdAt: dayjs("2026-02-28T11:10:00").valueOf(),
             synced: false,
           },
           {
-            id: 'entry_actual_20260228_expense_rat_sourav',
-            type: 'expense',
-            userId: 'sourav',
-            userName: 'Sourav',
+            id: "entry_actual_20260228_expense_rat_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
             odometer: 29841,
-            expenseCategory: 'shield_safety',
-            expenseTitle: 'Rat Protector',
+            expenseCategory: "shield_safety",
+            expenseTitle: "Rat Protector",
             cost: 449,
-            createdAt: dayjs('2026-02-28T11:18:00').valueOf(),
+            createdAt: dayjs("2026-02-28T11:18:00").valueOf(),
             synced: false,
           },
           {
-            id: 'entry_actual_20260301_fuel_ayan',
-            type: 'fuel',
-            userId: 'ayan',
-            userName: 'Ayan',
+            id: "entry_actual_20260301_fuel_ayan",
+            type: "fuel",
+            userId: "ayan",
+            userName: "Ayan",
             odometer: 29853,
             fuelAmount: 211,
             fuelLiters: 2,
             fullTank: false,
             cost: 211,
-            createdAt: dayjs('2026-03-01T09:05:00').valueOf(),
+            createdAt: dayjs("2026-03-01T09:05:00").valueOf(),
             synced: false,
           },
         ];
 
         const existingIds = new Set(state.entries.map((entry) => entry.id));
-        const entriesToAdd = baseEntries.filter((entry) => !existingIds.has(entry.id));
+        const entriesToAdd = baseEntries.filter(
+          (entry) => !existingIds.has(entry.id),
+        );
         if (entriesToAdd.length === 0) {
           return;
         }
@@ -544,17 +606,22 @@ export const useAppStore = create<AppState>()(
           });
         }
 
-        const seedQueue = entriesToAdd.map((entry) => ({ entryId: entry.id, retries: 0 }));
+        const seedQueue = entriesToAdd.map((entry) => ({
+          entryId: entry.id,
+          retries: 0,
+        }));
         const nextQueue = normalizeQueue([...state.pendingQueue, ...seedQueue]);
 
         set({
-          entries: [...state.entries, ...hashedEntries].sort((a, b) => b.createdAt - a.createdAt),
+          entries: [...state.entries, ...hashedEntries].sort(
+            (a, b) => b.createdAt - a.createdAt,
+          ),
           pendingQueue: nextQueue,
           lastOdometerValue: Math.max(
             state.lastOdometerValue,
             ...hashedEntries.map((entry) => entry.odometer),
           ),
-          syncStatus: 'failed',
+          syncStatus: "failed",
         });
       },
     }),
