@@ -30,8 +30,8 @@ type SpecRow = {
   canCopy?: boolean;
 };
 
-type CarSpecTab = 'health' | 'legal';
-type LegalGalleryKey = 'pucc' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate';
+type CarSpecTab = 'health' | 'on_road' | 'identity';
+type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate';
 
 type LegalGalleryItem = {
   key: LegalGalleryKey;
@@ -42,25 +42,43 @@ type LegalGalleryItem = {
 };
 
 const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
-  { key: 'lastMaintenanceDate', label: 'Last Maintenance Date' },
-  { key: 'lastEngineOilChangedOn', label: 'Last Engine Oil Changed' },
-  { key: 'lastCoolantRefillOn', label: 'Last Coolant Refill' },
+  { key: 'lastMaintenanceDate', label: 'Last Maintenance' },
+  { key: 'lastCoolantRefillOn', label: 'Coolant' },
+  { key: 'lastEngineOilChangedOn', label: 'Engine Oil' },
+  { key: 'lastBrakeFluidChangedOn', label: 'Brake Oil (Brake Fluid)' },
+  { key: 'lastGearboxOilChangedOn', label: 'Gearbox Oil' },
+  { key: 'lastAirFilterChangedOn', label: 'Air Filter (Engine)' },
+  { key: 'lastOilFilterChangedOn', label: 'Oil Filter' },
+  { key: 'lastAcFilterChangedOn', label: 'AC Filter (Cabin Filter)' },
+  { key: 'lastSparkPlugsChangedOn', label: 'Spark Plugs' },
+  { key: 'lastBatteryChangedOn', label: 'Battery' },
+  { key: 'lastBrakePadsChangedOn', label: 'Brake Pads' },
+  { key: 'lastTyresChangedOn', label: 'Tyres' },
 ];
 
-const LEGAL_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
-  { key: 'puccExpireDate', label: 'PUCC Expire Date' },
-  { key: 'insuranceValidUpTo', label: 'Insurance Valid UpTo' },
-  { key: 'fitnessValidUpTo', label: 'Fitness Valid UpTo' },
-  { key: 'taxValidUpTo', label: 'Tax Valid UpTo' },
+const ON_ROAD_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
+  { key: 'puccExpireDate', label: 'PUCC' },
+  { key: 'insuranceValidUpTo', label: 'Insurance' },
+  { key: 'taxValidUpTo', label: 'Road Tax' },
+  { key: 'fitnessValidUpTo', label: 'Fitness' },
 ];
 
 const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'pucc', title: 'PUCC', subtitle: 'Pollution certificate', icon: 'eco', accent: '#2F7D32' },
+  { key: 'insurance', title: 'Insurance', subtitle: 'Insurance policy document', icon: 'policy', accent: '#0A6B7A' },
   { key: 'rc', title: 'RC', subtitle: 'Registration certificate', icon: 'description', accent: '#0057B8' },
   { key: 'fitness', title: 'Fitness', subtitle: 'Fitness certificate', icon: 'verified', accent: '#8E5A00' },
   { key: 'roadTax', title: 'Road Tax', subtitle: 'Tax payment proof', icon: 'account-balance-wallet', accent: '#7A1FA2' },
   { key: 'numberPlate', title: 'Number Plate', subtitle: 'Registration plate photo', icon: 'directions-car', accent: '#455A64' },
 ];
+
+function getGalleryKeyForSpecField(field: CarSpecEditableFieldKey): LegalGalleryKey | null {
+  if (field === 'puccExpireDate') return 'pucc';
+  if (field === 'insuranceValidUpTo') return 'insurance';
+  if (field === 'fitnessValidUpTo') return 'fitness';
+  if (field === 'taxValidUpTo') return 'roadTax';
+  return null;
+}
 
 function parseExistingDate(value: string): Date {
   const parsed = dayjs(normalizeIndianDate(value), INDIA_DATE_FORMAT, true);
@@ -157,38 +175,39 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       editable: true,
     }));
 
-    const staticRows: SpecRow[] = [
-      { key: 'model', label: 'Model', value: carSpec.model, editable: false },
-      { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
-      { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
-      { key: 'carColor', label: 'Car Color', value: carSpec.carColor, editable: false },
-      { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
-    ];
-
-    return [...editableRows, ...staticRows];
+    return editableRows;
   }, [carSpec]);
 
-  const legalRows = useMemo<SpecRow[]>(() => {
-    const editableRows: SpecRow[] = LEGAL_EDITABLE_CONFIG.map((item) => ({
+  const onRoadRows = useMemo<SpecRow[]>(() => {
+    const editableRows: SpecRow[] = ON_ROAD_EDITABLE_CONFIG.map((item) => ({
       key: item.key,
       label: item.label,
       value: carSpec[item.key],
       editable: true,
     }));
-
-    const staticRows: SpecRow[] = [
-      { key: 'registrationNumber', label: 'Registration Number', value: carSpec.registrationNumber, editable: false, canCopy: true },
-      { key: 'engineNumber', label: 'Engine No', value: carSpec.engineNumber, editable: false, canCopy: true },
-      { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
-      { key: 'registrationDate', label: 'Registration Date', value: carSpec.registrationDate, editable: false },
-      { key: 'registrationYear', label: 'Registration Year', value: carSpec.registrationYear, editable: false },
-      { key: 'manufacturingYear', label: 'Manufacturing Year', value: carSpec.manufacturingYear, editable: false },
-    ];
-
-    return [...editableRows, ...staticRows];
+    return editableRows;
   }, [carSpec]);
 
-  const activeRows = activeTab === 'health' ? healthRows : legalRows;
+  const identityRows = useMemo<SpecRow[]>(
+    () => [
+      { key: 'purchasedOn', label: 'We Purchased on', value: carSpec.purchasedOn, editable: false },
+      { key: 'registrationNumber', label: 'Registration No', value: carSpec.registrationNumber, editable: false, canCopy: true },
+      { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
+      { key: 'engineNumber', label: 'Engine No', value: carSpec.engineNumber, editable: false, canCopy: true },
+      { key: 'registrationDate', label: 'Reg Date', value: carSpec.registrationDate, editable: false },
+      { key: 'manufacturingYear', label: 'Manufacturing Yr', value: carSpec.manufacturingYear, editable: false },
+      { key: 'model', label: 'Model', value: carSpec.model, editable: false },
+      { key: 'variant', label: 'Variant', value: carSpec.variant, editable: false },
+      { key: 'carColor', label: 'Colour', value: carSpec.carColor, editable: false },
+      { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
+      { key: 'registrationYear', label: 'Registration Yr', value: carSpec.registrationYear, editable: false },
+      { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
+    ],
+    [carSpec],
+  );
+
+  const activeRows =
+    activeTab === 'health' ? healthRows : activeTab === 'on_road' ? onRoadRows : identityRows;
   const selectedGalleryCard = useMemo(
     () => LEGAL_GALLERY_ITEMS.find((item) => item.key === selectedGalleryItem) ?? null,
     [selectedGalleryItem],
@@ -229,7 +248,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     }
 
     const nextValue = dayjs(draftDate).format(INDIA_DATE_FORMAT);
-    const config = [...HEALTH_EDITABLE_CONFIG, ...LEGAL_EDITABLE_CONFIG].find((item) => item.key === activeField);
+    const config = [...HEALTH_EDITABLE_CONFIG, ...ON_ROAD_EDITABLE_CONFIG].find((item) => item.key === activeField);
     if (!config) {
       return;
     }
@@ -329,7 +348,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             <View style={[styles.tabRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
               {([
                 { key: 'health', label: 'Car Health' },
-                { key: 'legal', label: 'Car Legal Info' },
+                { key: 'on_road', label: 'On Road' },
+                { key: 'identity', label: 'Car Identity' },
               ] as { key: CarSpecTab; label: string }[]).map((tab) => {
                 const active = activeTab === tab.key;
                 return (
@@ -358,6 +378,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             {editableRows.map((row) => {
               const isActive = row.editable && row.key === activeField;
               const healthReminder = activeTab === 'health' ? getHealthReminder(row.value) : null;
+              const viewKey =
+                row.editable && activeTab === 'on_road'
+                  ? getGalleryKeyForSpecField(row.key as CarSpecEditableFieldKey)
+                  : null;
 
               return (
                 <View
@@ -380,21 +404,36 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                       ) : null}
                     </View>
                     {row.editable ? (
-                      <Pressable
-                        onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)}
-                        style={[
-                          styles.editIconBtn,
-                          {
-                            borderColor: isActive ? colors.textPrimary : colors.border,
-                            backgroundColor: isActive ? colors.textPrimary : colors.backgroundSecondary,
-                          },
-                        ]}>
-                        <MaterialIcons
-                          name={isActive ? 'expand-less' : 'edit'}
-                          size={18}
-                          color={isActive ? colors.invertedText : colors.textPrimary}
-                        />
-                      </Pressable>
+                      <View style={styles.rowActions}>
+                        {viewKey ? (
+                          <Pressable
+                            onPress={() => setSelectedGalleryItem(viewKey)}
+                            style={[
+                              styles.editIconBtn,
+                              {
+                                borderColor: colors.border,
+                                backgroundColor: colors.backgroundSecondary,
+                              },
+                            ]}>
+                            <MaterialIcons name="image" size={18} color={colors.textPrimary} />
+                          </Pressable>
+                        ) : null}
+                        <Pressable
+                          onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)}
+                          style={[
+                            styles.editIconBtn,
+                            {
+                              borderColor: isActive ? colors.textPrimary : colors.border,
+                              backgroundColor: isActive ? colors.textPrimary : colors.backgroundSecondary,
+                            },
+                          ]}>
+                          <MaterialIcons
+                            name={isActive ? 'expand-less' : 'edit'}
+                            size={18}
+                            color={isActive ? colors.invertedText : colors.textPrimary}
+                          />
+                        </Pressable>
+                      </View>
                     ) : null}
                   </View>
 
@@ -470,41 +509,47 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
               );
             })}
 
-            <View style={[styles.nonEditablePanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>
-                {activeTab === 'health' ? 'Health Snapshot' : 'Legal Snapshot'}
-              </Text>
-              {nonEditableGridRows.map((pair, rowIndex) => (
-                <View key={`grid-${rowIndex}`} style={styles.nonEditableGridRow}>
-                  {pair.map((row, cellIndex) => (
-                    <View
-                      key={row.key}
-                      style={[
-                        styles.nonEditableCell,
-                        {
-                          borderColor: colors.border,
-                          borderWidth: 1,
-                          backgroundColor: colors.backgroundSecondary,
-                        },
-                        cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 },
-                      ]}>
-                      <View style={styles.staticCellHead}>
-                        <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
-                        {row.canCopy ? (
-                          <Pressable onPress={() => void copyValue(row.label, row.value)} style={styles.copyIconBtn}>
-                            <MaterialIcons name="content-copy" size={16} color={colors.textPrimary} />
-                          </Pressable>
-                        ) : null}
+            {nonEditableRows.length > 0 ? (
+              <View style={[styles.nonEditablePanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>
+                  {activeTab === 'health'
+                    ? 'Health Snapshot'
+                    : activeTab === 'on_road'
+                      ? 'On Road Snapshot'
+                      : 'Car Identity Snapshot'}
+                </Text>
+                {nonEditableGridRows.map((pair, rowIndex) => (
+                  <View key={`grid-${rowIndex}`} style={styles.nonEditableGridRow}>
+                    {pair.map((row, cellIndex) => (
+                      <View
+                        key={row.key}
+                        style={[
+                          styles.nonEditableCell,
+                          {
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                            backgroundColor: colors.backgroundSecondary,
+                          },
+                          cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 },
+                        ]}>
+                        <View style={styles.staticCellHead}>
+                          <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
+                          {row.canCopy ? (
+                            <Pressable onPress={() => void copyValue(row.label, row.value)} style={styles.copyIconBtn}>
+                              <MaterialIcons name="content-copy" size={16} color={colors.textPrimary} />
+                            </Pressable>
+                          ) : null}
+                        </View>
+                        <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
                       </View>
-                      <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
-                    </View>
-                  ))}
-                  {pair.length === 1 ? <View style={styles.nonEditableCellSpacer} /> : null}
-                </View>
-              ))}
-            </View>
+                    ))}
+                    {pair.length === 1 ? <View style={styles.nonEditableCellSpacer} /> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
-            {activeTab === 'legal' ? (
+            {activeTab === 'on_road' ? (
               <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.galleryHeader}>
                   <View style={styles.galleryCopy}>
@@ -738,6 +783,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 10,
+  },
+  rowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
   },
   rowTitleWrap: {
     flex: 1,

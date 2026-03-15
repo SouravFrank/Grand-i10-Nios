@@ -65,6 +65,9 @@ type AddEntryInput = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  sharedTrip?: boolean;
+  sharedTripMarkedById?: string;
+  sharedTripMarkedByName?: string;
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
@@ -89,20 +92,30 @@ type UpdateEntryInput = {
 };
 
 const DEFAULT_CAR_SPEC: CarSpec = {
+  purchasedOn: "27 Feb 2026",
   registrationNumber: "WB12BP0584",
   engineNumber: "G4LAPM522487",
   chassisNumber: "MALB351 CLPM464714",
   registrationDate: "09 Aug 2023",
-  registrationYear: "Aug-2023",
+  registrationYear: "Aug 2023",
   manufacturingYear: "July 2023",
   initialOdometer: 29810,
   fuelType: "Petrol",
   model: "Hyundai Grand i10 Nios",
   variant: "SPORTZ 1.2 KAPPA VTVT - 2023",
   carColor: "Spark Green Pearl",
-  lastMaintenanceDate: "12 Jan 2026",
-  lastEngineOilChangedOn: "12 Jan 2026",
+  lastMaintenanceDate: "05 Sep 2025",
+  lastEngineOilChangedOn: "05 Sep 2025",
   lastCoolantRefillOn: "04 Nov 2025",
+  lastBrakeFluidChangedOn: "Not set",
+  lastGearboxOilChangedOn: "05 Sep 2025",
+  lastAirFilterChangedOn: "05 Sep 2025",
+  lastOilFilterChangedOn: "05 Sep 2025",
+  lastAcFilterChangedOn: "Not set",
+  lastSparkPlugsChangedOn: "Not set",
+  lastBatteryChangedOn: "Not set",
+  lastBrakePadsChangedOn: "05 Sep 2025",
+  lastTyresChangedOn: "Not set",
   puccExpireDate: "20 Sep 2026",
   insuranceValidUpTo: "26 Feb 2027",
   fitnessValidUpTo: "08 Aug 2038",
@@ -116,10 +129,7 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
   };
 
   const normalizeTextKey = (value: string) =>
-    value
-      .trim()
-      .replace(/\s+/g, " ")
-      .toLowerCase();
+    value.trim().replace(/\s+/g, " ").toLowerCase();
 
   const normalizedManufacturingYear =
     normalizeTextKey(merged.manufacturingYear) === "july 2023"
@@ -134,10 +144,26 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
     ...merged,
     manufacturingYear: normalizedManufacturingYear,
     model: normalizedModel,
+    purchasedOn: normalizeIndianDate(merged.purchasedOn),
     registrationDate: normalizeIndianDate(merged.registrationDate),
     lastMaintenanceDate: normalizeIndianDate(merged.lastMaintenanceDate),
     lastEngineOilChangedOn: normalizeIndianDate(merged.lastEngineOilChangedOn),
     lastCoolantRefillOn: normalizeIndianDate(merged.lastCoolantRefillOn),
+    lastBrakeFluidChangedOn: normalizeIndianDate(
+      merged.lastBrakeFluidChangedOn,
+    ),
+    lastGearboxOilChangedOn: normalizeIndianDate(
+      merged.lastGearboxOilChangedOn,
+    ),
+    lastAirFilterChangedOn: normalizeIndianDate(merged.lastAirFilterChangedOn),
+    lastOilFilterChangedOn: normalizeIndianDate(merged.lastOilFilterChangedOn),
+    lastAcFilterChangedOn: normalizeIndianDate(merged.lastAcFilterChangedOn),
+    lastSparkPlugsChangedOn: normalizeIndianDate(
+      merged.lastSparkPlugsChangedOn,
+    ),
+    lastBatteryChangedOn: normalizeIndianDate(merged.lastBatteryChangedOn),
+    lastBrakePadsChangedOn: normalizeIndianDate(merged.lastBrakePadsChangedOn),
+    lastTyresChangedOn: normalizeIndianDate(merged.lastTyresChangedOn),
     puccExpireDate: normalizeIndianDate(merged.puccExpireDate),
     insuranceValidUpTo: normalizeIndianDate(merged.insuranceValidUpTo),
     fitnessValidUpTo: normalizeIndianDate(merged.fitnessValidUpTo),
@@ -145,7 +171,9 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
   };
 }
 
-function requiresCarSpecNormalization(carSpec?: Partial<CarSpec> | null): boolean {
+function requiresCarSpecNormalization(
+  carSpec?: Partial<CarSpec> | null,
+): boolean {
   if (!carSpec) {
     return true;
   }
@@ -156,7 +184,9 @@ function requiresCarSpecNormalization(carSpec?: Partial<CarSpec> | null): boolea
   return keys.some((key) => {
     const rawValue = carSpec[key];
     const normalizedValue = normalized[key];
-    return rawValue === undefined || String(rawValue) !== String(normalizedValue);
+    return (
+      rawValue === undefined || String(rawValue) !== String(normalizedValue)
+    );
   });
 }
 
@@ -181,16 +211,8 @@ type AppState = PersistedAppData & {
     biometricEnabled: boolean;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  startTrip: (params: {
-    userId: string;
-    userName: string;
-    odometer: number;
-  }) => Promise<EntryRecord>;
-  endTrip: (params: {
-    userId: string;
-    userName: string;
-    odometer: number;
-  }) => Promise<EntryRecord>;
+  startTrip: (params: { userId: string; userName: string; odometer: number; sharedTrip?: boolean }) => Promise<EntryRecord>;
+  endTrip: (params: { userId: string; userName: string; odometer: number; sharedTrip?: boolean }) => Promise<EntryRecord>;
   addEntryOfflineFirst: (entry: AddEntryInput) => Promise<EntryRecord>;
   updateEntryOfflineFirst: (
     entryId: string,
@@ -245,17 +267,30 @@ function normalizeQueue(queue: PendingQueueItem[]): PendingQueueItem[] {
   });
 }
 
-function recalculateLastOdometer(entries: Array<Pick<EntryRecord, "odometer">>): number {
-  return entries.reduce((maxValue, entry) => Math.max(maxValue, entry.odometer), 0);
+function recalculateLastOdometer(
+  entries: Array<Pick<EntryRecord, "odometer">>,
+): number {
+  return entries.reduce(
+    (maxValue, entry) => Math.max(maxValue, entry.odometer),
+    0,
+  );
 }
 
-function validateUpdatedEntryOdometer(entries: EntryRecord[], entryId: string, nextOdometer: number): void {
+function validateUpdatedEntryOdometer(
+  entries: EntryRecord[],
+  entryId: string,
+  nextOdometer: number,
+): void {
   if (!Number.isFinite(nextOdometer) || nextOdometer <= 0) {
     throw new Error("Enter a valid odometer reading.");
   }
 
-  const chronologicalEntries = [...entries].sort((a, b) => a.createdAt - b.createdAt);
-  const targetIndex = chronologicalEntries.findIndex((entry) => entry.id === entryId);
+  const chronologicalEntries = [...entries].sort(
+    (a, b) => a.createdAt - b.createdAt,
+  );
+  const targetIndex = chronologicalEntries.findIndex(
+    (entry) => entry.id === entryId,
+  );
 
   if (targetIndex === -1) {
     throw new Error("Entry not found.");
@@ -265,7 +300,9 @@ function validateUpdatedEntryOdometer(entries: EntryRecord[], entryId: string, n
   const nextEntry = chronologicalEntries[targetIndex + 1];
 
   if (previousEntry && nextOdometer < previousEntry.odometer) {
-    throw new Error("Edited odometer cannot be less than the previous recorded value.");
+    throw new Error(
+      "Edited odometer cannot be less than the previous recorded value.",
+    );
   }
 
   if (nextEntry && nextOdometer > nextEntry.odometer) {
@@ -273,7 +310,9 @@ function validateUpdatedEntryOdometer(entries: EntryRecord[], entryId: string, n
   }
 
   if (previousEntry && nextOdometer - previousEntry.odometer > 500) {
-    throw new Error("Single odometer entry cannot exceed 500 km from the previous reading.");
+    throw new Error(
+      "Single odometer entry cannot exceed 500 km from the previous reading.",
+    );
   }
 }
 
@@ -396,8 +435,9 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      startTrip: async ({ userId, userName, odometer }) => {
+      startTrip: async ({ userId, userName, odometer, sharedTrip }) => {
         const tripId = createId("trip");
+        const shouldShare = Boolean(sharedTrip);
         const entry = await get().addEntryOfflineFirst({
           type: "odometer",
           userId,
@@ -405,6 +445,9 @@ export const useAppStore = create<AppState>()(
           odometer,
           tripId,
           tripStage: "start",
+          sharedTrip: shouldShare,
+          sharedTripMarkedById: shouldShare ? userId : undefined,
+          sharedTripMarkedByName: shouldShare ? userName : undefined,
         });
 
         set({
@@ -421,7 +464,7 @@ export const useAppStore = create<AppState>()(
         return entry;
       },
 
-      endTrip: async ({ userId, userName, odometer }) => {
+      endTrip: async ({ userId, userName, odometer, sharedTrip }) => {
         const activeTrip = get().activeTrip;
 
         if (!activeTrip) {
@@ -429,9 +472,12 @@ export const useAppStore = create<AppState>()(
         }
 
         if (odometer < activeTrip.startOdometer) {
-          throw new Error("Trip end odometer cannot be less than the trip start reading.");
+          throw new Error(
+            "Trip end odometer cannot be less than the trip start reading.",
+          );
         }
 
+        const shouldShare = Boolean(sharedTrip);
         const entry = await get().addEntryOfflineFirst({
           type: "odometer",
           userId,
@@ -440,6 +486,9 @@ export const useAppStore = create<AppState>()(
           tripId: activeTrip.tripId,
           tripStage: "end",
           tripDistanceKm: odometer - activeTrip.startOdometer,
+          sharedTrip: shouldShare,
+          sharedTripMarkedById: shouldShare ? userId : undefined,
+          sharedTripMarkedByName: shouldShare ? userName : undefined,
         });
 
         set({ activeTrip: null });
@@ -484,6 +533,9 @@ export const useAppStore = create<AppState>()(
           fuelAmount: payload.fuelAmount,
           fuelLiters: payload.fuelLiters,
           fullTank: payload.fullTank,
+          sharedTrip: payload.sharedTrip,
+          sharedTripMarkedById: payload.sharedTripMarkedById,
+          sharedTripMarkedByName: payload.sharedTripMarkedByName,
           expenseCategory: payload.expenseCategory,
           expenseTitle: payload.expenseTitle,
           cost: payload.cost,
@@ -783,16 +835,148 @@ export const useAppStore = create<AppState>()(
         const secret = await ensureIntegritySecret();
         const baseEntries: Entry[] = [
           {
+            id: "entry_actual_20250905_spec_update_service_sourav",
+            type: "spec_update",
+            userId: "sourav",
+            userName: "Sourav",
+            odometer: 26743,
+            specUpdatedFields: [
+              "lastBrakePadsChangedOn",
+              "lastEngineOilChangedOn",
+              "lastGearboxOilChangedOn",
+              "lastAirFilterChangedOn",
+              "lastOilFilterChangedOn",
+            ],
+            specUpdateDetails: [
+              {
+                field: "lastBrakePadsChangedOn",
+                label: "Brake Pads",
+                previousValue: "Not set",
+                nextValue: "05 Sep 2025",
+              },
+              {
+                field: "lastEngineOilChangedOn",
+                label: "Engine Oil",
+                previousValue: "Not set",
+                nextValue: "05 Sep 2025",
+              },
+              {
+                field: "lastGearboxOilChangedOn",
+                label: "Gearbox Oil",
+                previousValue: "Not set",
+                nextValue: "05 Sep 2025",
+              },
+              {
+                field: "lastAirFilterChangedOn",
+                label: "Air Filter (Engine)",
+                previousValue: "Not set",
+                nextValue: "05 Sep 2025",
+              },
+              {
+                field: "lastOilFilterChangedOn",
+                label: "Oil Filter",
+                previousValue: "Not set",
+                nextValue: "05 Sep 2025",
+              },
+            ],
+            createdAt: dayjs("2025-09-05T12:00:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260218_expense_cars24_report_ayan",
+            type: "expense",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29661,
+            expenseCategory: "purchase",
+            expenseTitle: "Cars24Report",
+            cost: 250,
+            createdAt: dayjs("2026-02-18T12:15:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260221_expense_inspection_3rd_party_ayan",
+            type: "expense",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29703,
+            expenseCategory: "purchase",
+            expenseTitle: "Inspection 3rd Party",
+            cost: 1500,
+            createdAt: dayjs("2026-02-21T11:00:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260221_expense_booking_amount_penalty_ayan",
+            type: "expense",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29703,
+            expenseCategory: "purchase",
+            expenseTitle: "Booking Amount Penalty",
+            cost: 1000,
+            createdAt: dayjs("2026-02-21T11:05:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260227_expense_downpayment_charges_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
+            odometer: 29703,
+            expenseCategory: "purchase",
+            expenseTitle: "Downpayment & Charges",
+            cost: 17480,
+            createdAt: dayjs("2026-02-27T10:15:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260227_expense_cash_wages_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
+            odometer: 29810,
+            expenseCategory: "purchase",
+            expenseTitle: "Car - Cash Wages",
+            cost: 50,
+            createdAt: dayjs("2026-02-27T12:00:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260227_expense_cash_wages_ayan",
+            type: "expense",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29810,
+            expenseCategory: "purchase",
+            expenseTitle: "Car - Cash Wages",
+            cost: 200,
+            createdAt: dayjs("2026-02-27T12:01:00").valueOf(),
+            synced: false,
+          },
+          {
             id: "entry_actual_20260227_fuel_ayan",
             type: "fuel",
             userId: "ayan",
             userName: "Ayan",
-            odometer: 29841,
+            odometer: 29810,
             fuelAmount: 2000,
             fuelLiters: 18.98,
             fullTank: false,
             cost: 2000,
-            createdAt: dayjs("2026-02-27T20:15:00").valueOf(),
+            createdAt: dayjs("2026-02-27T15:00:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260227_expense_driver_delivery_ayan",
+            type: "expense",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29840,
+            expenseCategory: "purchase",
+            expenseTitle: "Driver for Delivery",
+            cost: 800,
+            createdAt: dayjs("2026-02-27T17:30:00").valueOf(),
             synced: false,
           },
           {
@@ -800,11 +984,11 @@ export const useAppStore = create<AppState>()(
             type: "expense",
             userId: "sourav",
             userName: "Sourav",
-            odometer: 29841,
+            odometer: 29840,
             expenseCategory: "shield_safety",
-            expenseTitle: "Car Cover",
-            cost: 950,
-            createdAt: dayjs("2026-02-28T11:10:00").valueOf(),
+            expenseTitle: "Cover",
+            cost: 951,
+            createdAt: dayjs("2026-02-27T17:45:00").valueOf(),
             synced: false,
           },
           {
@@ -812,11 +996,23 @@ export const useAppStore = create<AppState>()(
             type: "expense",
             userId: "sourav",
             userName: "Sourav",
-            odometer: 29841,
+            odometer: 29840,
             expenseCategory: "shield_safety",
-            expenseTitle: "Rat Protector",
+            expenseTitle: "Rat Spray",
             cost: 449,
-            createdAt: dayjs("2026-02-28T11:18:00").valueOf(),
+            createdAt: dayjs("2026-02-27T17:50:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260301_expense_scratch_treatment_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
+            odometer: 29853,
+            expenseCategory: "care_comfort",
+            expenseTitle: "Scratch Treatment Materials",
+            cost: 978,
+            createdAt: dayjs("2026-03-01T08:30:00").valueOf(),
             synced: false,
           },
           {
@@ -832,18 +1028,101 @@ export const useAppStore = create<AppState>()(
             createdAt: dayjs("2026-03-01T09:05:00").valueOf(),
             synced: false,
           },
+          {
+            id: "entry_actual_20260303_fuel_ayan",
+            type: "fuel",
+            userId: "ayan",
+            userName: "Ayan",
+            odometer: 29859,
+            fuelAmount: 2100,
+            fuelLiters: 19.92,
+            fullTank: false,
+            cost: 2100,
+            createdAt: dayjs("2026-03-03T18:15:00").valueOf(),
+            synced: false,
+          },
+          {
+            id: "entry_actual_20260316_expense_traffic_fine_sourav",
+            type: "expense",
+            userId: "sourav",
+            userName: "Sourav",
+            odometer: 30035,
+            expenseCategory: "traffic_violation_fine",
+            expenseTitle: "Traffic Violation Fine",
+            cost: 2000,
+            createdAt: dayjs("2026-03-16T10:00:00").valueOf(),
+            synced: false,
+          },
         ];
 
-        const existingIds = new Set(state.entries.map((entry) => entry.id));
-        const entriesToAdd = baseEntries.filter(
-          (entry) => !existingIds.has(entry.id),
+        const existingById = new Map(
+          state.entries.map((entry) => [entry.id, entry]),
         );
-        if (entriesToAdd.length === 0) {
+        const baseIds = new Set(baseEntries.map((entry) => entry.id));
+
+        const seedSignature = (
+          entry: Pick<
+            Entry,
+            | "type"
+            | "userId"
+            | "userName"
+            | "odometer"
+            | "fuelAmount"
+            | "fuelLiters"
+            | "fullTank"
+            | "expenseCategory"
+            | "expenseTitle"
+            | "cost"
+            | "specUpdatedFields"
+            | "specUpdateDetails"
+            | "createdAt"
+          >,
+        ) =>
+          JSON.stringify({
+            type: entry.type,
+            userId: entry.userId,
+            userName: entry.userName,
+            odometer: entry.odometer,
+            fuelAmount: entry.fuelAmount ?? null,
+            fuelLiters: entry.fuelLiters ?? null,
+            fullTank: entry.fullTank ?? null,
+            expenseCategory: entry.expenseCategory ?? null,
+            expenseTitle: entry.expenseTitle ?? null,
+            cost: entry.cost ?? null,
+            specUpdatedFields: entry.specUpdatedFields ?? null,
+            specUpdateDetails: entry.specUpdateDetails ?? null,
+            createdAt: entry.createdAt,
+          });
+
+        const needsUpsert = baseEntries.some((entry) => {
+          const existing = existingById.get(entry.id);
+          if (!existing) {
+            return true;
+          }
+          return (
+            seedSignature(entry) !==
+            seedSignature({
+              type: existing.type,
+              userId: existing.userId,
+              userName: existing.userName,
+              odometer: existing.odometer,
+              fuelAmount: existing.fuelAmount,
+              fuelLiters: existing.fuelLiters,
+              fullTank: existing.fullTank,
+              expenseCategory: existing.expenseCategory,
+              expenseTitle: existing.expenseTitle,
+              cost: existing.cost,
+              createdAt: existing.createdAt,
+            })
+          );
+        });
+
+        if (!needsUpsert) {
           return;
         }
 
         const hashedEntries: EntryRecord[] = [];
-        for (const entry of entriesToAdd) {
+        for (const entry of baseEntries) {
           const integrityHash = await buildEntryIntegrityHash(entry, secret);
           hashedEntries.push({
             ...entry,
@@ -851,21 +1130,26 @@ export const useAppStore = create<AppState>()(
           });
         }
 
-        const seedQueue = entriesToAdd.map((entry) => ({
+        const retainedEntries = state.entries.filter(
+          (entry) => !baseIds.has(entry.id),
+        );
+        const nextEntries = [...retainedEntries, ...hashedEntries].sort(
+          (a, b) => b.createdAt - a.createdAt,
+        );
+
+        const retainedQueue = state.pendingQueue.filter(
+          (item) => !baseIds.has(item.entryId),
+        );
+        const seedQueue = baseEntries.map((entry) => ({
           entryId: entry.id,
           retries: 0,
         }));
-        const nextQueue = normalizeQueue([...state.pendingQueue, ...seedQueue]);
+        const nextQueue = normalizeQueue([...retainedQueue, ...seedQueue]);
 
         set({
-          entries: [...state.entries, ...hashedEntries].sort(
-            (a, b) => b.createdAt - a.createdAt,
-          ),
+          entries: nextEntries,
           pendingQueue: nextQueue,
-          lastOdometerValue: recalculateLastOdometer([
-            ...state.entries,
-            ...hashedEntries,
-          ]),
+          lastOdometerValue: recalculateLastOdometer(nextEntries),
           syncStatus: "failed",
         });
       },

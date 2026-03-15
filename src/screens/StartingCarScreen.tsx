@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
@@ -32,6 +33,7 @@ export function StartingCarScreen({ navigation, route }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const startTrip = useAppStore((state) => state.startTrip);
   const endTrip = useAppStore((state) => state.endTrip);
+  const [sharedTripEnabled, setSharedTripEnabled] = useState(false);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const tripMode = route.params?.mode ?? 'start';
   const isEndingTrip = tripMode === 'end';
@@ -90,12 +92,14 @@ export function StartingCarScreen({ navigation, route }: Props) {
           userId: currentUser.id,
           userName: currentUser.name,
           odometer: parsedOdometer,
+          sharedTrip: sharedTripEnabled,
         });
       } else {
         await startTrip({
           userId: currentUser.id,
           userName: currentUser.name,
           odometer: parsedOdometer,
+          sharedTrip: sharedTripEnabled,
         });
       }
 
@@ -154,6 +158,25 @@ export function StartingCarScreen({ navigation, route }: Props) {
             />
           )}
         />
+
+        <View style={[styles.sharedRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Pressable
+            onPress={() => setSharedTripEnabled((prev) => !prev)}
+            hitSlop={10}
+            style={styles.sharedRowInner}>
+            <MaterialIcons
+              name={sharedTripEnabled ? 'check-box' : 'check-box-outline-blank'}
+              size={20}
+              color={sharedTripEnabled ? colors.textPrimary : colors.textSecondary}
+            />
+            <View style={styles.sharedRowCopy}>
+              <Text style={[styles.sharedRowTitle, { color: colors.textPrimary }]}>Shared trip</Text>
+              <Text style={[styles.sharedRowSubtitle, { color: colors.textSecondary }]}>
+                Show this trip in both users timeline.
+              </Text>
+            </View>
+          </Pressable>
+        </View>
 
         <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
       </View>
@@ -241,5 +264,28 @@ const styles = StyleSheet.create({
   primaryAction: {
     height: 54,
     borderRadius: 16,
+  },
+  sharedRow: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  sharedRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sharedRowCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  sharedRowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sharedRowSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

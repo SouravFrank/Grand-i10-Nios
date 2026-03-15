@@ -1,6 +1,14 @@
 export type EntryType = 'odometer' | 'fuel' | 'spec_update' | 'expense';
 
-export type ExpenseCategory = 'shield_safety' | 'care_comfort' | 'maintenance_lab' | 'utility_addon' | 'other';
+export type ExpenseCategory =
+  | 'shield_safety'
+  | 'care_comfort'
+  | 'maintenance_lab'
+  | 'utility_addon'
+  | 'purchase'
+  | 'traffic_violation_fine'
+  | 'fasttag_toll_paid'
+  | 'other';
 
 export type SpecUpdateDetail = {
   field: string;
@@ -76,6 +84,7 @@ export type AuthStatus = 'booting' | 'unauthenticated' | 'biometric' | 'authenti
 export type RemoteEntryDocument = Omit<Entry, 'synced'>;
 
 export type CarSpec = {
+  purchasedOn: string;
   registrationNumber: string;
   engineNumber: string;
   chassisNumber: string;
@@ -90,6 +99,15 @@ export type CarSpec = {
   lastMaintenanceDate: string;
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
+  lastBrakeFluidChangedOn: string;
+  lastGearboxOilChangedOn: string;
+  lastAirFilterChangedOn: string;
+  lastOilFilterChangedOn: string;
+  lastAcFilterChangedOn: string;
+  lastSparkPlugsChangedOn: string;
+  lastBatteryChangedOn: string;
+  lastBrakePadsChangedOn: string;
+  lastTyresChangedOn: string;
   puccExpireDate: string;
   insuranceValidUpTo: string;
   fitnessValidUpTo: string;
@@ -100,6 +118,15 @@ export type CarSpecEditableFields = {
   lastMaintenanceDate: string;
   lastEngineOilChangedOn: string;
   lastCoolantRefillOn: string;
+  lastBrakeFluidChangedOn: string;
+  lastGearboxOilChangedOn: string;
+  lastAirFilterChangedOn: string;
+  lastOilFilterChangedOn: string;
+  lastAcFilterChangedOn: string;
+  lastSparkPlugsChangedOn: string;
+  lastBatteryChangedOn: string;
+  lastBrakePadsChangedOn: string;
+  lastTyresChangedOn: string;
   puccExpireDate: string;
   insuranceValidUpTo: string;
   fitnessValidUpTo: string;

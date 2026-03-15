@@ -197,11 +197,11 @@ export function HomeScreen({ navigation }: Props) {
             )}
           </View>
 
-          <Pressable onPress={() => navigation.navigate('History')} style={styles.historyWrap}>
+          <Pressable onPress={() => navigation.navigate('History')} hitSlop={12} style={styles.historyWrap}>
             <View style={styles.historyRow}>
               <MaterialIcons name="history" size={16} color={colors.textPrimary} />
               <Text style={[styles.historyLink, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>
-                VIEW HISTORY
+                VIEW CAR TIMELINE
               </Text>
             </View>
           </Pressable>

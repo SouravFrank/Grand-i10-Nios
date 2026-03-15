@@ -27,6 +27,8 @@ const quickExpenseTitles = [
   'Fitness Renewal',
   'Tax Renewal',
   'FASTag Recharge',
+  'FASTag Toll Paid',
+  'Traffic Violation Fine',
 ] as const;
 
 const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
@@ -34,13 +36,19 @@ const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof 
   care_comfort: { label: 'Care & Comfort', icon: 'weekend' },
   maintenance_lab: { label: 'Maintenance Lab', icon: 'build-circle' },
   utility_addon: { label: 'Utility Add-ons', icon: 'bolt' },
+  purchase: { label: 'Purchase', icon: 'shopping-cart' },
+  traffic_violation_fine: { label: 'Traffic Violation Fine', icon: 'gavel' },
+  fasttag_toll_paid: { label: 'FASTag Toll Paid', icon: 'toll' },
   other: { label: 'Other', icon: 'apps' },
 };
 
 const keywordCategoryRules: Array<{ keywords: string[]; category: ExpenseCategory }> = [
+  { keywords: ['traffic', 'violation', 'fine', 'challan'], category: 'traffic_violation_fine' },
+  { keywords: ['fastag toll', 'fast tag toll', 'toll', 'toll paid'], category: 'fasttag_toll_paid' },
+  { keywords: ['purchase', 'downpayment', 'down payment', 'booking', 'cars24', 'inspection', 'delivery', 'wages'], category: 'purchase' },
   { keywords: ['maintenance', 'service', 'engine oil', 'oil', 'coolant', 'filter', 'alignment', 'balancing', 'repair'], category: 'maintenance_lab' },
   { keywords: ['insurance', 'pucc', 'cover', 'rat', 'protector', 'safety', 'helmet'], category: 'shield_safety' },
-  { keywords: ['fastag', 'fast tag', 'tax', 'fitness', 'recharge', 'challan', 'tag'], category: 'utility_addon' },
+  { keywords: ['fastag', 'fast tag', 'tax', 'fitness', 'recharge', 'tag'], category: 'utility_addon' },
   { keywords: ['seat', 'clean', 'wash', 'mat', 'perfume', 'comfort', 'vacuum'], category: 'care_comfort' },
 ];
 

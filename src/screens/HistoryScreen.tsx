@@ -153,7 +153,10 @@ export function HistoryScreen({ navigation }: Props) {
       }
 
       if (selectedUser !== 'all' && entry.userId !== selectedUser) {
-        return false;
+        const isSharedOdometer = entry.type === 'odometer' && entry.sharedTrip;
+        if (!isSharedOdometer) {
+          return false;
+        }
       }
 
       if (fromTimestamp !== null && entry.createdAt < fromTimestamp) {
@@ -311,17 +314,19 @@ export function HistoryScreen({ navigation }: Props) {
         <View style={styles.headerRow}>
           <Pressable
             onPress={() => navigation.goBack()}
+            hitSlop={12}
             style={[styles.backButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
             <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
           </Pressable>
 
           <View style={styles.headerCopy}>
             <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>TIMELINE</Text>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>History</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Car Timeline</Text>
           </View>
 
           <Pressable
             onPress={() => setIsFilterOpen((prev) => !prev)}
+            hitSlop={12}
             style={[styles.filterToggleBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
             <MaterialIcons name={isFilterOpen ? 'tune' : 'filter-list'} size={18} color={colors.textPrimary} />
             {activeFilterPills.length > 0 ? (
@@ -340,7 +345,7 @@ export function HistoryScreen({ navigation }: Props) {
               <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
               <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
             </View>
-            <Pressable onPress={resetFilters} style={[styles.clearBtn, { borderColor: colors.border }]}>
+            <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
               <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
             </Pressable>
           </View>

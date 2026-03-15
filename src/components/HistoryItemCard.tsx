@@ -82,9 +82,15 @@ export function HistoryItemCard({
           ? 'MAINTENANCE LAB'
           : entry.expenseCategory === 'utility_addon'
             ? 'UTILITY ADD-ONS'
-            : entry.expenseCategory === 'other'
-              ? 'OTHER'
-              : null;
+            : entry.expenseCategory === 'purchase'
+              ? 'PURCHASE'
+            : entry.expenseCategory === 'traffic_violation_fine'
+              ? 'TRAFFIC VIOLATION FINE'
+              : entry.expenseCategory === 'fasttag_toll_paid'
+                ? 'FASTAG TOLL PAID'
+                : entry.expenseCategory === 'other'
+                  ? 'OTHER'
+                  : null;
 
   const specUpdateLines =
     entry.specUpdateDetails?.map((detail) => {
@@ -113,11 +119,20 @@ export function HistoryItemCard({
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string }> = [];
 
   if (entry.type === 'fuel') {
-    if (typeof entry.fuelAmount === 'number') {
-      detailChips.push({ icon: 'currency-rupee', text: `${entry.fuelAmount}` });
+    const amount = typeof entry.fuelAmount === 'number' ? entry.fuelAmount : typeof entry.cost === 'number' ? entry.cost : null;
+    const liters = typeof entry.fuelLiters === 'number' ? entry.fuelLiters : null;
+
+    if (typeof amount === 'number') {
+      detailChips.push({ icon: 'currency-rupee', text: `${amount}` });
     }
-    if (typeof entry.fuelLiters === 'number') {
-      detailChips.push({ icon: 'water-drop', text: `${entry.fuelLiters} L` });
+    if (typeof liters === 'number') {
+      detailChips.push({ icon: 'water-drop', text: `${liters} L` });
+    }
+    if (typeof amount === 'number' && typeof liters === 'number' && liters > 0) {
+      const perLiter = amount / liters;
+      if (Number.isFinite(perLiter)) {
+        detailChips.push({ icon: 'calculate', text: `Rs ${perLiter.toFixed(2)}/L` });
+      }
     }
     if (entry.fullTank) {
       detailChips.push({ icon: 'check-circle', text: 'Full tank' });
