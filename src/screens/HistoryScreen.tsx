@@ -28,6 +28,8 @@ type Props = NativeStackScreenProps<AppStackParamList, 'History'>;
 type HistoryRow = {
   entry: EntryRecord;
   distanceKm: number | null;
+  tripStartOdometer: number | null;
+  tripEndOdometer: number | null;
 };
 
 type CategoryFilter = 'all' | EntryType;
@@ -40,24 +42,71 @@ const MAX_FILTER_DATE = dayjs().endOf('day');
 function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
 
-  return sorted.map((entry, index) => {
-    const previous = sorted[index + 1];
-    if (
-      !previous ||
-      entry.type === 'spec_update' ||
-      previous.type === 'spec_update' ||
-      entry.type === 'expense' ||
-      previous.type === 'expense'
-    ) {
-      return { entry, distanceKm: null };
+  const trips = new Map<string, { start?: EntryRecord; end?: EntryRecord }>();
+  for (const entry of sorted) {
+    if (entry.type !== 'odometer' || !entry.tripId || !entry.tripStage) {
+      continue;
+    }
+    const bucket = trips.get(entry.tripId) ?? {};
+    if (entry.tripStage === 'start') bucket.start = entry;
+    if (entry.tripStage === 'end') bucket.end = entry;
+    trips.set(entry.tripId, bucket);
+  }
+
+  const visited = new Set<string>();
+  const rows: HistoryRow[] = [];
+
+  for (const entry of sorted) {
+    if (visited.has(entry.id)) {
+      continue;
     }
 
-    const distanceKm = entry.odometer - previous.odometer;
-    return {
+    if (entry.type === 'odometer' && entry.tripId && entry.tripStage) {
+      const trip = trips.get(entry.tripId);
+      const start = trip?.start;
+      const end = trip?.end;
+
+      // Merge trip start + end into a single row (shown at the end-entry timestamp).
+      if (entry.tripStage === 'end' && start) {
+        visited.add(entry.id);
+        visited.add(start.id);
+        const distanceKm = entry.odometer - start.odometer;
+        rows.push({
+          entry,
+          distanceKm: distanceKm > 0 ? distanceKm : null,
+          tripStartOdometer: start.odometer,
+          tripEndOdometer: entry.odometer,
+        });
+        continue;
+      }
+
+      // If this is a start entry that has an end, skip it (it will be represented by the merged card).
+      if (entry.tripStage === 'start' && end) {
+        visited.add(entry.id);
+        continue;
+      }
+
+      // Incomplete trips: show the single entry.
+      visited.add(entry.id);
+      rows.push({
+        entry,
+        distanceKm: null,
+        tripStartOdometer: entry.tripStage === 'start' ? entry.odometer : null,
+        tripEndOdometer: entry.tripStage === 'end' ? entry.odometer : null,
+      });
+      continue;
+    }
+
+    visited.add(entry.id);
+    rows.push({
       entry,
-      distanceKm: distanceKm >= 0 ? distanceKm : null,
-    };
-  });
+      distanceKm: null,
+      tripStartOdometer: null,
+      tripEndOdometer: null,
+    });
+  }
+
+  return rows;
 }
 
 export function HistoryScreen({ navigation }: Props) {
@@ -544,6 +593,8 @@ export function HistoryScreen({ navigation }: Props) {
           <HistoryItemCard
             entry={item.entry}
             distanceKm={item.distanceKm}
+            tripStartOdometer={item.tripStartOdometer}
+            tripEndOdometer={item.tripEndOdometer}
             index={index}
             showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer' && item.entry.userId !== currentUser.id)}
             onPressSharedTripToggle={() => handleSharedTripToggle(item)}

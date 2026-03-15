@@ -9,12 +9,25 @@ import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 type HistoryItemCardProps = {
   entry: EntryRecord;
   distanceKm: number | null;
+  tripStartOdometer?: number | null;
+  tripEndOdometer?: number | null;
   index: number;
   showSharedTripToggle?: boolean;
   onPressSharedTripToggle?: () => void;
   canEdit?: boolean;
   onPressEdit?: () => void;
 };
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.trim().replace('#', '');
+  if (normalized.length !== 6) {
+    return `rgba(0,0,0,${alpha})`;
+  }
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 function prettyFieldName(value: string): string {
   return value
@@ -32,6 +45,8 @@ function normalizeSpecHistoryValue(value: string): string {
 export function HistoryItemCard({
   entry,
   distanceKm,
+  tripStartOdometer = null,
+  tripEndOdometer = null,
   index,
   showSharedTripToggle,
   onPressSharedTripToggle,
@@ -41,7 +56,24 @@ export function HistoryItemCard({
   const { colors, isDark } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
-  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+
+  const accentHex =
+    entry.type === 'fuel'
+      ? '#F59E0B'
+      : entry.type === 'odometer'
+        ? '#0EA5E9'
+        : entry.type === 'expense'
+          ? '#22C55E'
+          : '#A855F7';
+  const accentBorder = hexToRgba(accentHex, isDark ? 0.45 : 0.32);
+  const accentTone = hexToRgba(accentHex, isDark ? 0.18 : 0.12);
+  const accentIconColor = accentHex;
+
+  const isTripSummary =
+    entry.type === 'odometer' &&
+    Boolean(entry.tripId) &&
+    typeof tripStartOdometer === 'number' &&
+    typeof tripEndOdometer === 'number';
 
   useEffect(() => {
     Animated.parallel([
@@ -61,7 +93,9 @@ export function HistoryItemCard({
   }, [index, opacity, translateY]);
 
   const entryTypeLabel =
-    entry.type === 'odometer' && entry.tripStage === 'start'
+    isTripSummary
+      ? 'TRIP'
+      : entry.type === 'odometer' && entry.tripStage === 'start'
       ? 'TRIP START'
       : entry.type === 'odometer' && entry.tripStage === 'end'
         ? 'TRIP END'
@@ -114,6 +148,8 @@ export function HistoryItemCard({
       ? specUpdateLines[0] ?? 'Specifications updated'
       : entry.type === 'expense'
         ? entry.expenseTitle || 'Expense logged'
+        : isTripSummary
+          ? `${tripStartOdometer} -> ${tripEndOdometer} km`
         : `${entry.odometer} km`;
 
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string }> = [];
@@ -149,16 +185,17 @@ export function HistoryItemCard({
     detailChips.push({ icon: 'speed', text: `${entry.odometer} km` });
   }
 
-  if (entry.type === 'odometer' && distanceKm !== null && entry.tripStage !== 'end') {
-    detailChips.push({ icon: 'route', text: `${distanceKm} km` });
-  }
-
-  if (entry.type === 'odometer' && entry.tripStage === 'start') {
-    detailChips.push({ icon: 'play-arrow', text: 'Trip started' });
-  }
-
-  if (entry.type === 'odometer' && entry.tripStage === 'end' && typeof entry.tripDistanceKm === 'number') {
-    detailChips.push({ icon: 'flag', text: `${entry.tripDistanceKm} km trip` });
+  if (isTripSummary) {
+    if (distanceKm !== null) {
+      detailChips.push({ icon: 'route', text: `${distanceKm} km` });
+    }
+  } else {
+    if (entry.type === 'odometer' && entry.tripStage === 'start') {
+      detailChips.push({ icon: 'play-arrow', text: 'Trip started' });
+    }
+    if (entry.type === 'odometer' && entry.tripStage === 'end' && typeof entry.tripDistanceKm === 'number') {
+      detailChips.push({ icon: 'route', text: `${entry.tripDistanceKm} km` });
+    }
   }
 
   return (
@@ -167,10 +204,10 @@ export function HistoryItemCard({
         opacity,
         transform: [{ translateY }],
       }}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: accentBorder }]}> 
         <View style={styles.topRow}>
           <View style={[styles.typeIconWrap, { backgroundColor: accentTone }]}>
-            <MaterialIcons name={entryIcon} size={18} color={colors.textPrimary} />
+            <MaterialIcons name={entryIcon} size={18} color={accentIconColor} />
           </View>
 
           <View style={styles.topCopy}>
