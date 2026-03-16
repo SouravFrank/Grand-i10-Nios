@@ -1,7 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   Alert,
   Animated,
@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   View,
+  PanResponder,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -128,6 +129,71 @@ export function HistoryScreen({ navigation }: Props) {
   const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterRendered, setIsFilterRendered] = useState(false);
+
+  const translateY = useRef(new Animated.Value(600)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 1.5) {
+          closeFilterModal();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 0,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const closeFilterModal = () => {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: 600,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsFilterOpen(false);
+      setIsFilterRendered(false);
+    });
+  };
+
+  useEffect(() => {
+    if (isFilterOpen) {
+      setIsFilterRendered(true);
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isFilterOpen, translateY, overlayOpacity]);
 
   const userOptions = useMemo(() => {
     const userMap = new Map<string, string>();
@@ -140,22 +206,28 @@ export function HistoryScreen({ navigation }: Props) {
   }, [entries]);
 
   const viewContextOptions = useMemo(() => {
-    const opts = [
-      { id: 'all', name: 'All Entries' },
-      { id: 'me', name: 'My Entries Only' },
-      { id: 'me_shared', name: 'My Entries + Shared' },
-      { id: 'shared_only', name: 'Shared Trips Only' },
-    ];
-    if (currentUser) {
-      userOptions.forEach((user) => {
-        if (user.id !== 'all' && user.id !== currentUser.id) {
-          opts.push({ id: user.id, name: `${user.name} Only` });
-          opts.push({ id: `${user.id}_shared`, name: `${user.name} + Shared` });
-        }
-      });
-    }
+    const opts = [{ id: 'all', name: 'All Entries' }];
+    
+    const ayan = userOptions.find(u => u.name.toLowerCase().includes('ayan'));
+    const sourav = userOptions.find(u => u.name.toLowerCase().includes('sourav'));
+    
+    if (ayan) opts.push({ id: ayan.id, name: `${ayan.name} Only` });
+    if (sourav) opts.push({ id: sourav.id, name: `${sourav.name} Only` });
+    
+    opts.push({ id: 'shared_only', name: 'Shared Trips Only' });
+    
+    if (ayan) opts.push({ id: `${ayan.id}_shared`, name: `${ayan.name} + Shared` });
+    if (sourav) opts.push({ id: `${sourav.id}_shared`, name: `${sourav.name} + Shared` });
+    
+    userOptions.forEach((user) => {
+      if (user.id !== 'all' && user.id !== ayan?.id && user.id !== sourav?.id) {
+        opts.push({ id: user.id, name: `${user.name} Only` });
+        opts.push({ id: `${user.id}_shared`, name: `${user.name} + Shared` });
+      }
+    });
+
     return opts;
-  }, [currentUser, userOptions]);
+  }, [userOptions]);
 
   const monthOptions = useMemo(() => {
     const monthSet = new Set<string>();
@@ -224,17 +296,10 @@ export function HistoryScreen({ navigation }: Props) {
       }
 
       if (selectedUser !== 'all') {
-        if (selectedUser === 'me' && !(entry.userId === currentUser?.id)) return false;
-        if (selectedUser === 'me_shared') {
-           const isMyEntry = entry.userId === currentUser?.id;
-           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
-           if (!isMyEntry && !isSharedTrip) return false;
-        }
         if (selectedUser === 'shared_only') {
            const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
            if (!isSharedTrip) return false;
-        }
-        if (selectedUser !== 'me' && selectedUser !== 'me_shared' && selectedUser !== 'shared_only') {
+        } else {
            const isSharedIncluded = selectedUser.endsWith('_shared');
            const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
            
@@ -440,11 +505,13 @@ export function HistoryScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <Modal transparent statusBarTranslucent animationType="slide" visible={isFilterOpen} onRequestClose={() => setIsFilterOpen(false)}>
-        <View style={styles.overlay}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setIsFilterOpen(false)} />
-          <View style={styles.sheetAnchor}>
-            <View style={[styles.sheet, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, paddingBottom: insets.bottom + 16 }]}>
+      <Modal transparent statusBarTranslucent animationType="none" visible={isFilterRendered} onRequestClose={closeFilterModal}>
+        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeFilterModal} />
+        </Animated.View>
+        <View style={styles.sheetAnchor}>
+          <Animated.View style={[styles.sheet, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}>
+            <View {...panResponder.panHandlers}>
               <View style={styles.handleWrap}>
                 <View style={[styles.handle, { backgroundColor: colors.border }]} />
               </View>
@@ -453,10 +520,16 @@ export function HistoryScreen({ navigation }: Props) {
                   <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
                   <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
                 </View>
-                <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
-                  <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
+                    <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
+                  </Pressable>
+                  <Pressable onPress={closeFilterModal} hitSlop={12} style={{ padding: 4 }}>
+                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
               </View>
+            </View>
 
               {activeFilterPills.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
@@ -640,10 +713,9 @@ export function HistoryScreen({ navigation }: Props) {
                 </View>
               ) : null}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
       <SectionList
         sections={sectionedRows}

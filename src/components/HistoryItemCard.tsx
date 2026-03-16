@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 type HistoryItemCardProps = {
@@ -93,16 +93,16 @@ export function HistoryItemCard({
     isTripSummary
       ? 'TRIP'
       : entry.type === 'odometer' && entry.tripStage === 'start'
-      ? 'TRIP START'
-      : entry.type === 'odometer' && entry.tripStage === 'end'
-        ? 'TRIP END'
-        : entry.type === 'fuel'
-      ? 'FUEL ENTRY'
-      : entry.type === 'spec_update'
-        ? 'SPECS UPDATE'
-        : entry.type === 'expense'
-          ? 'EXPENSE ENTRY'
-          : 'ODOMETER';
+        ? 'TRIP START'
+        : entry.type === 'odometer' && entry.tripStage === 'end'
+          ? 'TRIP END'
+          : entry.type === 'fuel'
+            ? 'FUEL ENTRY'
+            : entry.type === 'spec_update'
+              ? 'SPECS UPDATE'
+              : entry.type === 'expense'
+                ? 'EXPENSE ENTRY'
+                : 'ODOMETER';
 
   const expenseCategoryLabel =
     entry.expenseCategory === 'shield_safety'
@@ -115,13 +115,13 @@ export function HistoryItemCard({
             ? 'UTILITY ADD-ONS'
             : entry.expenseCategory === 'purchase'
               ? 'PURCHASE'
-            : entry.expenseCategory === 'traffic_violation_fine'
-              ? 'TRAFFIC VIOLATION FINE'
-              : entry.expenseCategory === 'fasttag_toll_paid'
-                ? 'FASTAG TOLL PAID'
-                : entry.expenseCategory === 'other'
-                  ? 'OTHER'
-                  : null;
+              : entry.expenseCategory === 'traffic_violation_fine'
+                ? 'TRAFFIC VIOLATION FINE'
+                : entry.expenseCategory === 'fasttag_toll_paid'
+                  ? 'FASTAG TOLL PAID'
+                  : entry.expenseCategory === 'other'
+                    ? 'OTHER'
+                    : null;
 
   const specUpdateLines =
     entry.specUpdateDetails?.map((detail) => {
@@ -147,7 +147,7 @@ export function HistoryItemCard({
         ? entry.expenseTitle || 'Expense logged'
         : isTripSummary
           ? `${tripStartOdometer} -> ${tripEndOdometer} km`
-        : `${entry.odometer} km`;
+          : `${entry.odometer} km`;
 
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string; size?: 'large' | 'small' }> = [];
 
@@ -164,7 +164,7 @@ export function HistoryItemCard({
     if (typeof amount === 'number' && typeof liters === 'number' && liters > 0) {
       const perLiter = amount / liters;
       if (Number.isFinite(perLiter)) {
-        detailChips.push({ icon: 'calculate', text: `Rs ${perLiter.toFixed(2)}/L` });
+        detailChips.push({ icon: 'calculate', text: `₹ ${perLiter.toFixed(2)}/L` });
       }
     }
     if (entry.fullTank) {
@@ -214,7 +214,7 @@ export function HistoryItemCard({
             </View>
           );
         }}>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: accentBorder }]}> 
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: accentBorder }]}>
           <View style={styles.topRow}>
             <View style={[styles.typeIconWrap, { backgroundColor: accentTone }]}>
               <MaterialIcons name={entryIcon} size={18} color={accentIconColor} />
@@ -284,10 +284,10 @@ export function HistoryItemCard({
 
           {entry.type === 'spec_update' && specUpdateLines.length > 1
             ? specUpdateLines.slice(1).map((line) => (
-                <Text key={line} style={[styles.secondaryLine, { color: colors.textSecondary }]}>
-                  {line}
-                </Text>
-              ))
+              <Text key={line} style={[styles.secondaryLine, { color: colors.textSecondary }]}>
+                {line}
+              </Text>
+            ))
             : null}
         </View>
       </Swipeable>

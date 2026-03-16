@@ -2,7 +2,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
 
 import { AppTextField } from '@/components/AppTextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -89,23 +89,23 @@ function parseExistingDate(value: string): Date {
 }
 
 const MAINTENANCE_INTERVALS_DAYS: Partial<Record<CarSpecEditableFieldKey, number>> = {
-  lastMaintenanceDate: 365,
-  lastEngineOilChangedOn: 365,
-  lastCoolantRefillOn: 730,
-  lastBrakeFluidChangedOn: 730,
-  lastGearboxOilChangedOn: 1825,
-  lastAirFilterChangedOn: 365,
-  lastOilFilterChangedOn: 365,
-  lastAcFilterChangedOn: 365,
-  lastSparkPlugsChangedOn: 1095,
-  lastBatteryChangedOn: 1460,
-  lastBrakePadsChangedOn: 1095,
-  lastTyresChangedOn: 1825,
+  lastMaintenanceDate: 180,
+  lastEngineOilChangedOn: 180,
+  lastCoolantRefillOn: 180,
+  lastBrakeFluidChangedOn: 180,
+  lastGearboxOilChangedOn: 180,
+  lastAirFilterChangedOn: 180,
+  lastOilFilterChangedOn: 180,
+  lastAcFilterChangedOn: 180,
+  lastSparkPlugsChangedOn: 180,
+  lastBatteryChangedOn: 180,
+  lastBrakePadsChangedOn: 180,
+  lastTyresChangedOn: 180,
 };
 
 type TrafficLightColor = 'green' | 'yellow' | 'orange' | 'red';
 
-function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey, isExpiryDate: boolean): { color: TrafficLightColor, hex: string, text: string, remainingDays: number } | null {
+function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey, isExpiryDate: boolean): { color: TrafficLightColor, hex: string, rgba: string, text: string, remainingDays: number } | null {
   if (value === 'Not set' || !value) {
     return null;
   }
@@ -127,16 +127,24 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
 
   let color: TrafficLightColor = 'green';
   let hex = '#10B981'; // Green
+  let rgba = 'rgba(16, 185, 129, 0.08)';
 
   if (remainingDays <= 0) {
     color = 'red';
     hex = '#EF4444';
+    rgba = 'rgba(239, 68, 68, 0.08)';
   } else if (remainingDays <= 15) {
     color = 'orange';
     hex = '#F97316';
+    rgba = 'rgba(249, 115, 22, 0.08)';
   } else if (remainingDays <= 60) {
     color = 'yellow';
     hex = '#EAB308';
+    rgba = 'rgba(234, 179, 8, 0.08)';
+  }
+
+  if (color === 'green') {
+    return null;
   }
 
   let text = '';
@@ -148,7 +156,7 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
     text = `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
   }
 
-  return { color, hex, text, remainingDays };
+  return { color, hex, rgba, text, remainingDays };
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
@@ -164,6 +172,44 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
   const translateY = useRef(new Animated.Value(420)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 1.5) {
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: 420,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(overlayOpacity, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 0,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (visible) {
@@ -371,15 +417,17 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
               transform: [{ translateY }],
             },
           ]}>
-          <View style={styles.handleWrap}>
-            <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          </View>
+          <View {...panResponder.panHandlers}>
+            <View style={styles.handleWrap}>
+              <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            </View>
 
-          <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPECS</Text>
-            <Pressable onPress={onClose} style={styles.iconBtn}>
-              <MaterialIcons name="close" size={22} color={colors.textPrimary} />
-            </Pressable>
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPECS</Text>
+              <Pressable onPress={onClose} style={styles.iconBtn}>
+                <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+              </Pressable>
+            </View>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentWrap}>
@@ -427,7 +475,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   style={[
                     styles.rowCard,
                     styles.rowShell,
-                    {
+                    status ? {
+                      borderColor: status.hex,
+                      backgroundColor: status.rgba,
+                    } : {
                       borderColor: isActive ? colors.textPrimary : colors.border,
                       backgroundColor: isActive ? colors.background : colors.card,
                     },
@@ -438,16 +489,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                       <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                       <View style={styles.valueRow}>
                           <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
-                          {status && (
-                             <View style={[styles.trafficLightDot, { backgroundColor: status.hex }]}>
-                               {status.color !== 'green' ? (
-                                 <Text style={styles.trafficLightText}>{Math.abs(status.remainingDays)}d</Text>
-                               ) : null}
-                             </View>
-                          )}
                       </View>
                       {status ? (
-                        <Text style={[styles.healthReminderText, { color: status.color === 'red' ? '#EF4444' : status.color === 'orange' ? '#F97316' : colors.textSecondary }]}>{status.text}</Text>
+                        <Text style={[styles.healthReminderText, { color: status.hex }]}>{status.text}</Text>
                       ) : null}
                     </View>
                     {row.editable ? (
@@ -850,20 +894,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  trafficLightDot: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 16,
-    minHeight: 16,
-  },
-  trafficLightText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
   },
   healthReminderText: {
     fontSize: 12,

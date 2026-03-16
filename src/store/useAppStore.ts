@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { STORAGE_KEYS } from "@/constants/storage";
 import { canUseBiometricAuth } from "@/services/auth/authService";
+import { removeEntryFromRealtimeDb } from "@/services/realtime/entriesRepository";
 import { sha256 } from "@/services/security/hash";
 import {
   buildEntryIntegrityHash,
@@ -19,7 +20,6 @@ import {
   setIntegritySecret,
   setSecureUser,
 } from "@/services/storage/secureStore";
-import { removeEntryFromRealtimeDb } from "@/services/realtime/entriesRepository";
 import {
   clearStoredSession,
   getStoredSession,
@@ -646,11 +646,11 @@ export const useAppStore = create<AppState>()(
 
       deleteEntry: async (entryId) => {
         const { entries, pendingQueue } = get();
-        
+
         try {
-            await removeEntryFromRealtimeDb(entryId);
+          await removeEntryFromRealtimeDb(entryId);
         } catch (error) {
-            console.error('Failed to remote delete entry:', error);
+          console.error('Failed to remote delete entry:', error);
         }
 
         set((state) => {
@@ -670,9 +670,9 @@ export const useAppStore = create<AppState>()(
           entries: state.entries.map((entry) =>
             ids.has(entry.id)
               ? {
-                  ...entry,
-                  synced: true,
-                }
+                ...entry,
+                synced: true,
+              }
               : entry,
           ),
           pendingQueue: state.pendingQueue.filter(
@@ -845,9 +845,9 @@ export const useAppStore = create<AppState>()(
           entries: state.entries.map((entry) =>
             entry.id === entryId
               ? {
-                  ...updatedEntry,
-                  integrityHash,
-                }
+                ...updatedEntry,
+                integrityHash,
+              }
               : entry,
           ),
           pendingQueue: nextQueue,
@@ -1289,7 +1289,7 @@ export const useAppStore = create<AppState>()(
             expenseCategory: "traffic_violation_fine",
             expenseTitle: "Traffic Violation Fine",
             cost: 2000,
-            createdAt: dayjs("2026-03-16T10:00:00").valueOf(),
+            createdAt: dayjs("2026-03-15T10:00:00").valueOf(),
             synced: false,
           },
         ];
