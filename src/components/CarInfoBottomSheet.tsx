@@ -5,7 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
 
 import { AppTextField } from '@/components/AppTextField';
-import { PrimaryButton } from '@/components/PrimaryButton';
+import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type {
   CarSpec,
@@ -127,24 +127,20 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
 
   let color: TrafficLightColor = 'green';
   let hex = '#10B981'; // Green
-  let rgba = 'rgba(16, 185, 129, 0.08)';
+  let rgba = 'rgba(16, 185, 129, 0.15)';
 
   if (remainingDays <= 0) {
     color = 'red';
     hex = '#EF4444';
-    rgba = 'rgba(239, 68, 68, 0.08)';
+    rgba = 'rgba(239, 68, 68, 0.15)';
   } else if (remainingDays <= 15) {
     color = 'orange';
     hex = '#F97316';
-    rgba = 'rgba(249, 115, 22, 0.08)';
+    rgba = 'rgba(249, 115, 22, 0.15)';
   } else if (remainingDays <= 60) {
     color = 'yellow';
     hex = '#EAB308';
-    rgba = 'rgba(234, 179, 8, 0.08)';
-  }
-
-  if (color === 'green') {
-    return null;
+    rgba = 'rgba(234, 179, 8, 0.15)';
   }
 
   let text = '';
@@ -342,8 +338,13 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       return;
     }
 
-    const parsedCost = draftCost.trim() ? Number(draftCost) : undefined;
+    const parsedCost = draftCost.trim() ? Number(draftCost) : NaN;
     const parsedOdometer = Number(draftOdometer);
+
+    if (Number.isNaN(parsedCost) || parsedCost < 0) {
+      Alert.alert('Invalid cost', 'Cost must be provided for spec update entries.');
+      return;
+    }
 
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
       Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
@@ -475,10 +476,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   style={[
                     styles.rowCard,
                     styles.rowShell,
-                    status ? {
-                      borderColor: status.hex,
-                      backgroundColor: status.rgba,
-                    } : {
+                    {
                       borderColor: isActive ? colors.textPrimary : colors.border,
                       backgroundColor: isActive ? colors.background : colors.card,
                     },
@@ -491,7 +489,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                           <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
                       </View>
                       {status ? (
-                        <Text style={[styles.healthReminderText, { color: status.hex }]}>{status.text}</Text>
+                        <View style={[styles.statusPill, { backgroundColor: status.rgba }]}>
+                           <Text style={[styles.statusPillText, { color: status.hex }]}>{status.text}</Text>
+                        </View>
                       ) : null}
                     </View>
                     {row.editable ? (
@@ -530,69 +530,84 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
                   {isActive ? (
                     <View style={[styles.inlineEditor, { borderTopColor: colors.border }]}>
-                      <View style={[styles.editorBadgeRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                        <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
-                        <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>
-                          Previous odometer {lastOdometer} km
-                        </Text>
-                      </View>
-
-                      <Pressable
-                        style={[styles.dateSelect, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-                        onPress={() => setShowDatePicker((prev) => !prev)}>
-                        <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
-                        <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
-                          {dayjs(draftDate).format(INDIA_DATE_FORMAT)}
-                        </Text>
-                      </Pressable>
-
-                      {showDatePicker ? (
-                        <View style={[styles.customDatePicker, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                          <DateTimePicker
-                            mode="date"
-                            value={draftDate}
-                            accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                            display={Platform.OS === 'ios' ? 'inline' : undefined}
-                            onChange={handleDatePickerChange}
-                            positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined}
-                            negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
-                            textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                            themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
-                          />
-                          {Platform.OS === 'ios' ? (
-                            <Pressable
-                              onPress={() => setShowDatePicker(false)}
-                              style={[styles.datePickerDoneBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                              <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>
-                            </Pressable>
-                          ) : null}
+                      <View style={[styles.editCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                        <View style={[styles.editorBadgeRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                          <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
+                          <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>
+                            Previous odometer {lastOdometer} km
+                          </Text>
                         </View>
-                      ) : null}
 
-                      <AppTextField
-                        label="Odometer Reading"
-                        value={draftOdometer}
-                        onChangeText={setDraftOdometer}
-                        keyboardType="numeric"
-                        placeholder={`>= ${lastOdometer}`}
-                      />
+                        <Pressable
+                          style={[styles.dateSelect, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+                          onPress={() => setShowDatePicker((prev) => !prev)}>
+                          <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
+                          <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
+                            {dayjs(draftDate).format(INDIA_DATE_FORMAT)}
+                          </Text>
+                        </Pressable>
 
-                      <AppTextField
-                        label="Cost (Rs) - Optional"
-                        value={draftCost}
-                        onChangeText={setDraftCost}
-                        keyboardType="decimal-pad"
-                        placeholder="e.g. 1200"
-                      />
+                        {showDatePicker ? (
+                          <View style={[styles.customDatePicker, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                            <DateTimePicker
+                              mode="date"
+                              value={draftDate}
+                              accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                              display={Platform.OS === 'ios' ? 'inline' : undefined}
+                              onChange={handleDatePickerChange}
+                              positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined}
+                              negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
+                              textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                              themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
+                            />
+                            {Platform.OS === 'ios' ? (
+                              <Pressable
+                                onPress={() => setShowDatePicker(false)}
+                                style={[styles.datePickerDoneBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                                <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        ) : null}
 
-                      <View style={styles.editorActions}>
-                        <PrimaryButton label="SAVE" onPress={saveEdit} style={styles.editorActionBtn} />
-                        <PrimaryButton
-                          label="CANCEL"
-                          variant="secondary"
-                          onPress={cancelEdit}
-                          style={styles.editorActionBtn}
+                        <View style={{ marginTop: 6 }}>
+                          <OdometerDigitInput
+                            label="Odometer Snapshot (km)"
+                            value={draftOdometer}
+                            onChangeText={setDraftOdometer}
+                            error={draftOdometer && Number(draftOdometer) < lastOdometer ? `Must be >= ${lastOdometer}` : undefined}
+                          />
+                        </View>
+
+                        <AppTextField
+                          label="Cost (₹)"
+                          value={draftCost}
+                          onChangeText={setDraftCost}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 1200"
                         />
+
+                        <View style={styles.editorActions}>
+                          <Pressable
+                            onPress={cancelEdit}
+                            style={({ pressed }) => [
+                              styles.coolActionBtn,
+                              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                            ]}>
+                            <MaterialIcons name="close" size={18} color={colors.textSecondary} />
+                            <Text style={[styles.coolActionBtnText, { color: colors.textSecondary }]}>CANCEL</Text>
+                          </Pressable>
+                          
+                          <Pressable
+                            onPress={saveEdit}
+                            style={({ pressed }) => [
+                              styles.coolActionBtn,
+                              { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary, opacity: pressed ? 0.8 : 1 },
+                            ]}>
+                            <MaterialIcons name="check" size={18} color={colors.invertedText} />
+                            <Text style={[styles.coolActionBtnText, { color: colors.invertedText }]}>SAVE</Text>
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
                   ) : null}
@@ -895,10 +910,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  healthReminderText: {
-    fontSize: 12,
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
     marginTop: 2,
-    fontWeight: '600',
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   rowValue: {
     fontSize: 14,
@@ -919,10 +940,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  editCard: {
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 14,
+  },
   inlineEditor: {
     borderTopWidth: 1,
     paddingTop: 14,
-    gap: 12,
   },
   editorBadgeRow: {
     borderWidth: 1,
@@ -957,10 +983,23 @@ const styles = StyleSheet.create({
   },
   editorActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
+    marginTop: 8,
   },
-  editorActionBtn: {
+  coolActionBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    gap: 6,
+  },
+  coolActionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   customDatePicker: {
     borderWidth: 1,
