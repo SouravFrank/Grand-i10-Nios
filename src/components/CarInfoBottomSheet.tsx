@@ -88,29 +88,67 @@ function parseExistingDate(value: string): Date {
   return parsed.toDate();
 }
 
-function getHealthReminder(value: string): string | null {
+const MAINTENANCE_INTERVALS_DAYS: Partial<Record<CarSpecEditableFieldKey, number>> = {
+  lastMaintenanceDate: 365,
+  lastEngineOilChangedOn: 365,
+  lastCoolantRefillOn: 730,
+  lastBrakeFluidChangedOn: 730,
+  lastGearboxOilChangedOn: 1825,
+  lastAirFilterChangedOn: 365,
+  lastOilFilterChangedOn: 365,
+  lastAcFilterChangedOn: 365,
+  lastSparkPlugsChangedOn: 1095,
+  lastBatteryChangedOn: 1460,
+  lastBrakePadsChangedOn: 1095,
+  lastTyresChangedOn: 1825,
+};
+
+type TrafficLightColor = 'green' | 'yellow' | 'orange' | 'red';
+
+function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey, isExpiryDate: boolean): { color: TrafficLightColor, hex: string, text: string, remainingDays: number } | null {
+  if (value === 'Not set' || !value) {
+    return null;
+  }
   const parsed = dayjs(normalizeIndianDate(value), INDIA_DATE_FORMAT, true);
   if (!parsed.isValid()) {
     return null;
   }
 
-  const dueDate = parsed.add(300, 'day').startOf('day');
+  let dueDate = parsed;
+  if (!isExpiryDate) {
+    const intervalDays = MAINTENANCE_INTERVALS_DAYS[fieldKey] ?? 365;
+    dueDate = parsed.add(intervalDays, 'day').startOf('day');
+  } else {
+    dueDate = parsed.startOf('day');
+  }
+
   const today = dayjs().startOf('day');
   const remainingDays = dueDate.diff(today, 'day');
 
-  if (remainingDays > 60) {
-    return null;
+  let color: TrafficLightColor = 'green';
+  let hex = '#10B981'; // Green
+
+  if (remainingDays <= 0) {
+    color = 'red';
+    hex = '#EF4444';
+  } else if (remainingDays <= 15) {
+    color = 'orange';
+    hex = '#F97316';
+  } else if (remainingDays <= 60) {
+    color = 'yellow';
+    hex = '#EAB308';
   }
 
+  let text = '';
   if (remainingDays < 0) {
-    return `Overdue by ${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
+    text = `Overdue by ${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
+  } else if (remainingDays === 0) {
+    text = 'Due today';
+  } else {
+    text = `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
   }
 
-  if (remainingDays === 0) {
-    return 'Due today';
-  }
-
-  return `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
+  return { color, hex, text, remainingDays };
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
@@ -377,7 +415,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
             {editableRows.map((row) => {
               const isActive = row.editable && row.key === activeField;
-              const healthReminder = activeTab === 'health' ? getHealthReminder(row.value) : null;
+              const status = row.editable ? getTrafficLightStatus(row.value, row.key as CarSpecEditableFieldKey, activeTab === 'on_road') : null;
               const viewKey =
                 row.editable && activeTab === 'on_road'
                   ? getGalleryKeyForSpecField(row.key as CarSpecEditableFieldKey)
@@ -398,9 +436,18 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                     style={styles.rowTop}>
                     <View style={styles.rowTitleWrap}>
                       <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
-                      <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
-                      {healthReminder ? (
-                        <Text style={styles.healthReminderText}>{healthReminder}</Text>
+                      <View style={styles.valueRow}>
+                          <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
+                          {status && (
+                             <View style={[styles.trafficLightDot, { backgroundColor: status.hex }]}>
+                               {status.color !== 'green' ? (
+                                 <Text style={styles.trafficLightText}>{Math.abs(status.remainingDays)}d</Text>
+                               ) : null}
+                             </View>
+                          )}
+                      </View>
+                      {status ? (
+                        <Text style={[styles.healthReminderText, { color: status.color === 'red' ? '#EF4444' : status.color === 'orange' ? '#F97316' : colors.textSecondary }]}>{status.text}</Text>
                       ) : null}
                     </View>
                     {row.editable ? (
@@ -799,16 +846,35 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  trafficLightDot: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 16,
+    minHeight: 16,
+  },
+  trafficLightText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  healthReminderText: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
   rowValue: {
     fontSize: 14,
     fontWeight: '700',
   },
-  healthReminderText: {
-    fontSize: 11,
-    color: '#C62828',
-    fontWeight: '700',
-    lineHeight: 16,
-  },
+
   editIconBtn: {
     width: 34,
     height: 34,

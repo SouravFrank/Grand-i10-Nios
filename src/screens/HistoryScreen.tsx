@@ -5,14 +5,17 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   Animated,
-  FlatList,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -111,6 +114,7 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
 
 export function HistoryScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
   const markEntrySharedTrip = useAppStore((state) => state.markEntrySharedTrip);
@@ -135,6 +139,24 @@ export function HistoryScreen({ navigation }: Props) {
     return [{ id: 'all', name: 'All users' }, ...Array.from(userMap.entries()).map(([id, name]) => ({ id, name }))];
   }, [entries]);
 
+  const viewContextOptions = useMemo(() => {
+    const opts = [
+      { id: 'all', name: 'All Entries' },
+      { id: 'me', name: 'My Entries Only' },
+      { id: 'me_shared', name: 'My Entries + Shared' },
+      { id: 'shared_only', name: 'Shared Trips Only' },
+    ];
+    if (currentUser) {
+      userOptions.forEach((user) => {
+        if (user.id !== 'all' && user.id !== currentUser.id) {
+          opts.push({ id: user.id, name: `${user.name} Only` });
+          opts.push({ id: `${user.id}_shared`, name: `${user.name} + Shared` });
+        }
+      });
+    }
+    return opts;
+  }, [currentUser, userOptions]);
+
   const monthOptions = useMemo(() => {
     const monthSet = new Set<string>();
     entries.forEach((entry) => monthSet.add(dayjs(entry.createdAt).format('YYYY-MM')));
@@ -149,9 +171,9 @@ export function HistoryScreen({ navigation }: Props) {
     }
 
     if (selectedUser !== 'all') {
-      const userName = userOptions.find((user) => user.id === selectedUser)?.name;
-      if (userName) {
-        pills.push(userName);
+      const contextName = viewContextOptions.find((ctx) => ctx.id === selectedUser)?.name;
+      if (contextName) {
+        pills.push(contextName);
       }
     }
 
@@ -201,10 +223,29 @@ export function HistoryScreen({ navigation }: Props) {
         return false;
       }
 
-      if (selectedUser !== 'all' && entry.userId !== selectedUser) {
-        const isSharedOdometer = entry.type === 'odometer' && entry.sharedTrip;
-        if (!isSharedOdometer) {
-          return false;
+      if (selectedUser !== 'all') {
+        if (selectedUser === 'me' && !(entry.userId === currentUser?.id)) return false;
+        if (selectedUser === 'me_shared') {
+           const isMyEntry = entry.userId === currentUser?.id;
+           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+           if (!isMyEntry && !isSharedTrip) return false;
+        }
+        if (selectedUser === 'shared_only') {
+           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+           if (!isSharedTrip) return false;
+        }
+        if (selectedUser !== 'me' && selectedUser !== 'me_shared' && selectedUser !== 'shared_only') {
+           const isSharedIncluded = selectedUser.endsWith('_shared');
+           const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
+           
+           const isTargetEntry = entry.userId === targetUserId;
+           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+
+           if (isSharedIncluded) {
+              if (!isTargetEntry && !isSharedTrip) return false;
+           } else {
+              if (!isTargetEntry) return false;
+           }
         }
       }
 
@@ -218,7 +259,19 @@ export function HistoryScreen({ navigation }: Props) {
 
       return true;
     });
-  }, [category, entries, fromDate, selectedMonth, selectedUser, toDate]);
+  }, [category, entries, fromDate, selectedMonth, selectedUser, toDate, currentUser]);
+
+  const sectionedRows = useMemo(() => {
+    const groups = new Map<string, HistoryRow[]>();
+    for (const row of rows) {
+      const monthLabel = dayjs(row.entry.createdAt).format(INDIA_MONTH_FORMAT);
+      if (!groups.has(monthLabel)) {
+        groups.set(monthLabel, []);
+      }
+      groups.get(monthLabel)!.push(row);
+    }
+    return Array.from(groups.entries()).map(([title, data]) => ({ title, data }));
+  }, [rows]);
 
   const resetFilters = () => {
     setCategory('all');
@@ -387,19 +440,25 @@ export function HistoryScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {isFilterOpen ? (
-        <View style={[styles.filterShell, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <View style={styles.filterHeadRow}>
-            <View>
-              <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
-              <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
-            </View>
-            <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
-              <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
-            </Pressable>
-          </View>
+      <Modal transparent statusBarTranslucent animationType="slide" visible={isFilterOpen} onRequestClose={() => setIsFilterOpen(false)}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setIsFilterOpen(false)} />
+          <View style={styles.sheetAnchor}>
+            <View style={[styles.sheet, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.handleWrap}>
+                <View style={[styles.handle, { backgroundColor: colors.border }]} />
+              </View>
+              <View style={styles.filterHeadRow}>
+                <View>
+                  <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
+                  <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
+                </View>
+                <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
+                  <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
+                </Pressable>
+              </View>
 
-          {activeFilterPills.length > 0 ? (
+              {activeFilterPills.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
               {activeFilterPills.map((pill) => (
                 <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
@@ -411,9 +470,9 @@ export function HistoryScreen({ navigation }: Props) {
             <Text style={[styles.noFilterText, { color: colors.textSecondary }]}>No active filters</Text>
           )}
 
-          <View style={styles.filterInner}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              <ScrollView contentContainerStyle={styles.filterInner} showsVerticalScrollIndicator={false}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {(['all', 'odometer', 'fuel', 'expense', 'spec_update'] as CategoryFilter[]).map((filter) => {
                 const active = filter === category;
                 const label =
@@ -443,14 +502,14 @@ export function HistoryScreen({ navigation }: Props) {
               })}
             </ScrollView>
 
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>User</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Visibility Context</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {userOptions.map((user) => {
-                const active = selectedUser === user.id;
+              {viewContextOptions.map((ctx) => {
+                const active = selectedUser === ctx.id;
                 return (
                   <Pressable
-                    key={user.id}
-                    onPress={() => setSelectedUser(user.id)}
+                    key={ctx.id}
+                    onPress={() => setSelectedUser(ctx.id)}
                     style={[
                       styles.filterChip,
                       {
@@ -460,7 +519,7 @@ export function HistoryScreen({ navigation }: Props) {
                     ]}>
                     {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
                     <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                      {user.name}
+                      {ctx.name}
                     </Text>
                   </Pressable>
                 );
@@ -545,7 +604,7 @@ export function HistoryScreen({ navigation }: Props) {
             </View>
 
             {isDatePickerVisible && activeDateTarget ? (
-              <View style={[styles.nativePickerWrap, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <View style={[styles.nativePickerWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.nativePickerTop}>
                   <Text style={[styles.nativePickerTitle, { color: colors.textPrimary }]}>
                     Choose {activeDateTarget === 'from' ? 'From Date' : 'To Date'}
@@ -578,17 +637,27 @@ export function HistoryScreen({ navigation }: Props) {
                 <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
                   Range starts from {MIN_FILTER_DATE.format(INDIA_DATE_FORMAT)}
                 </Text>
-              </View>
-            ) : null}
+                </View>
+              ) : null}
+            </ScrollView>
           </View>
         </View>
-      ) : null}
+      </View>
+    </Modal>
 
-      <FlatList
-        data={rows}
+      <SectionList
+        sections={sectionedRows}
         keyExtractor={(item) => item.entry.id}
         contentContainerStyle={styles.list}
+        stickySectionHeadersEnabled={false}
         ListEmptyComponent={<Text style={[styles.empty, { color: colors.textSecondary }]}>No trips recorded yet.</Text>}
+        renderSectionHeader={({ section: { title } }) => (
+          <View style={styles.monthHeaderRow}>
+            <View style={[styles.monthDivider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.monthHeaderText, { color: colors.textSecondary }]}>{title}</Text>
+            <View style={[styles.monthDivider, { backgroundColor: colors.border }]} />
+          </View>
+        )}
         renderItem={({ item, index }) => (
           <HistoryItemCard
             entry={item.entry}
@@ -596,15 +665,16 @@ export function HistoryScreen({ navigation }: Props) {
             tripStartOdometer={item.tripStartOdometer}
             tripEndOdometer={item.tripEndOdometer}
             index={index}
-            showSharedTripToggle={Boolean(currentUser && item.entry.type === 'odometer' && item.entry.userId !== currentUser.id)}
-            onPressSharedTripToggle={() => handleSharedTripToggle(item)}
-            canEdit={Boolean(currentUser && item.entry.userId === currentUser.id && (item.entry.type === 'fuel' || item.entry.type === 'expense'))}
-            onPressEdit={() =>
-              navigation.navigate(
-                item.entry.type === 'fuel' ? 'FuelEntryModal' : 'ExpenseEntryModal',
-                { entryId: item.entry.id },
-              )
-            }
+            canEdit={Boolean(currentUser && item.entry.userId === currentUser.id)}
+            onPressEdit={() => {
+              if (item.entry.type === 'fuel') {
+                navigation.navigate('FuelEntryModal', { entryId: item.entry.id });
+              } else if (item.entry.type === 'odometer') {
+                navigation.navigate('StartingCarModal', { entryId: item.entry.id, mode: 'edit' });
+              } else if (item.entry.type === 'expense') {
+                navigation.navigate('ExpenseEntryModal', { entryId: item.entry.id });
+              }
+            }}
           />
         )}
       />
@@ -677,12 +747,32 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-  filterShell: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
-    gap: 10,
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheetAnchor: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    maxHeight: '88%',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  handleWrap: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
   },
   filterHeadRow: {
     flexDirection: 'row',
@@ -809,6 +899,24 @@ const styles = StyleSheet.create({
   list: {
     gap: 10,
     paddingBottom: 24,
+  },
+  monthHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 12,
+    marginTop: 20,
+    paddingHorizontal: 8,
+  },
+  monthDivider: {
+    flex: 1,
+    height: 1,
+  },
+  monthHeaderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   empty: {
     marginTop: 60,

@@ -19,6 +19,7 @@ import {
   setIntegritySecret,
   setSecureUser,
 } from "@/services/storage/secureStore";
+import { removeEntryFromRealtimeDb } from "@/services/realtime/entriesRepository";
 import {
   clearStoredSession,
   getStoredSession,
@@ -89,6 +90,7 @@ type UpdateEntryInput = {
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
+  sharedTrip?: boolean;
 };
 
 const DEFAULT_CAR_SPEC: CarSpec = {
@@ -218,6 +220,7 @@ type AppState = PersistedAppData & {
     entryId: string,
     updates: UpdateEntryInput,
   ) => Promise<EntryRecord>;
+  deleteEntry: (entryId: string) => Promise<void>;
   markEntriesSynced: (entryIds: string[]) => void;
   updatePendingQueue: (nextQueue: PendingQueueItem[]) => void;
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
@@ -582,8 +585,8 @@ export const useAppStore = create<AppState>()(
           throw new Error("Entry not found.");
         }
 
-        if (targetEntry.type !== "fuel" && targetEntry.type !== "expense") {
-          throw new Error("Only fuel and expense entries can be edited.");
+        if (targetEntry.type !== "fuel" && targetEntry.type !== "expense" && targetEntry.type !== "odometer") {
+          throw new Error("Only fuel, expense, and odometer entries can be edited.");
         }
 
         validateUpdatedEntryOdometer(entries, entryId, updates.odometer);
@@ -604,6 +607,9 @@ export const useAppStore = create<AppState>()(
           expenseTitle:
             targetEntry.type === "expense" ? updates.expenseTitle : undefined,
           cost: updates.cost,
+          sharedTrip: updates.sharedTrip !== undefined ? updates.sharedTrip : targetEntry.sharedTrip,
+          sharedTripMarkedById: updates.sharedTrip ? targetEntry.userId : undefined,
+          sharedTripMarkedByName: updates.sharedTrip ? targetEntry.userName : undefined,
           synced: false,
         };
         const integrityHash = await buildEntryIntegrityHash(
@@ -636,6 +642,25 @@ export const useAppStore = create<AppState>()(
         });
 
         return nextRecord;
+      },
+
+      deleteEntry: async (entryId) => {
+        const { entries, pendingQueue } = get();
+        
+        try {
+            await removeEntryFromRealtimeDb(entryId);
+        } catch (error) {
+            console.error('Failed to remote delete entry:', error);
+        }
+
+        set((state) => {
+          const nextEntries = state.entries.filter((entry) => entry.id !== entryId);
+          return {
+            entries: nextEntries,
+            pendingQueue: state.pendingQueue.filter(q => q.entryId !== entryId),
+            lastOdometerValue: recalculateLastOdometer(nextEntries),
+          };
+        });
       },
 
       markEntriesSynced: (entryIds) => {

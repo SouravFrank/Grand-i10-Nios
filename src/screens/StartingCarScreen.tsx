@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
@@ -33,14 +33,22 @@ export function StartingCarScreen({ navigation, route }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const startTrip = useAppStore((state) => state.startTrip);
   const endTrip = useAppStore((state) => state.endTrip);
+  const updateEntryOfflineFirst = useAppStore((state) => state.updateEntryOfflineFirst);
+  const deleteEntry = useAppStore((state) => state.deleteEntry);
+  const entries = useAppStore((state) => state.entries);
   const [sharedTripEnabled, setSharedTripEnabled] = useState(false);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const tripMode = route.params?.mode ?? 'start';
+  const entryId = route.params?.entryId;
   const isEndingTrip = tripMode === 'end';
   const isRestartingTrip = tripMode === 'restart';
-  const title = isEndingTrip ? 'End Trip' : isRestartingTrip ? 'Start New Trip' : 'Start Trip';
-  const buttonLabel = isEndingTrip ? 'END TRIP' : 'START TRIP';
-  const description = isEndingTrip
+  const isEditing = tripMode === 'edit';
+  const editingEntry = isEditing && entryId ? entries.find(e => e.id === entryId) : null;
+  const title = isEditing ? 'Edit Odometer' : isEndingTrip ? 'End Trip' : isRestartingTrip ? 'Start New Trip' : 'Start Trip';
+  const buttonLabel = isEditing ? 'SAVE' : isEndingTrip ? 'END TRIP' : 'START TRIP';
+  const description = isEditing
+    ? 'Update your existing odometer reading and trip settings.'
+    : isEndingTrip
     ? 'Enter the current odometer reading to close the active trip.'
     : isRestartingTrip
       ? 'Start a fresh trip if the previous trip was not ended.'
@@ -55,9 +63,15 @@ export function StartingCarScreen({ navigation, route }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      odometer: String(lastOdometer),
+      odometer: isEditing && editingEntry ? String(editingEntry.odometer) : String(lastOdometer),
     },
   });
+
+  useEffect(() => {
+    if (isEditing && editingEntry) {
+        setSharedTripEnabled(Boolean(editingEntry.sharedTrip));
+    }
+  }, [isEditing, editingEntry]);
 
   const onSubmit = handleSubmit(async ({ odometer }) => {
     if (!currentUser) {
@@ -87,7 +101,12 @@ export function StartingCarScreen({ navigation, route }: Props) {
     }
 
     try {
-      if (isEndingTrip) {
+      if (isEditing && entryId) {
+        await updateEntryOfflineFirst(entryId, {
+            odometer: parsedOdometer,
+            sharedTrip: sharedTripEnabled,
+        });
+      } else if (isEndingTrip) {
         await endTrip({
           userId: currentUser.id,
           userName: currentUser.name,
@@ -107,11 +126,28 @@ export function StartingCarScreen({ navigation, route }: Props) {
       void runSyncCycle();
     } catch (error) {
       Alert.alert(
-        isEndingTrip ? 'Could not end trip' : 'Could not start trip',
+        isEditing ? 'Could not update entry' : isEndingTrip ? 'Could not end trip' : 'Could not start trip',
         error instanceof Error ? error.message : 'Unknown error',
       );
     }
   });
+
+  const handleDelete = () => {
+    if (!entryId) return;
+    Alert.alert('Delete Entry', 'Are you sure you want to delete this odometer reading?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteEntry(entryId).then(() => {
+            navigation.goBack();
+            void runSyncCycle();
+          });
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.5)' }]}>
@@ -139,7 +175,7 @@ export function StartingCarScreen({ navigation, route }: Props) {
         <View style={[styles.metaPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Last odometer</Text>
           <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{formattedLastOdometer} km</Text>
-          {activeTrip ? (
+          {!isEditing && activeTrip ? (
             <Text style={[styles.metaHint, { color: colors.textSecondary }]}>
               Active trip started at {formattedTripStartOdometer} km
             </Text>
@@ -178,7 +214,16 @@ export function StartingCarScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
 
-        <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+        <View style={styles.actionRow}>
+          {isEditing ? (
+            <Pressable
+              onPress={handleDelete}
+              style={[styles.deleteBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}>
+              <MaterialIcons name="delete-outline" size={24} color={isDark ? '#FCA5A5' : '#EF4444'} />
+            </Pressable>
+          ) : null}
+          <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+        </View>
       </View>
     </View>
   );
@@ -261,9 +306,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   primaryAction: {
+    flex: 1,
     height: 54,
     borderRadius: 16,
+  },
+  deleteBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sharedRow: {
     borderWidth: 1,

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 type HistoryItemCardProps = {
   entry: EntryRecord;
@@ -12,8 +13,6 @@ type HistoryItemCardProps = {
   tripStartOdometer?: number | null;
   tripEndOdometer?: number | null;
   index: number;
-  showSharedTripToggle?: boolean;
-  onPressSharedTripToggle?: () => void;
   canEdit?: boolean;
   onPressEdit?: () => void;
 };
@@ -48,8 +47,6 @@ export function HistoryItemCard({
   tripStartOdometer = null,
   tripEndOdometer = null,
   index,
-  showSharedTripToggle,
-  onPressSharedTripToggle,
   canEdit,
   onPressEdit,
 }: HistoryItemCardProps) {
@@ -152,17 +149,17 @@ export function HistoryItemCard({
           ? `${tripStartOdometer} -> ${tripEndOdometer} km`
         : `${entry.odometer} km`;
 
-  const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string }> = [];
+  const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string; size?: 'large' | 'small' }> = [];
 
   if (entry.type === 'fuel') {
     const amount = typeof entry.fuelAmount === 'number' ? entry.fuelAmount : typeof entry.cost === 'number' ? entry.cost : null;
     const liters = typeof entry.fuelLiters === 'number' ? entry.fuelLiters : null;
 
     if (typeof amount === 'number') {
-      detailChips.push({ icon: 'currency-rupee', text: `${amount}` });
+      detailChips.push({ icon: 'currency-rupee', text: `${amount}`, size: 'large' });
     }
     if (typeof liters === 'number') {
-      detailChips.push({ icon: 'water-drop', text: `${liters} L` });
+      detailChips.push({ icon: 'water-drop', text: `${liters} L`, size: 'large' });
     }
     if (typeof amount === 'number' && typeof liters === 'number' && liters > 0) {
       const perLiter = amount / liters;
@@ -177,12 +174,12 @@ export function HistoryItemCard({
 
   if (entry.type === 'expense') {
     if (typeof entry.cost === 'number') {
-      detailChips.push({ icon: 'currency-rupee', text: `${entry.cost}` });
+      detailChips.push({ icon: 'currency-rupee', text: `${entry.cost}`, size: 'large' });
     }
+    detailChips.push({ icon: 'speed', text: `${entry.odometer} km`, size: 'large' });
     if (expenseCategoryLabel) {
-      detailChips.push({ icon: 'sell', text: expenseCategoryLabel });
+      detailChips.push({ icon: 'sell', text: expenseCategoryLabel, size: 'small' });
     }
-    detailChips.push({ icon: 'speed', text: `${entry.odometer} km` });
   }
 
   if (isTripSummary) {
@@ -204,104 +201,96 @@ export function HistoryItemCard({
         opacity,
         transform: [{ translateY }],
       }}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: accentBorder }]}> 
-        <View style={styles.topRow}>
-          <View style={[styles.typeIconWrap, { backgroundColor: accentTone }]}>
-            <MaterialIcons name={entryIcon} size={18} color={accentIconColor} />
-          </View>
-
-          <View style={styles.topCopy}>
-            <View style={styles.metaRow}>
-              <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
-              <View style={[styles.userChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName}</Text>
-              </View>
+      <Swipeable
+        renderRightActions={() => {
+          if (!canEdit) return null;
+          return (
+            <View style={styles.swipeActionWrap}>
+              <Pressable
+                onPress={onPressEdit}
+                style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialIcons name="edit" size={20} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+          );
+        }}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: accentBorder }]}> 
+          <View style={styles.topRow}>
+            <View style={[styles.typeIconWrap, { backgroundColor: accentTone }]}>
+              <MaterialIcons name={entryIcon} size={18} color={accentIconColor} />
             </View>
 
-            <Text style={[styles.primaryText, { color: colors.textPrimary }]} numberOfLines={2}>
-              {primaryText}
-            </Text>
-          </View>
-
-          {entry.sharedTrip ? (
-            <View style={[styles.sharedTripTag, { borderColor: colors.textPrimary, backgroundColor: colors.backgroundSecondary }]}>
-              <MaterialIcons name="people-alt" size={12} color={colors.textPrimary} />
-              <Text style={[styles.sharedTripTagText, { color: colors.textPrimary }]}>Shared</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {detailChips.length > 0 ? (
-          <View style={styles.infoRow}>
-            {detailChips.map((item) => (
-              <View
-                key={`${item.icon}-${item.text}`}
-                style={[styles.infoChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <MaterialIcons name={item.icon} size={12} color={colors.textPrimary} />
-                <Text style={[styles.infoChipText, { color: colors.textPrimary }]} numberOfLines={1}>
-                  {item.text}
+            <View style={styles.topCopy}>
+              <View style={styles.metaRow}>
+                <Text style={[styles.date, { color: colors.textPrimary }]}>
+                  {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
                 </Text>
+                <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
+                <View style={[styles.userChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                  <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName}</Text>
+                </View>
               </View>
-            ))}
-          </View>
-        ) : null}
 
-        {entry.type === 'spec_update' && specUpdateLines.length > 1
-          ? specUpdateLines.slice(1).map((line) => (
-              <Text key={line} style={[styles.secondaryLine, { color: colors.textSecondary }]}>
-                {line}
-              </Text>
-            ))
-          : null}
-
-        {entry.sharedTrip && entry.sharedTripMarkedByName ? (
-          <Text style={[styles.secondaryLine, { color: colors.textSecondary }]}>
-            Shared by {entry.sharedTripMarkedByName}
-          </Text>
-        ) : null}
-
-        {showSharedTripToggle ? (
-          <Pressable
-            onPress={entry.sharedTrip ? undefined : onPressSharedTripToggle}
-            style={[styles.sharedTripToggleRow, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-            <MaterialIcons
-              name={entry.sharedTrip ? 'check-box' : 'check-box-outline-blank'}
-              size={18}
-              color={entry.sharedTrip ? colors.textPrimary : colors.textSecondary}
-            />
-            <Text style={[styles.sharedTripToggleText, { color: colors.textPrimary }]}>
-              {entry.sharedTrip ? 'Shared Trip Enabled' : 'Mark as Shared Trip'}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        <View style={[styles.bottomRow, { borderTopColor: colors.border }]}> 
-          <View style={styles.footerMetaRow}>
-            <View style={styles.footerItem}>
-              <MaterialIcons name="schedule" size={13} color={colors.textSecondary} />
-              <Text style={[styles.date, { color: colors.textSecondary }]}>
-                {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
-              </Text>
-            </View>
-            {distanceKm !== null && (entry.type === 'fuel' || entry.type === 'odometer') ? (
-              <View style={styles.footerItem}>
-                <MaterialIcons name="route" size={13} color={colors.textSecondary} />
-                <Text style={[styles.distance, { color: colors.textSecondary }]}>
-                  {distanceKm} km
+              {isTripSummary ? (
+                <View style={styles.tripSummaryRow}>
+                  <View style={styles.tripSummaryNode}>
+                    <MaterialCommunityIcons name="car-shift-pattern" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.tripSummaryText, { color: colors.textPrimary }]}>{tripStartOdometer} km</Text>
+                  </View>
+                  <MaterialIcons name="arrow-right-alt" size={16} color={colors.textSecondary} />
+                  <View style={styles.tripSummaryNode}>
+                    <MaterialCommunityIcons name="flag-checkered" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.tripSummaryText, { color: colors.textPrimary }]}>{tripEndOdometer} km</Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={[styles.primaryText, { color: colors.textPrimary }]} numberOfLines={2}>
+                  {primaryText}
                 </Text>
+              )}
+            </View>
+
+            {entry.sharedTrip ? (
+              <View style={[styles.sharedTripTag, { borderColor: colors.textPrimary, backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialIcons name="people-alt" size={12} color={colors.textPrimary} />
               </View>
             ) : null}
           </View>
-          {canEdit ? (
-            <Pressable
-              onPress={onPressEdit}
-              style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-              <MaterialIcons name="edit" size={15} color={colors.textPrimary} />
-              <Text style={[styles.editButtonText, { color: colors.textPrimary }]}>Edit</Text>
-            </Pressable>
+
+          {detailChips.length > 0 ? (
+            <View style={styles.infoRow}>
+              {detailChips.map((item) => (
+                <View
+                  key={`${item.icon}-${item.text}`}
+                  style={[
+                    styles.infoChip,
+                    item.size === 'large' ? styles.infoChipLarge : item.size === 'small' ? styles.infoChipSmall : undefined,
+                    { borderColor: colors.border, backgroundColor: colors.backgroundSecondary },
+                  ]}>
+                  <MaterialIcons name={item.icon} size={item.size === 'large' ? 14 : item.size === 'small' ? 10 : 12} color={colors.textPrimary} />
+                  <Text
+                    style={[
+                      styles.infoChipText,
+                      item.size === 'large' ? styles.infoChipTextLarge : item.size === 'small' ? styles.infoChipTextSmall : undefined,
+                      { color: colors.textPrimary },
+                    ]}
+                    numberOfLines={1}>
+                    {item.text}
+                  </Text>
+                </View>
+              ))}
+            </View>
           ) : null}
+
+          {entry.type === 'spec_update' && specUpdateLines.length > 1
+            ? specUpdateLines.slice(1).map((line) => (
+                <Text key={line} style={[styles.secondaryLine, { color: colors.textSecondary }]}>
+                  {line}
+                </Text>
+              ))
+            : null}
         </View>
-      </View>
+      </Swipeable>
     </Animated.View>
   );
 }
@@ -359,14 +348,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 5,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  sharedTripTagText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
   infoRow: {
     flexDirection: 'row',
@@ -383,65 +368,63 @@ const styles = StyleSheet.create({
     gap: 4,
     maxWidth: '100%',
   },
+  infoChipLarge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
   infoChipText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+  infoChipTextLarge: {
+    fontSize: 13,
+  },
+  infoChipSmall: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    gap: 3,
+    opacity: 0.75,
+  },
+  infoChipTextSmall: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  tripSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  tripSummaryNode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  tripSummaryText: {
+    fontSize: 13,
     fontWeight: '700',
   },
   secondaryLine: {
     fontSize: 11,
     lineHeight: 16,
   },
-  sharedTripToggleRow: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sharedTripToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  bottomRow: {
-    borderTopWidth: 1,
-    paddingTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  footerMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    flex: 1,
-  },
-  footerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
   date: {
-    fontSize: 11,
+    fontSize: 13,
+    fontWeight: '700',
   },
-  distance: {
-    fontSize: 11,
-    fontWeight: '600',
+  swipeActionWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 64,
   },
   editButton: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: 'row',
+    width: 44,
+    height: 44,
     alignItems: 'center',
-    gap: 5,
-  },
-  editButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
+    justifyContent: 'center',
   },
 });

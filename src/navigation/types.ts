@@ -2,7 +2,7 @@ export type AppStackParamList = {
   Home: undefined;
   History: undefined;
   SyncLogs: undefined;
-  StartingCarModal: { mode?: 'start' | 'end' | 'restart' } | undefined;
+  StartingCarModal: { mode?: 'start' | 'end' | 'restart' | 'edit'; entryId?: string } | undefined;
   FuelEntryModal: { entryId?: string } | undefined;
   ExpenseEntryModal: { entryId?: string } | undefined;
 };

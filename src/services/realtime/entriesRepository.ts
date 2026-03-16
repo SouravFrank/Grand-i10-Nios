@@ -1,4 +1,4 @@
-import { get, orderByChild, query, ref, set, startAt } from 'firebase/database';
+import { get, orderByChild, query, ref, set, startAt, remove } from 'firebase/database';
 
 import { getFirebaseDb } from '@/config/firebase';
 import type { CarSpec, EntryRecord, RemoteEntryDocument } from '@/types/models';
@@ -51,6 +51,17 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
       entryId: entry.id,
       ...toErrorPayload(error),
     });
+    throw error;
+  }
+}
+
+export async function removeEntryFromRealtimeDb(entryId: string): Promise<void> {
+  const db = getFirebaseDb();
+  if (!db) return;
+  try {
+    await remove(ref(db, `${ENTRIES_COLLECTION}/${entryId}`));
+  } catch (error) {
+    syncError('realtime_remove_entry_failed', { entryId, ...toErrorPayload(error) });
     throw error;
   }
 }

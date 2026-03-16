@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
@@ -18,12 +19,14 @@ export default function App() {
   const colorScheme = useColorScheme();
 
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        <AppBootstrapper />
-        <AnimatedSplashOverlay />
-      </SafeAreaProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <AppBootstrapper />
+          <AnimatedSplashOverlay />
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

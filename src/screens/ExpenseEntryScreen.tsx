@@ -86,6 +86,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
   const updateEntryOfflineFirst = useAppStore((state) => state.updateEntryOfflineFirst);
+  const deleteEntry = useAppStore((state) => state.deleteEntry);
   const entries = useAppStore((state) => state.entries);
   const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
@@ -171,6 +172,23 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       );
     }
   });
+
+  const handleDelete = () => {
+    if (!editingEntry) return;
+    Alert.alert('Delete Entry', 'Are you sure you want to delete this expense entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteEntry(editingEntry.id).then(() => {
+            navigation.goBack();
+            void runSyncCycle();
+          });
+        },
+      },
+    ]);
+  };
 
   return (
     <ScreenContainer>
@@ -303,7 +321,16 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               />
             </View>
 
-            <PrimaryButton label={isEditing ? 'UPDATE EXPENSE' : 'SAVE EXPENSE'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+            <View style={styles.actionRow}>
+              {isEditing ? (
+                <Pressable
+                  onPress={handleDelete}
+                  style={[styles.deleteBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}>
+                  <MaterialIcons name="delete-outline" size={24} color={isDark ? '#FCA5A5' : '#EF4444'} />
+                </Pressable>
+              ) : null}
+              <PrimaryButton label={isEditing ? 'UPDATE EXPENSE' : 'SAVE EXPENSE'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -481,8 +508,20 @@ const styles = StyleSheet.create({
   odoHint: {
     fontSize: 12,
   },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   primaryAction: {
+    flex: 1,
     height: 54,
     borderRadius: 16,
+  },
+  deleteBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
