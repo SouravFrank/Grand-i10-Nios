@@ -4,7 +4,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
 import { AppTextField } from '@/components/AppTextField';
@@ -184,13 +193,16 @@ export function FuelEntryScreen({ navigation, route }: Props) {
 
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView style={styles.keyboardContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView
-          automaticallyAdjustKeyboardInsets
-          contentContainerStyle={[styles.scrollContent, styles.container]}
-          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={styles.keyboardContainer}
+        contentContainerStyle={[styles.scrollContent, styles.container]}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+      >
+        <View style={{ flexGrow: 1 }}>
           <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
 
           <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -303,11 +315,13 @@ export function FuelEntryScreen({ navigation, route }: Props) {
                   <MaterialIcons name="delete-outline" size={24} color={isDark ? '#FCA5A5' : '#EF4444'} />
                 </Pressable>
               ) : null}
-              <PrimaryButton label={isEditing ? 'UPDATE FUEL ENTRY' : 'SAVE FUEL ENTRY'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={isEditing ? 'UPDATE FUEL ENTRY' : 'SAVE FUEL ENTRY'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+              </View>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+      </KeyboardAwareScrollView>
     </ScreenContainer>
   );
 }

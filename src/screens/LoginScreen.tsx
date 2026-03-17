@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -130,19 +131,17 @@ export function LoginScreen() {
 
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        bounces={false}
+        overScrollMode="never"
       >
-        <ScrollView
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.page}>
+        <View style={styles.page}>
             <View
               pointerEvents="none"
               style={[styles.orbLarge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}
@@ -231,8 +230,7 @@ export function LoginScreen() {
               />
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </ScreenContainer>
   );
 }

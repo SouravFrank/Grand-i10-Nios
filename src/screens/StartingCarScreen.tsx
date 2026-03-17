@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
@@ -150,7 +151,13 @@ export function StartingCarScreen({ navigation, route }: Props) {
   };
 
   return (
-    <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.5)' }]}>
+    <KeyboardAwareScrollView
+      style={{ flex: 1, backgroundColor: isDark ? 'rgba(0,0,0,0.72)' : 'rgba(0,0,0,0.5)' }}
+      contentContainerStyle={styles.overlay}
+      keyboardShouldPersistTaps="handled"
+      enableOnAndroid={true}
+      bounces={false}
+    >
       <Pressable style={StyleSheet.absoluteFillObject} onPress={() => navigation.goBack()} />
 
       <View style={[styles.popup, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -222,24 +229,29 @@ export function StartingCarScreen({ navigation, route }: Props) {
               <MaterialIcons name="delete-outline" size={24} color={isDark ? '#FCA5A5' : '#EF4444'} />
             </Pressable>
           ) : null}
-          <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+          <View style={{ flex: 1 }}>
+            <PrimaryButton label={buttonLabel} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
+          </View>
         </View>
       </View>
-    </View>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 16,
+    paddingVertical: 40,
   },
   popup: {
     borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    gap: 14,
+    borderRadius: 28,
+    padding: 24,
+    gap: 16,
+    minHeight: 400,
+    justifyContent: 'center',
   },
   headerRow: {
     flexDirection: 'row',
@@ -309,11 +321,17 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 12,
   },
   primaryAction: {
     flex: 1,
-    height: 54,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   deleteBtn: {
     width: 54,

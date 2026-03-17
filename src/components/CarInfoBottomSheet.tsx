@@ -3,6 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
@@ -431,7 +432,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             </View>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentWrap}>
+          <KeyboardAwareScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.contentWrap}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid={true}
+          >
             <View style={[styles.tabRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
               {([
                 { key: 'health', label: 'Car Health' },
@@ -688,7 +694,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 </View>
               </View>
             ) : null}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </Animated.View>
       </View>
 
