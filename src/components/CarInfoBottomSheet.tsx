@@ -4,9 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
+import { TyreHealthSection } from '@/components/TyreHealthSection';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type {
   CarSpec,
@@ -32,7 +37,7 @@ type SpecRow = {
 };
 
 type CarSpecTab = 'health' | 'on_road' | 'identity';
-type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate';
+type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport';
 
 type LegalGalleryItem = {
   key: LegalGalleryKey;
@@ -71,7 +76,43 @@ const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'fitness', title: 'Fitness', subtitle: 'Fitness certificate', icon: 'verified', accent: '#8E5A00' },
   { key: 'roadTax', title: 'Road Tax', subtitle: 'Tax payment proof', icon: 'account-balance-wallet', accent: '#7A1FA2' },
   { key: 'numberPlate', title: 'Number Plate', subtitle: 'Registration plate photo', icon: 'directions-car', accent: '#455A64' },
+  { key: 'pdiReport', title: 'PDI Report', subtitle: 'Pre-delivery inspection report', icon: 'fact-check', accent: '#B71C1C' },
 ];
+
+async function openPdiReport() {
+  try {
+    const asset = Asset.fromModule(require('../../assets/pdf/pdi_report.pdf'));
+    await asset.downloadAsync();
+    const localUri = asset.localUri;
+    if (!localUri) {
+      Alert.alert('Error', 'Could not load the PDI report.');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      // Copy to cache with proper .pdf extension so the intent resolves correctly
+      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'pdi_report.pdf';
+      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
+      // Convert file:// URI to a content:// URI that other apps can read
+      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        type: 'application/pdf',
+      });
+    } else {
+      // iOS / other – use sharing sheet
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      } else {
+        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
+      }
+    }
+  } catch (err) {
+    Alert.alert('Error', 'Failed to open the PDI report.');
+  }
+}
 
 function getGalleryKeyForSpecField(field: CarSpecEditableFieldKey): LegalGalleryKey | null {
   if (field === 'puccExpireDate') return 'pucc';
@@ -661,6 +702,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
               </View>
             ) : null}
 
+            {activeTab === 'health' ? <TyreHealthSection currentOdometer={lastOdometer} /> : null}
+
             {activeTab === 'on_road' ? (
               <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.galleryHeader}>
@@ -676,7 +719,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   {LEGAL_GALLERY_ITEMS.map((item) => (
                     <Pressable
                       key={item.key}
-                      onPress={() => setSelectedGalleryItem(item.key)}
+                      onPress={() => item.key === 'pdiReport' ? void openPdiReport() : setSelectedGalleryItem(item.key)}
                       style={[
                         styles.galleryCard,
                         {
@@ -719,12 +762,31 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 <MaterialIcons name={selectedGalleryCard.icon} size={28} color="#FFFFFF" />
               </View>
               <Text style={[styles.viewerDocTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
-              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                Preview slot ready for document image asset.
-              </Text>
-              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                Replace this card with a scanned image when the final files are available.
-              </Text>
+              {selectedGalleryCard.key === 'pdiReport' ? (
+                <>
+                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                    Pre-Delivery Inspection report issued at time of vehicle purchase.
+                  </Text>
+                  <Pressable
+                    onPress={() => { void openPdiReport(); }}
+                    style={({ pressed }) => [
+                      styles.openPdfBtn,
+                      { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 },
+                    ]}>
+                    <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+                    <Text style={styles.openPdfBtnText}>OPEN PDF</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                    Preview slot ready for document image asset.
+                  </Text>
+                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                    Replace this card with a scanned image when the final files are available.
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -1082,5 +1144,21 @@ const styles = StyleSheet.create({
   datePickerDoneText: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  openPdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 8,
+  },
+  openPdfBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 });
