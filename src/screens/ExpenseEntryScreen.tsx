@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { zodResolver } from '@hookform/resolvers/zod';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import {
@@ -202,14 +202,15 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     <ScreenContainer>
       <KeyboardAwareScrollView
         style={styles.keyboardContainer}
-        contentContainerStyle={[styles.scrollContent, styles.container]}
+        contentContainerStyle={styles.scrollContent}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
         enableAutomaticScroll={true}
+        extraScrollHeight={120}
       >
-        <View style={{ flexGrow: 1 }}>
+        <View style={[styles.scrollContent, styles.container]}>
           <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
 
           <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
