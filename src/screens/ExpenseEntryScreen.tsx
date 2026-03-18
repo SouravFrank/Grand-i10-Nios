@@ -2,12 +2,14 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   Alert,
   Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -88,6 +90,8 @@ const expenseSchema = z.object({
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
 
+const SHAREABLE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid'];
+
 export function ExpenseEntryScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
@@ -102,6 +106,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'expense')
     : undefined;
   const isEditing = Boolean(editingEntry);
+
+  const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
 
   const {
     control,
@@ -121,6 +127,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const selectedExpenseTitle = watch('expenseTitle');
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
   const inferredCategoryMeta = categoryMeta[inferredCategory];
+  const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
 
   const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost }) => {
     if (!currentUser) {
@@ -151,13 +158,18 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       return;
     }
 
+    const category = inferExpenseCategory(expenseTitle);
+    const isShareable = SHAREABLE_CATEGORIES.includes(category);
+    const shouldShare = isShareable && sharedExpense;
+
     try {
       if (editingEntry) {
         await updateEntryOfflineFirst(editingEntry.id, {
           odometer: parsedOdometer,
-          expenseCategory: inferExpenseCategory(expenseTitle),
+          expenseCategory: category,
           expenseTitle: expenseTitle.trim(),
           cost: parsedCost,
+          sharedTrip: shouldShare,
         });
       } else {
         await addEntryOfflineFirst({
@@ -165,9 +177,12 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
           userId: currentUser.id,
           userName: currentUser.name,
           odometer: parsedOdometer,
-          expenseCategory: inferExpenseCategory(expenseTitle),
+          expenseCategory: category,
           expenseTitle: expenseTitle.trim(),
           cost: parsedCost,
+          sharedTrip: shouldShare,
+          sharedTripMarkedById: shouldShare ? currentUser.id : undefined,
+          sharedTripMarkedByName: shouldShare ? currentUser.name : undefined,
         });
       }
 
@@ -332,6 +347,23 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                 )}
               />
             </View>
+
+            {showSharedToggle ? (
+              <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                <View style={styles.switchCopy}>
+                  <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Shared Expense</Text>
+                  <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
+                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 'Fine incurred on a shared trip'}
+                  </Text>
+                </View>
+                <Switch
+                  value={sharedExpense}
+                  onValueChange={setSharedExpense}
+                  trackColor={{ false: colors.border, true: colors.textSecondary }}
+                  thumbColor={isDark ? colors.textPrimary : colors.background}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.actionRow}>
               {isEditing ? (
@@ -537,5 +569,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  switchRow: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  switchCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  switchHint: {
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

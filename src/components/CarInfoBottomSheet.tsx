@@ -13,6 +13,7 @@ import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { TyreHealthSection } from '@/components/TyreHealthSection';
 import { useAppTheme } from '@/theme/useAppTheme';
+import { useAppStore } from '@/store/useAppStore';
 import type {
   CarSpec,
   CarSpecEditableFieldKey,
@@ -59,7 +60,6 @@ const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] 
   { key: 'lastSparkPlugsChangedOn', label: 'Spark Plugs' },
   { key: 'lastBatteryChangedOn', label: 'Battery' },
   { key: 'lastBrakePadsChangedOn', label: 'Brake Pads' },
-  { key: 'lastTyresChangedOn', label: 'Tyres' },
 ];
 
 const ON_ROAD_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
@@ -142,7 +142,6 @@ const MAINTENANCE_INTERVALS_DAYS: Partial<Record<CarSpecEditableFieldKey, number
   lastSparkPlugsChangedOn: 180,
   lastBatteryChangedOn: 180,
   lastBrakePadsChangedOn: 180,
-  lastTyresChangedOn: 180,
 };
 
 type TrafficLightColor = 'green' | 'yellow' | 'orange' | 'red';
@@ -199,6 +198,7 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors, isDark } = useAppTheme();
+  const entries = useAppStore((state) => state.entries);
   const [rendered, setRendered] = useState(visible);
   const [activeTab, setActiveTab] = useState<CarSpecTab>('health');
   const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
@@ -343,6 +343,59 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     }
     return pairs;
   }, [nonEditableRows]);
+
+  // ── FASTag Balance Calculation ──────────────────────────────────────────────
+  const fastagData = useMemo(() => {
+    let totalRecharges = 0;
+    let totalTolls = 0;
+    let lastRechargeDate: number | null = null;
+    let lastTollDate: number | null = null;
+    let lastRechargeAmount = 0;
+    let lastTollAmount = 0;
+    let tollCount = 0;
+
+    for (const entry of entries) {
+      if (entry.type !== 'expense' || typeof entry.cost !== 'number') continue;
+
+      // FASTag Recharge: category is utility_addon and exp title contains 'fastag' + 'recharge'
+      const titleLower = (entry.expenseTitle ?? '').toLowerCase();
+      const isFastagRecharge =
+        (titleLower.includes('fastag') || titleLower.includes('fast tag')) &&
+        titleLower.includes('recharge');
+
+      if (isFastagRecharge) {
+        totalRecharges += entry.cost;
+        if (!lastRechargeDate || entry.createdAt > lastRechargeDate) {
+          lastRechargeDate = entry.createdAt;
+          lastRechargeAmount = entry.cost;
+        }
+      }
+
+      // FASTag Toll Paid
+      if (entry.expenseCategory === 'fasttag_toll_paid') {
+        totalTolls += entry.cost;
+        tollCount++;
+        if (!lastTollDate || entry.createdAt > lastTollDate) {
+          lastTollDate = entry.createdAt;
+          lastTollAmount = entry.cost;
+        }
+      }
+    }
+
+    const balance = totalRecharges - totalTolls;
+    const avgToll = tollCount > 0 ? totalTolls / tollCount : 0;
+    return {
+      balance,
+      totalRecharges,
+      totalTolls,
+      tollCount,
+      avgToll: Math.round(avgToll),
+      lastRechargeDate,
+      lastRechargeAmount,
+      lastTollDate,
+      lastTollAmount,
+    };
+  }, [entries]);
 
   const beginEdit = (field: CarSpecEditableFieldKey) => {
     if (activeField === field) {
@@ -705,6 +758,61 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             {activeTab === 'health' ? <TyreHealthSection currentOdometer={lastOdometer} /> : null}
 
             {activeTab === 'on_road' ? (
+              <>
+                {/* FASTag Balance Card */}
+                <View style={[styles.fastagCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                  <View style={styles.fastagHeader}>
+                    <View style={[styles.fastagIconWrap, { backgroundColor: isDark ? 'rgba(14,165,233,0.15)' : 'rgba(14,165,233,0.1)' }]}>
+                      <MaterialIcons name="toll" size={20} color="#0EA5E9" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.fastagTitle, { color: colors.textPrimary }]}>FASTag Balance</Text>
+                      <Text style={[styles.fastagSubtitle, { color: colors.textSecondary }]}>Calculated from recharges & toll deductions</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.fastagBalanceRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                    <Text style={[styles.fastagBalanceLabel, { color: colors.textSecondary }]}>ESTIMATED BALANCE</Text>
+                    <Text style={[
+                      styles.fastagBalanceValue,
+                      {
+                        color: fastagData.balance > 500
+                          ? '#10B981'
+                          : fastagData.balance > 100
+                            ? '#F59E0B'
+                            : '#EF4444',
+                      },
+                    ]}>
+                      ₹{fastagData.balance.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
+
+                  <View style={styles.fastagStatsRow}>
+                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>RECHARGED</Text>
+                      <Text style={[styles.fastagStatValue, { color: '#10B981' }]}>₹{fastagData.totalRecharges.toLocaleString('en-IN')}</Text>
+                      {fastagData.lastRechargeDate ? (
+                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>Last: ₹{fastagData.lastRechargeAmount}</Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>TOLL SPENT</Text>
+                      <Text style={[styles.fastagStatValue, { color: '#EF4444' }]}>₹{fastagData.totalTolls.toLocaleString('en-IN')}</Text>
+                      {fastagData.tollCount > 0 ? (
+                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>{fastagData.tollCount} tolls • Avg ₹{fastagData.avgToll}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {fastagData.balance <= 200 && fastagData.totalRecharges > 0 ? (
+                    <View style={[styles.fastagLowBanner, { backgroundColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', borderColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)' }]}>
+                      <MaterialIcons name="warning" size={14} color={fastagData.balance <= 0 ? '#EF4444' : '#F59E0B'} />
+                      <Text style={[styles.fastagLowText, { color: fastagData.balance <= 0 ? '#EF4444' : '#F59E0B' }]}>
+                        {fastagData.balance <= 0 ? 'FASTag balance exhausted — recharge needed!' : 'Low FASTag balance — consider recharging soon.'}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.galleryHeader}>
                   <View style={styles.galleryCopy}>
@@ -736,6 +844,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   ))}
                 </View>
               </View>
+              </>
             ) : null}
           </KeyboardAwareScrollView>
         </Animated.View>
@@ -1160,5 +1269,94 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.8,
+  },
+  // ── FASTag Balance Card ──
+  fastagCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 16,
+    gap: 12,
+  },
+  fastagHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fastagIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fastagTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  fastagSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  fastagBalanceRow: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    gap: 4,
+  },
+  fastagBalanceLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  fastagBalanceValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  fastagStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fastagStatBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  fastagStatLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  fastagStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  fastagStatHint: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  fastagLowBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  fastagLowText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 16,
   },
 });
