@@ -114,6 +114,102 @@ async function openPdiReport() {
   }
 }
 
+async function openInsuranceDoc() {
+  try {
+    const asset = Asset.fromModule(require('../../assets/pdf/insurence.pdf'));
+    await asset.downloadAsync();
+    const localUri = asset.localUri;
+    if (!localUri) {
+      Alert.alert('Error', 'Could not load the insurance document.');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'insurance.pdf';
+      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
+      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1,
+        type: 'application/pdf',
+      });
+    } else {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
+        return;
+      }
+      await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    }
+  } catch (err) {
+    Alert.alert('Error', 'Failed to open the insurance document.');
+  }
+}
+
+async function openRcDoc() {
+  try {
+    const asset = Asset.fromModule(require('../../assets/pdf/RC.pdf'));
+    await asset.downloadAsync();
+    const localUri = asset.localUri;
+    if (!localUri) {
+      Alert.alert('Error', 'Could not load the RC document.');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'rc.pdf';
+      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
+      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1,
+        type: 'application/pdf',
+      });
+    } else {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
+        return;
+      }
+      await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    }
+  } catch (err) {
+    Alert.alert('Error', 'Failed to open the RC document.');
+  }
+}
+
+async function openNumberPlateImage() {
+  try {
+    const asset = Asset.fromModule(require('../../assets/pdf/number_plate.jpg'));
+    await asset.downloadAsync();
+    const localUri = asset.localUri;
+    if (!localUri) {
+      Alert.alert('Error', 'Could not load the number plate photo.');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'number_plate.jpg';
+      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
+      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1,
+        type: 'image/jpeg',
+      });
+    } else {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Not supported', 'Image sharing is not available on this device.');
+        return;
+      }
+      await Sharing.shareAsync(localUri, { mimeType: 'image/jpeg' });
+    }
+  } catch (err) {
+    Alert.alert('Error', 'Failed to open the number plate photo.');
+  }
+}
+
 function getGalleryKeyForSpecField(field: CarSpecEditableFieldKey): LegalGalleryKey | null {
   if (field === 'puccExpireDate') return 'pucc';
   if (field === 'insuranceValidUpTo') return 'insurance';
@@ -598,7 +694,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                       <View style={styles.rowActions}>
                         {viewKey ? (
                           <Pressable
-                            onPress={() => setSelectedGalleryItem(viewKey)}
+                            onPress={() => {
+                              if (viewKey === 'insurance') void openInsuranceDoc();
+                              else setSelectedGalleryItem(viewKey);
+                            }}
                             style={[
                               styles.editIconBtn,
                               {
@@ -827,7 +926,13 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   {LEGAL_GALLERY_ITEMS.map((item) => (
                     <Pressable
                       key={item.key}
-                      onPress={() => item.key === 'pdiReport' ? void openPdiReport() : setSelectedGalleryItem(item.key)}
+                      onPress={() => {
+                        if (item.key === 'pdiReport') void openPdiReport();
+                        else if (item.key === 'insurance') void openInsuranceDoc();
+                        else if (item.key === 'rc') void openRcDoc();
+                        else if (item.key === 'numberPlate') void openNumberPlateImage();
+                        else setSelectedGalleryItem(item.key);
+                      }}
                       style={[
                         styles.galleryCard,
                         {
@@ -871,19 +976,37 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 <MaterialIcons name={selectedGalleryCard.icon} size={28} color="#FFFFFF" />
               </View>
               <Text style={[styles.viewerDocTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
-              {selectedGalleryCard.key === 'pdiReport' ? (
+              {selectedGalleryCard.key === 'pdiReport' || selectedGalleryCard.key === 'insurance' || selectedGalleryCard.key === 'rc' || selectedGalleryCard.key === 'numberPlate' ? (
                 <>
                   <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                    Pre-Delivery Inspection report issued at time of vehicle purchase.
+                    {selectedGalleryCard.key === 'pdiReport'
+                      ? 'Pre-Delivery Inspection report issued at time of vehicle purchase.'
+                      : selectedGalleryCard.key === 'insurance'
+                        ? 'Insurance policy document.'
+                        : selectedGalleryCard.key === 'rc'
+                          ? 'Registration certificate (RC).'
+                          : 'Registration plate photo.'}
                   </Text>
                   <Pressable
-                    onPress={() => { void openPdiReport(); }}
+                    onPress={() => {
+                      if (selectedGalleryCard.key === 'pdiReport') void openPdiReport();
+                      else if (selectedGalleryCard.key === 'insurance') void openInsuranceDoc();
+                      else if (selectedGalleryCard.key === 'rc') void openRcDoc();
+                      else if (selectedGalleryCard.key === 'numberPlate') void openNumberPlateImage();
+                    }}
                     style={({ pressed }) => [
                       styles.openPdfBtn,
                       { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 },
-                    ]}>
-                    <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
-                    <Text style={styles.openPdfBtnText}>OPEN PDF</Text>
+                    ]}
+                  >
+                    {selectedGalleryCard.key === 'numberPlate' ? (
+                      <MaterialIcons name="image" size={18} color="#FFFFFF" />
+                    ) : (
+                      <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+                    )}
+                    <Text style={styles.openPdfBtnText}>
+                      {selectedGalleryCard.key === 'numberPlate' ? 'OPEN IMAGE' : 'OPEN PDF'}
+                    </Text>
                   </Pressable>
                 </>
               ) : (

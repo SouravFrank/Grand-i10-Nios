@@ -12,6 +12,7 @@ import { ExpenseEntryScreen } from '@/screens/ExpenseEntryScreen';
 import { FuelEntryScreen } from '@/screens/FuelEntryScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
+import { ReportScreen } from '@/screens/ReportScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { StartingCarScreen } from '@/screens/StartingCarScreen';
 import { SyncLogsScreen } from '@/screens/SyncLogsScreen';
@@ -47,6 +48,7 @@ function MainNavigator() {
     <AppStack.Navigator screenOptions={{ headerShown: false }}>
       <AppStack.Screen name="Home" component={HomeScreen} />
       <AppStack.Screen name="History" component={HistoryScreen} />
+      <AppStack.Screen name="Report" component={ReportScreen} />
       <AppStack.Screen
         name="SyncLogs"
         component={SyncLogsScreen}

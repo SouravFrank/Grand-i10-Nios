@@ -492,6 +492,13 @@ export function HistoryScreen({ navigation }: Props) {
           </View>
 
           <Pressable
+            onPress={() => navigation.navigate('Report')}
+            hitSlop={12}
+            style={[styles.reportToggleBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <MaterialIcons name="assessment" size={18} color={colors.textPrimary} />
+          </Pressable>
+
+          <Pressable
             onPress={() => setIsFilterOpen((prev) => !prev)}
             hitSlop={12}
             style={[styles.filterToggleBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
@@ -797,6 +804,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   filterToggleBtn: {
+    width: 42,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportToggleBtn: {
     width: 42,
     height: 42,
     borderWidth: 1,
