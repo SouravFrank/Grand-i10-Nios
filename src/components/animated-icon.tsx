@@ -43,7 +43,7 @@ export function AnimatedIcon() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',

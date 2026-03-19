@@ -514,7 +514,7 @@ export function HistoryScreen({ navigation }: Props) {
 
       <Modal transparent statusBarTranslucent animationType="none" visible={isFilterRendered} onRequestClose={closeFilterModal}>
         <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={closeFilterModal} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeFilterModal} />
         </Animated.View>
         <View style={styles.sheetAnchor}>
           <Animated.View style={[styles.sheet, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}>
@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheetAnchor: {

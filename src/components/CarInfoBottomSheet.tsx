@@ -345,7 +345,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
-            bounciness: 0,
+            tension: 120,
+            friction: 14,
           }).start();
         }
       },
@@ -355,15 +356,18 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   useEffect(() => {
     if (visible) {
       setRendered(true);
+      translateY.setValue(420);
+      overlayOpacity.setValue(0);
       Animated.parallel([
-        Animated.timing(translateY, {
+        Animated.spring(translateY, {
           toValue: 0,
-          duration: 220,
           useNativeDriver: true,
+          tension: 65,
+          friction: 11,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 1,
-          duration: 220,
+          duration: 280,
           useNativeDriver: true,
         }),
       ]).start();
@@ -373,12 +377,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: 420,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
       Animated.timing(overlayOpacity, {
         toValue: 0,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -603,7 +607,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   return (
     <Modal transparent statusBarTranslucent animationType="none" visible={rendered} onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}> 
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
 
       <View style={styles.sheetAnchor}>
@@ -981,7 +985,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
       {selectedGalleryCard ? (
         <View style={styles.viewerOverlay}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setSelectedGalleryItem(null)} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedGalleryItem(null)} />
           <View style={[styles.viewerCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <View style={styles.viewerHeader}>
               <View>
@@ -1023,7 +1027,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheetAnchor: {
@@ -1031,6 +1035,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -1041,11 +1047,12 @@ const styles = StyleSheet.create({
   },
   handleWrap: {
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 10,
   },
   handle: {
-    width: 44,
-    height: 3,
+    width: 56,
+    height: 5,
+    borderRadius: 3,
   },
   headerRow: {
     flexDirection: 'row',
@@ -1319,7 +1326,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     paddingHorizontal: 20,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -2,8 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CarDisplayCard } from '@/components/CarDisplayCard';
@@ -43,9 +43,51 @@ export function HomeScreen({ navigation }: Props) {
 
   const latestEntry = entries[0];
 
+  // Screen entrance animations
+  const welcomeOpacity = useRef(new Animated.Value(0)).current;
+  const welcomeSlideY = useRef(new Animated.Value(-15)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+  const ctaSlideY = useRef(new Animated.Value(25)).current;
+  const footerOpacity = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     void runSyncCycle();
-  }, []);
+
+    Animated.stagger(150, [
+      Animated.parallel([
+        Animated.timing(welcomeOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+        Animated.spring(welcomeSlideY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 60,
+          friction: 10,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(ctaOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(ctaSlideY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 10,
+        }),
+      ]),
+      Animated.timing(footerOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [welcomeOpacity, welcomeSlideY, ctaOpacity, ctaSlideY, footerOpacity]);
 
   const offlineBannerText = useMemo(() => {
     if (isOnline) {
@@ -101,12 +143,12 @@ export function HomeScreen({ navigation }: Props) {
     <ScreenContainer>
       <View style={styles.screen}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>
+            <Animated.Text style={[styles.title, { color: colors.textPrimary, opacity: welcomeOpacity, transform: [{ translateY: welcomeSlideY }] }]}>
               <Text style={{ fontSize: 18, color: colors.textSecondary, fontWeight: '400' }}>
               Welcome{' '}
               </Text>
               {currentUser?.name ?? 'User'}
-            </Text>
+            </Animated.Text>
 
           {offlineBannerText ? (
             <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
@@ -130,7 +172,7 @@ export function HomeScreen({ navigation }: Props) {
             onRetrySync={() => void runSyncCycle()}
           />
 
-          <View style={styles.ctaStack}>
+          <Animated.View style={[styles.ctaStack, { opacity: ctaOpacity, transform: [{ translateY: ctaSlideY }] }]}>
             {activeTrip ? (
               <>
                 <View style={styles.ctaRow}>
@@ -195,8 +237,9 @@ export function HomeScreen({ navigation }: Props) {
                 </View>
               </>
             )}
-          </View>
+          </Animated.View>
 
+          <Animated.View style={{ opacity: footerOpacity }}>
           <Pressable onPress={() => navigation.navigate('History')} hitSlop={12} style={styles.historyWrap}>
             <View style={styles.historyRow}>
               <MaterialIcons name="history" size={16} color={colors.textPrimary} />
@@ -207,6 +250,7 @@ export function HomeScreen({ navigation }: Props) {
           </Pressable>
 
           {securityIssue ? <Text style={[styles.securityText, { color: colors.textSecondary }]}>{securityIssue}</Text> : null}
+          </Animated.View>
         </ScrollView>
 
         <Pressable
