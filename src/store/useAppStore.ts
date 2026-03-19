@@ -686,10 +686,6 @@ export const useAppStore = create<AppState>()(
       },
 
       mergeRemoteEntries: async (remoteEntries) => {
-        if (remoteEntries.length === 0) {
-          return;
-        }
-
         const secret = await ensureIntegritySecret();
         const remoteRecords: EntryRecord[] = [];
         for (const remoteEntry of remoteEntries) {
@@ -706,13 +702,21 @@ export const useAppStore = create<AppState>()(
 
         set((state) => {
           const byId = new Map(state.entries.map((entry) => [entry.id, entry]));
+          const remoteIdSet = new Set(remoteRecords.map((r) => r.id));
+
           for (const remoteEntry of remoteRecords) {
             byId.set(remoteEntry.id, remoteEntry);
           }
 
-          const allEntries = Array.from(byId.values()).sort(
+          // Server is authoritative for entries that we previously synced.
+          // If an entry is missing from the latest server snapshot, it was likely
+          // deleted on the server and must be removed locally.
+          const allEntries = Array.from(byId.values())
+            .sort(
             (a, b) => b.createdAt - a.createdAt,
-          );
+            )
+            .filter((entry) => !entry.synced || remoteIdSet.has(entry.id));
+
           const lastOdometerValue = allEntries.reduce(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
             state.lastOdometerValue,
@@ -730,6 +734,11 @@ export const useAppStore = create<AppState>()(
             entries: allEntries,
             lastOdometerValue,
             pendingQueue: filteredQueue,
+            activeTrip: (() => {
+              const activeTrip = state.activeTrip;
+              if (!activeTrip) return null;
+              return allEntries.some((e) => e.id === activeTrip.startEntryId) ? activeTrip : null;
+            })(),
           };
         });
       },
