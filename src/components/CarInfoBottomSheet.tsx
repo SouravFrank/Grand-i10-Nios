@@ -1,20 +1,24 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { TyreHealthSection } from '@/components/TyreHealthSection';
+import { pushDocumentToRealtimeDb } from '@/services/realtime/documentsRepository';
+import { getLocalDocument, saveDocumentFromUri } from '@/services/storage/localDocuments';
 import { useAppTheme } from '@/theme/useAppTheme';
 import { useAppStore } from '@/store/useAppStore';
 import type {
+  CarDocumentKey,
   CarSpec,
   CarSpecEditableFieldKey,
   CarSpecFieldUpdateSubmission,
@@ -79,136 +83,74 @@ const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'pdiReport', title: 'PDI Report', subtitle: 'Pre-delivery inspection report', icon: 'fact-check', accent: '#B71C1C' },
 ];
 
-async function openPdiReport() {
-  try {
-    const asset = Asset.fromModule(require('../../assets/pdf/pdi_report.pdf'));
-    await asset.downloadAsync();
-    const localUri = asset.localUri;
-    if (!localUri) {
-      Alert.alert('Error', 'Could not load the PDI report.');
+/**
+ * Open a file given its local URI and MIME type.
+ * On Android, uses an intent to open in an external viewer.
+ * On iOS, uses the sharing sheet.
+ */
+async function openFileByUri(localUri: string, mimeType: string, cacheFileName: string): Promise<void> {
+  if (Platform.OS === 'android') {
+    const cacheUri = (FileSystem.cacheDirectory ?? '') + cacheFileName;
+    await FileSystem.copyAsync({ from: localUri, to: cacheUri });
+    const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+      data: contentUri,
+      flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+      type: mimeType,
+    });
+  } else {
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      Alert.alert('Not supported', 'File sharing is not available on this device.');
       return;
     }
-
-    if (Platform.OS === 'android') {
-      // Copy to cache with proper .pdf extension so the intent resolves correctly
-      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'pdi_report.pdf';
-      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
-      // Convert file:// URI to a content:// URI that other apps can read
-      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-        type: 'application/pdf',
-      });
-    } else {
-      // iOS / other – use sharing sheet
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
-      } else {
-        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
-      }
-    }
-  } catch (err) {
-    Alert.alert('Error', 'Failed to open the PDI report.');
+    const uti = mimeType === 'application/pdf' ? 'com.adobe.pdf' : undefined;
+    await Sharing.shareAsync(localUri, { mimeType, ...(uti ? { UTI: uti } : {}) });
   }
 }
 
-async function openInsuranceDoc() {
+/** Bundled asset mapping — used as fallback when no user-uploaded document exists. */
+const BUNDLED_ASSETS: Partial<Record<CarDocumentKey, { module: number; cacheFileName: string; mimeType: string }>> = {
+  pdiReport: { module: require('../../assets/pdf/pdi_report.pdf'), cacheFileName: 'pdi_report.pdf', mimeType: 'application/pdf' },
+  insurance: { module: require('../../assets/pdf/insurence.pdf'), cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
+  rc: { module: require('../../assets/pdf/RC.pdf'), cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
+  numberPlate: { module: require('../../assets/pdf/number_plate.jpg'), cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
+};
+
+/**
+ * Open a car document by its key.
+ * Priority: user-uploaded local file → bundled asset → error.
+ */
+async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<void> {
   try {
-    const asset = Asset.fromModule(require('../../assets/pdf/insurence.pdf'));
-    await asset.downloadAsync();
-    const localUri = asset.localUri;
-    if (!localUri) {
-      Alert.alert('Error', 'Could not load the insurance document.');
+    // 1. Check for user-uploaded / synced local document
+    const localDoc = await getLocalDocument(docKey);
+    if (localDoc) {
+      const ext = localDoc.fileName.split('.').pop() ?? 'pdf';
+      await openFileByUri(localDoc.localUri, localDoc.mimeType, `${docKey}_user.${ext}`);
       return;
     }
 
-    if (Platform.OS === 'android') {
-      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'insurance.pdf';
-      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
-      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1,
-        type: 'application/pdf',
-      });
-    } else {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
+    // 2. Fall back to bundled asset
+    const bundled = BUNDLED_ASSETS[docKey];
+    if (bundled) {
+      const asset = Asset.fromModule(bundled.module);
+      await asset.downloadAsync();
+      if (!asset.localUri) {
+        Alert.alert('Error', `Could not load ${docTitle}.`);
         return;
       }
-      await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
-    }
-  } catch (err) {
-    Alert.alert('Error', 'Failed to open the insurance document.');
-  }
-}
-
-async function openRcDoc() {
-  try {
-    const asset = Asset.fromModule(require('../../assets/pdf/RC.pdf'));
-    await asset.downloadAsync();
-    const localUri = asset.localUri;
-    if (!localUri) {
-      Alert.alert('Error', 'Could not load the RC document.');
+      await openFileByUri(asset.localUri, bundled.mimeType, bundled.cacheFileName);
       return;
     }
 
-    if (Platform.OS === 'android') {
-      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'rc.pdf';
-      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
-      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1,
-        type: 'application/pdf',
-      });
-    } else {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert('Not supported', 'PDF sharing is not available on this device.');
-        return;
-      }
-      await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
-    }
-  } catch (err) {
-    Alert.alert('Error', 'Failed to open the RC document.');
+    // 3. No file available
+    Alert.alert('No document', `No ${docTitle} document is available yet. Attach one using the upload button in the gallery.`);
+  } catch {
+    Alert.alert('Error', `Failed to open ${docTitle}.`);
   }
 }
 
-async function openNumberPlateImage() {
-  try {
-    const asset = Asset.fromModule(require('../../assets/pdf/number_plate.jpg'));
-    await asset.downloadAsync();
-    const localUri = asset.localUri;
-    if (!localUri) {
-      Alert.alert('Error', 'Could not load the number plate photo.');
-      return;
-    }
-
-    if (Platform.OS === 'android') {
-      const cacheUri = (FileSystem.cacheDirectory ?? '') + 'number_plate.jpg';
-      await FileSystem.copyAsync({ from: localUri, to: cacheUri });
-      const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1,
-        type: 'image/jpeg',
-      });
-    } else {
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert('Not supported', 'Image sharing is not available on this device.');
-        return;
-      }
-      await Sharing.shareAsync(localUri, { mimeType: 'image/jpeg' });
-    }
-  } catch (err) {
-    Alert.alert('Error', 'Failed to open the number plate photo.');
-  }
-}
 
 function getGalleryKeyForSpecField(field: CarSpecEditableFieldKey): LegalGalleryKey | null {
   if (field === 'puccExpireDate') return 'pucc';
@@ -295,6 +237,7 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors, isDark } = useAppTheme();
   const entries = useAppStore((state) => state.entries);
+  const currentUser = useAppStore((state) => state.currentUser);
   const [rendered, setRendered] = useState(visible);
   const [activeTab, setActiveTab] = useState<CarSpecTab>('health');
   const [activeField, setActiveField] = useState<CarSpecEditableFieldKey | null>(null);
@@ -303,6 +246,70 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   const [draftCost, setDraftCost] = useState('');
   const [draftOdometer, setDraftOdometer] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const pickAndUploadDocument = useCallback(async (docKey: CarDocumentKey, docTitle: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const pickedFile = result.assets[0];
+      if (!pickedFile.uri || !pickedFile.name) {
+        Alert.alert('Error', 'Could not read the selected file.');
+        return;
+      }
+
+      // Size guard: warn if file is larger than 5 MB (base64 will be ~33% larger)
+      if (pickedFile.size && pickedFile.size > 5 * 1024 * 1024) {
+        Alert.alert(
+          'File too large',
+          `The selected file is ${(pickedFile.size / (1024 * 1024)).toFixed(1)} MB. Please choose a file under 5 MB to ensure reliable sync.`,
+        );
+        return;
+      }
+
+      setIsUploading(true);
+
+      const mimeType = pickedFile.mimeType ?? 'application/pdf';
+
+      // Save locally and get base64
+      const { localDoc, base64Data } = await saveDocumentFromUri(
+        docKey,
+        pickedFile.uri,
+        pickedFile.name,
+        mimeType,
+      );
+
+      // Upload to Firebase RTDB for cross-device sync
+      try {
+        await pushDocumentToRealtimeDb(docKey, {
+          data: base64Data,
+          fileName: localDoc.fileName,
+          mimeType: localDoc.mimeType,
+          uploadedAt: Date.now(),
+          uploadedByUserId: currentUser?.id ?? 'unknown',
+          uploadedByUserName: currentUser?.name ?? 'Unknown',
+        });
+        Alert.alert('Uploaded', `${docTitle} has been saved and will sync to other devices.`);
+      } catch {
+        // Local save succeeded but remote upload failed — still usable locally
+        Alert.alert(
+          'Saved locally',
+          `${docTitle} was saved on this device but could not be synced. It will retry on next sync.`,
+        );
+      }
+    } catch {
+      Alert.alert('Error', `Failed to upload ${docTitle}.`);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [currentUser]);
 
   const translateY = useRef(new Animated.Value(420)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -338,7 +345,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
-            bounciness: 0,
+            tension: 120,
+            friction: 14,
           }).start();
         }
       },
@@ -348,15 +356,18 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   useEffect(() => {
     if (visible) {
       setRendered(true);
+      translateY.setValue(420);
+      overlayOpacity.setValue(0);
       Animated.parallel([
-        Animated.timing(translateY, {
+        Animated.spring(translateY, {
           toValue: 0,
-          duration: 220,
           useNativeDriver: true,
+          tension: 65,
+          friction: 11,
         }),
         Animated.timing(overlayOpacity, {
           toValue: 1,
-          duration: 220,
+          duration: 280,
           useNativeDriver: true,
         }),
       ]).start();
@@ -366,12 +377,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: 420,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
       Animated.timing(overlayOpacity, {
         toValue: 0,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -596,7 +607,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   return (
     <Modal transparent statusBarTranslucent animationType="none" visible={rendered} onRequestClose={onClose}>
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}> 
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
 
       <View style={styles.sheetAnchor}>
@@ -695,8 +706,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                         {viewKey ? (
                           <Pressable
                             onPress={() => {
-                              if (viewKey === 'insurance') void openInsuranceDoc();
-                              else setSelectedGalleryItem(viewKey);
+                              const galleryItem = LEGAL_GALLERY_ITEMS.find((g) => g.key === viewKey);
+                              void openDocument(viewKey as CarDocumentKey, galleryItem?.title ?? viewKey);
                             }}
                             style={[
                               styles.editIconBtn,
@@ -785,6 +796,29 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                           keyboardType="decimal-pad"
                           placeholder="e.g. 1200"
                         />
+
+                        {viewKey ? (
+                          <Pressable
+                            onPress={() => void pickAndUploadDocument(viewKey as CarDocumentKey, row.label)}
+                            disabled={isUploading}
+                            style={({ pressed }) => [
+                              styles.attachDocBtn,
+                              {
+                                borderColor: colors.border,
+                                backgroundColor: colors.backgroundSecondary,
+                                opacity: pressed || isUploading ? 0.6 : 1,
+                              },
+                            ]}>
+                            {isUploading ? (
+                              <ActivityIndicator size={16} color={colors.textPrimary} />
+                            ) : (
+                              <MaterialIcons name="cloud-upload" size={18} color={colors.textPrimary} />
+                            )}
+                            <Text style={[styles.attachDocBtnText, { color: colors.textPrimary }]}>
+                              {isUploading ? 'UPLOADING…' : `ATTACH ${row.label.toUpperCase()} DOCUMENT`}
+                            </Text>
+                          </Pressable>
+                        ) : null}
 
                         <View style={styles.editorActions}>
                           <Pressable
@@ -915,9 +949,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
               <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.galleryHeader}>
                   <View style={styles.galleryCopy}>
-                    <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Photo Gallery</Text>
+                    <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Document Gallery</Text>
                     <Text style={[styles.galleryHint, { color: colors.textSecondary }]}>
-                      Open quick previews for PUCC, RC, Fitness, Road Tax, and Number Plate.
+                      Tap to open documents. Upload new files from the edit form above.
                     </Text>
                   </View>
                 </View>
@@ -926,13 +960,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                   {LEGAL_GALLERY_ITEMS.map((item) => (
                     <Pressable
                       key={item.key}
-                      onPress={() => {
-                        if (item.key === 'pdiReport') void openPdiReport();
-                        else if (item.key === 'insurance') void openInsuranceDoc();
-                        else if (item.key === 'rc') void openRcDoc();
-                        else if (item.key === 'numberPlate') void openNumberPlateImage();
-                        else setSelectedGalleryItem(item.key);
-                      }}
+                      onPress={() => void openDocument(item.key as CarDocumentKey, item.title)}
                       style={[
                         styles.galleryCard,
                         {
@@ -957,7 +985,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
       {selectedGalleryCard ? (
         <View style={styles.viewerOverlay}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setSelectedGalleryItem(null)} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedGalleryItem(null)} />
           <View style={[styles.viewerCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <View style={styles.viewerHeader}>
               <View>
@@ -976,49 +1004,19 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 <MaterialIcons name={selectedGalleryCard.icon} size={28} color="#FFFFFF" />
               </View>
               <Text style={[styles.viewerDocTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
-              {selectedGalleryCard.key === 'pdiReport' || selectedGalleryCard.key === 'insurance' || selectedGalleryCard.key === 'rc' || selectedGalleryCard.key === 'numberPlate' ? (
-                <>
-                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                    {selectedGalleryCard.key === 'pdiReport'
-                      ? 'Pre-Delivery Inspection report issued at time of vehicle purchase.'
-                      : selectedGalleryCard.key === 'insurance'
-                        ? 'Insurance policy document.'
-                        : selectedGalleryCard.key === 'rc'
-                          ? 'Registration certificate (RC).'
-                          : 'Registration plate photo.'}
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      if (selectedGalleryCard.key === 'pdiReport') void openPdiReport();
-                      else if (selectedGalleryCard.key === 'insurance') void openInsuranceDoc();
-                      else if (selectedGalleryCard.key === 'rc') void openRcDoc();
-                      else if (selectedGalleryCard.key === 'numberPlate') void openNumberPlateImage();
-                    }}
-                    style={({ pressed }) => [
-                      styles.openPdfBtn,
-                      { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    {selectedGalleryCard.key === 'numberPlate' ? (
-                      <MaterialIcons name="image" size={18} color="#FFFFFF" />
-                    ) : (
-                      <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
-                    )}
-                    <Text style={styles.openPdfBtnText}>
-                      {selectedGalleryCard.key === 'numberPlate' ? 'OPEN IMAGE' : 'OPEN PDF'}
-                    </Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                    Preview slot ready for document image asset.
-                  </Text>
-                  <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                    Replace this card with a scanned image when the final files are available.
-                  </Text>
-                </>
-              )}
+              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
+                Tap the button below to open. To upload a new version, use the edit form for the corresponding field.
+              </Text>
+              <Pressable
+                onPress={() => void openDocument(selectedGalleryCard.key as CarDocumentKey, selectedGalleryCard.title)}
+                style={({ pressed }) => [
+                  styles.openPdfBtn,
+                  { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <MaterialIcons name="open-in-new" size={18} color="#FFFFFF" />
+                <Text style={styles.openPdfBtnText}>OPEN DOCUMENT</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -1029,7 +1027,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheetAnchor: {
@@ -1037,6 +1035,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -1047,11 +1047,12 @@ const styles = StyleSheet.create({
   },
   handleWrap: {
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 10,
   },
   handle: {
-    width: 44,
-    height: 3,
+    width: 56,
+    height: 5,
+    borderRadius: 3,
   },
   headerRow: {
     flexDirection: 'row',
@@ -1301,6 +1302,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
   },
+  attachDocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    marginTop: 4,
+  },
+  attachDocBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
   customDatePicker: {
     borderWidth: 1,
     borderRadius: 14,
@@ -1308,7 +1326,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     paddingHorizontal: 20,
     backgroundColor: 'rgba(0,0,0,0.5)',

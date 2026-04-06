@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -29,8 +30,48 @@ export function DashboardSummaryCard({
   const recordedDate = latestEntry ? dayjs(latestEntry.createdAt).format(INDIA_DATE_FORMAT) : 'No records yet';
   const recordedBy = latestEntry?.userName ? latestEntry.userName.toUpperCase() : 'N/A';
 
+  // Entrance animation
+  const slideY = useRef(new Animated.Value(30)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const odometerScale = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.parallel([
+        Animated.spring(slideY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 10,
+        }),
+        Animated.timing(fadeIn, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+          easing: Easing.out(Easing.ease),
+        }),
+      ]),
+      Animated.spring(odometerScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 60,
+        friction: 8,
+      }),
+    ]).start();
+  }, [slideY, fadeIn, odometerScale]);
+
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Animated.View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          transform: [{ translateY: slideY }],
+          opacity: fadeIn,
+        },
+      ]}
+    >
       <View style={styles.headerRow}>
         <View
           style={[
@@ -57,19 +98,15 @@ export function DashboardSummaryCard({
         </Pressable>
       </View>
 
-      <View
-        style={[
-          styles.heroPanel,
-          
-        ]}>
-        <View style={styles.heroRow}>
+      <View style={[styles.heroPanel]}>
+        <Animated.View style={[styles.heroRow, { transform: [{ scale: odometerScale }] }]}>
           <View style={styles.odometerWrap}>
             <Text style={[styles.odometer, { color: colors.textPrimary }]}>{latestEntry ? latestEntry.odometer : '--'}</Text>
           </View>
           <View style={[styles.unitBadge, { backgroundColor: colors.invertedBackground }]}>
             <Text style={[styles.unitLabel, { color: colors.invertedText }]}>KM</Text>
           </View>
-        </View>
+        </Animated.View>
       </View>
 
       <View style={styles.metaRow}>
@@ -122,7 +159,7 @@ export function DashboardSummaryCard({
       {/* {syncStatus === 'failed' && lastSyncError ? (
         <Text style={[styles.errorText, { color: colors.textSecondary }]}>{lastSyncError}</Text>
       ) : null} */}
-    </View>
+    </Animated.View>
   );
 }
 

@@ -1,11 +1,16 @@
 import { ensureAnonymousFirebaseAuth, getFirebaseConfigErrorMessage, getFirebaseDb } from '@/config/firebase';
-import type { PendingQueueItem } from '@/types/models';
+import type { CarDocumentKey, PendingQueueItem } from '@/types/models';
 import {
   pullCarSpecFromRealtimeDb,
   pullEntriesFromRealtimeDb,
   pushCarSpecToRealtimeDb,
   pushEntryToRealtimeDb,
 } from '@/services/realtime/entriesRepository';
+import {
+  pullDocumentMetadataFromRealtimeDb,
+  pullSingleDocumentFromRealtimeDb,
+} from '@/services/realtime/documentsRepository';
+import { getAllLocalDocuments, saveDocumentLocally } from '@/services/storage/localDocuments';
 import { useAppStore } from '@/store/useAppStore';
 import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger';
 
@@ -138,6 +143,47 @@ async function runSyncCycleInternal(): Promise<void> {
       await pushCarSpecToRealtimeDb(currentState.carSpec);
       syncLog('sync_cycle_push_car_spec_success');
       useAppStore.getState().markCarSpecSynced();
+    }
+
+    // ── Document Sync (non-blocking) ──────────────────────────────────────────
+    try {
+      syncLog('sync_cycle_documents_start');
+      const remoteMeta = await pullDocumentMetadataFromRealtimeDb();
+      const remoteKeys = Object.keys(remoteMeta) as CarDocumentKey[];
+      syncLog('sync_cycle_documents_remote_meta', { count: remoteKeys.length, keys: remoteKeys });
+
+      if (remoteKeys.length > 0) {
+        const localDocs = await getAllLocalDocuments();
+
+        for (const docKey of remoteKeys) {
+          const remote = remoteMeta[docKey];
+          if (!remote) continue;
+
+          const local = localDocs[docKey];
+          const needsUpdate = !local || local.updatedAt < remote.uploadedAt;
+
+          if (needsUpdate) {
+            syncLog('sync_cycle_document_pull_needed', {
+              docKey,
+              localUpdatedAt: local?.updatedAt ?? null,
+              remoteUploadedAt: remote.uploadedAt,
+            });
+
+            const fullDoc = await pullSingleDocumentFromRealtimeDb(docKey);
+            if (fullDoc) {
+              await saveDocumentLocally(docKey, fullDoc.data, fullDoc.fileName, fullDoc.mimeType);
+              syncLog('sync_cycle_document_saved_locally', { docKey, fileName: fullDoc.fileName });
+            }
+          } else {
+            syncLog('sync_cycle_document_up_to_date', { docKey });
+          }
+        }
+      }
+
+      syncLog('sync_cycle_documents_done');
+    } catch (docError) {
+      // Document sync failures should not break the main sync cycle
+      syncWarn('sync_cycle_documents_error', toErrorPayload(docError));
     }
 
     const hasPending = useAppStore.getState().pendingQueue.length > 0;

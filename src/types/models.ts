@@ -143,3 +143,21 @@ export type CarSpecFieldUpdateSubmission = {
   odometer: number;
   cost?: number;
 };
+
+export type CarDocumentKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport';
+
+export type RemoteCarDocument = {
+  data: string; // base64-encoded file content
+  fileName: string;
+  mimeType: string;
+  uploadedAt: number;
+  uploadedByUserId: string;
+  uploadedByUserName: string;
+};
+
+export type LocalCarDocument = {
+  localUri: string;
+  fileName: string;
+  mimeType: string;
+  updatedAt: number;
+};
