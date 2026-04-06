@@ -37,11 +37,20 @@ export type ReportUserSummary = {
   netBalance: number;
 };
 
+export type ReportExpenseItem = {
+  id: string;
+  title: string;
+  amount: number;
+  userId: string;
+  userName: string;
+  createdAt: number;
+};
+
 export type ReportSection = {
   key: 'toll' | 'misc' | 'repairs';
   title: string;
   totalAmount: number;
-  paidByUser: Record<string, number>;
+  items: ReportExpenseItem[];
 };
 
 export type ExpenseReport = {
@@ -78,6 +87,12 @@ export type ExpenseReport = {
     usedAmount: number;
     closingBalance: number;
   };
+  trafficFine: {
+    totalAmount: number;
+    totalCount: number;
+    byUser: Record<string, number>;
+    items: ReportExpenseItem[];
+  };
   others: {
     totalSharedAmount: number;
     sections: ReportSection[];
@@ -86,7 +101,8 @@ export type ExpenseReport = {
     status: 'settled' | 'receive' | 'pay';
     toneIndex: number;
     amount: number;
-    globalMessage: string;
+    title: string;
+    directionMessage: string;
     currentUserMessage: string;
   };
 };
@@ -127,6 +143,21 @@ function clampNonNegative(value: number): number {
 
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function formatSettlementAmount(value: number): string {
+  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+function buildExpenseItem(entry: EntryRecord, fallbackTitle: string): ReportExpenseItem {
+  return {
+    id: entry.id,
+    title: (entry.expenseTitle ?? '').trim() || fallbackTitle,
+    amount: roundCurrency(entry.cost ?? 0),
+    userId: entry.userId,
+    userName: entry.userName,
+    createdAt: entry.createdAt,
+  };
 }
 
 function getMonthKey(timestamp: number): string {
@@ -315,11 +346,15 @@ export function buildExpenseReport(params: {
   let totalFastagUsed = 0;
   let totalFastagUsedBefore = 0;
   let totalOtherSharedAmount = 0;
+  let totalTrafficFineAmount = 0;
+
+  const trafficFineByUser = Object.fromEntries(users.map((user) => [user.id, 0])) as Record<string, number>;
+  const trafficFineItems: ReportExpenseItem[] = [];
 
   const otherSections = new Map<ReportSection['key'], ReportSection>([
-    ['toll', { key: 'toll', title: 'Toll Expenses', totalAmount: 0, paidByUser: {} }],
-    ['misc', { key: 'misc', title: 'Misc Expenses', totalAmount: 0, paidByUser: {} }],
-    ['repairs', { key: 'repairs', title: 'Repairs & Maintenance', totalAmount: 0, paidByUser: {} }],
+    ['toll', { key: 'toll', title: 'Toll Expenses', totalAmount: 0, items: [] }],
+    ['misc', { key: 'misc', title: 'Misc Expenses', totalAmount: 0, items: [] }],
+    ['repairs', { key: 'repairs', title: 'Repairs & Maintenance', totalAmount: 0, items: [] }],
   ]);
 
   // Fuel usage is derived from trips and the mileage configured for each month.
@@ -419,8 +454,15 @@ export function buildExpenseReport(params: {
       const tollSection = otherSections.get('toll');
       if (tollSection) {
         tollSection.totalAmount += amount;
-        tollSection.paidByUser[entry.userId] = (tollSection.paidByUser[entry.userId] ?? 0) + amount;
+        tollSection.items.push(buildExpenseItem(entry, 'Toll'));
       }
+      continue;
+    }
+
+    if (isTrafficFine(entry) && typeof entry.cost === 'number') {
+      totalTrafficFineAmount += entry.cost;
+      trafficFineByUser[entry.userId] = (trafficFineByUser[entry.userId] ?? 0) + entry.cost;
+      trafficFineItems.push(buildExpenseItem(entry, 'Traffic Fine'));
       continue;
     }
 
@@ -432,7 +474,7 @@ export function buildExpenseReport(params: {
     const section = otherSections.get(sectionKey);
     if (section) {
       section.totalAmount += entry.cost;
-      section.paidByUser[entry.userId] = (section.paidByUser[entry.userId] ?? 0) + entry.cost;
+      section.items.push(buildExpenseItem(entry, section.title));
     }
 
     const payer = usersById[entry.userId];
@@ -497,18 +539,21 @@ export function buildExpenseReport(params: {
   const monthIsSettled = Boolean(range.monthKey && settledMonths[range.monthKey]);
 
   let settlementStatus: ExpenseReport['settlement']['status'] = 'settled';
+  let title = 'Settled';
+  let directionMessage = 'No payment pending';
   let currentUserMessage = 'Settled for this month';
-  let globalMessage = 'Settled for this month';
   let toneIndex = 2;
 
   if (!monthIsSettled && settlementAmount >= SETTLEMENT_EPSILON) {
-    settlementStatus = activeUser.netBalance > 0 ? 'receive' : 'pay';
+    const isActiveUserReceiver = activeUser.id === receiveUser.id;
+    settlementStatus = isActiveUserReceiver ? 'receive' : 'pay';
+    title = 'Pending settlement';
+    directionMessage = `${payUser.name} pays ${receiveUser.name}`;
     currentUserMessage =
-      activeUser.netBalance > 0
-        ? `₹${settlementAmount.toLocaleString('en-IN')} to be received`
-        : `₹${settlementAmount.toLocaleString('en-IN')} to be paid`;
-    globalMessage = `${payUser.name} owes ${receiveUser.name} ₹${settlementAmount.toLocaleString('en-IN')}`;
-    toneIndex = activeUser.netBalance > 0 ? 1 : 0;
+      isActiveUserReceiver
+        ? `You receive ${formatSettlementAmount(settlementAmount)} from ${payUser.name}`
+        : `You pay ${formatSettlementAmount(settlementAmount)} to ${receiveUser.name}`;
+    toneIndex = isActiveUserReceiver ? 1 : 0;
   }
 
   return {
@@ -552,15 +597,21 @@ export function buildExpenseReport(params: {
       usedAmount: roundCurrency(totalFastagUsed),
       closingBalance: roundCurrency(closingFastagBalance),
     },
+    trafficFine: {
+      totalAmount: roundCurrency(totalTrafficFineAmount),
+      totalCount: trafficFineItems.length,
+      byUser: Object.fromEntries(
+        Object.entries(trafficFineByUser).map(([userId, value]) => [userId, roundCurrency(value)]),
+      ),
+      items: [...trafficFineItems].sort((left, right) => right.createdAt - left.createdAt),
+    },
     others: {
       totalSharedAmount: roundCurrency(totalOtherSharedAmount),
       sections: Array.from(otherSections.values())
         .map((section) => ({
           ...section,
           totalAmount: roundCurrency(section.totalAmount),
-          paidByUser: Object.fromEntries(
-            Object.entries(section.paidByUser).map(([userId, value]) => [userId, roundCurrency(value)]),
-          ),
+          items: [...section.items].sort((left, right) => right.createdAt - left.createdAt),
         }))
         .filter((section) => section.totalAmount > 0),
     },
@@ -568,7 +619,8 @@ export function buildExpenseReport(params: {
       status: settlementStatus,
       toneIndex,
       amount: settlementAmount,
-      globalMessage,
+      title,
+      directionMessage,
       currentUserMessage,
     },
   };

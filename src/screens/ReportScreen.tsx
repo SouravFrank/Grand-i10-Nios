@@ -28,6 +28,8 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import {
   buildExpenseReport,
+  type ReportExpenseItem,
+  type ReportSection,
   type ReportUserSummary,
 } from '@/screens/reporting/reportCalculations';
 import { useAppStore } from '@/store/useAppStore';
@@ -344,6 +346,48 @@ function UserSplitCard({
   );
 }
 
+function getOtherSectionIcon(sectionKey: ReportSection['key']): MaterialIconName {
+  if (sectionKey === 'toll') return 'toll';
+  if (sectionKey === 'repairs') return 'build';
+  return 'receipt';
+}
+
+function ExpenseItemRows({
+  items,
+  borderColor,
+  textPrimary,
+  textSecondary,
+}: {
+  items: ReportExpenseItem[];
+  borderColor: string;
+  textPrimary: string;
+  textSecondary: string;
+}) {
+  return (
+    <View style={styles.expenseList}>
+      {items.map((item, index) => (
+        <View
+          key={item.id}
+          style={[
+            styles.expenseRow,
+            index < items.length - 1
+              ? {
+                  borderBottomWidth: 1,
+                  borderBottomColor: borderColor,
+                }
+              : null,
+          ]}
+        >
+          <Text numberOfLines={1} style={[styles.expenseRowLabel, { color: textSecondary }]}>
+            {item.title}
+          </Text>
+          <Text style={[styles.expenseRowValue, { color: textPrimary }]}>{formatINR(item.amount)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function ReportScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
   const entries = useAppStore((state) => state.entries);
@@ -541,15 +585,7 @@ export function ReportScreen({ navigation }: Props) {
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
         <MotionCard delay={20}>
-          <View
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: surfaceColor,
-                borderColor: colors.border,
-              },
-            ]}
-          >
+          <View style={styles.pageHeader}>
             <View style={styles.heroHeader}>
               <Pressable
                 onPress={() => navigation.goBack()}
@@ -577,61 +613,8 @@ export function ReportScreen({ navigation }: Props) {
               />
             </View>
 
-            <View style={styles.heroMetaRow}>
-              <View
-                style={[
-                  styles.metaPill,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: secondarySurfaceColor,
-                  },
-                ]}
-              >
-                <MaterialIcons name="event" size={16} color={colors.textPrimary} />
-                <Text style={[styles.metaPillText, { color: colors.textPrimary }]}>{report.rangeLabel}</Text>
-              </View>
-
-              <View
-                style={[
-                  styles.metaPill,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: secondarySurfaceColor,
-                  },
-                ]}
-              >
-                <MaterialIcons name="bar-chart" size={16} color={colors.textPrimary} />
-                <Text style={[styles.metaPillText, { color: colors.textPrimary }]}>
-                  {report.summary.totalTrips} {report.summary.totalTrips === 1 ? 'trip' : 'trips'}
-                </Text>
-              </View>
-            </View>
-
             <View style={styles.filterBlock}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineRow}>
-                <Pressable
-                  onPress={() => setFilterMode('month')}
-                  style={[
-                    styles.filterChip,
-                    {
-                      borderColor: filterMode === 'month' ? colors.textPrimary : colors.border,
-                      backgroundColor: filterMode === 'month' ? colors.textPrimary : secondarySurfaceColor,
-                    },
-                  ]}
-                >
-                  {filterMode === 'month' ? (
-                    <MaterialIcons name="check" size={14} color={colors.invertedText} />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      { color: filterMode === 'month' ? colors.invertedText : colors.textPrimary },
-                    ]}
-                  >
-                    Current / Month
-                  </Text>
-                </Pressable>
-
                 <Pressable
                   onPress={() => setFilterMode('range')}
                   style={[
@@ -645,6 +628,11 @@ export function ReportScreen({ navigation }: Props) {
                   {filterMode === 'range' ? (
                     <MaterialIcons name="check" size={14} color={colors.invertedText} />
                   ) : null}
+                  <MaterialIcons
+                    name="date-range"
+                    size={14}
+                    color={filterMode === 'range' ? colors.invertedText : colors.textPrimary}
+                  />
                   <Text
                     style={[
                       styles.filterChipText,
@@ -654,37 +642,38 @@ export function ReportScreen({ navigation }: Props) {
                     Custom Range
                   </Text>
                 </Pressable>
-              </ScrollView>
 
-              {filterMode === 'month' ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineRow}>
-                  {monthOptions.map((monthKey) => {
-                    const isActive = monthKey === selectedMonthKey;
-                    return (
-                      <Pressable
-                        key={monthKey}
-                        onPress={() => setSelectedMonthKey(monthKey)}
+                {monthOptions.map((monthKey) => {
+                  const isActive = filterMode === 'month' && monthKey === selectedMonthKey;
+                  return (
+                    <Pressable
+                      key={monthKey}
+                      onPress={() => {
+                        setFilterMode('month');
+                        setSelectedMonthKey(monthKey);
+                      }}
+                      style={[
+                        styles.monthChip,
+                        {
+                          borderColor: isActive ? colors.textPrimary : colors.border,
+                          backgroundColor: isActive ? colors.textPrimary : secondarySurfaceColor,
+                        },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.monthChip,
-                          {
-                            borderColor: isActive ? colors.textPrimary : colors.border,
-                            backgroundColor: isActive ? colors.textPrimary : secondarySurfaceColor,
-                          },
+                          styles.monthChipText,
+                          { color: isActive ? colors.invertedText : colors.textPrimary },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.monthChipText,
-                            { color: isActive ? colors.invertedText : colors.textPrimary },
-                          ]}
-                        >
-                          {dayjs(`${monthKey}-01`).format(INDIA_MONTH_FORMAT)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              ) : (
+                        {dayjs(`${monthKey}-01`).format(INDIA_MONTH_FORMAT)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {filterMode === 'range' ? (
                 <View style={styles.rangeRow}>
                   <Pressable
                     onPress={() => openDatePicker('from')}
@@ -718,7 +707,7 @@ export function ReportScreen({ navigation }: Props) {
                     </Text>
                   </Pressable>
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
         </MotionCard>
@@ -735,30 +724,28 @@ export function ReportScreen({ navigation }: Props) {
                 },
               ]}
             >
-              <View style={styles.labelRow}>
-                <MaterialIcons name="account-balance-wallet" size={14} color={colors.textSecondary} />
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Expense</Text>
+              <View style={styles.summaryTopRow}>
+                <View style={styles.labelRow}>
+                  <MaterialIcons name="account-balance-wallet" size={14} color={colors.textSecondary} />
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Expense</Text>
+                </View>
+                <View
+                  style={[
+                    styles.inlineStatPill,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="timeline" size={12} color={colors.textSecondary} />
+                  <Text style={[styles.inlineStatText, { color: colors.textPrimary }]}>
+                    {report.summary.totalTrips} {report.summary.totalTrips === 1 ? 'trip' : 'trips'}
+                  </Text>
+                </View>
               </View>
               <View style={styles.summaryFrame}>
                 <CountUpText value={report.summary.totalExpense} formatter={formatINR} style={[styles.summaryValue, { color: colors.textPrimary }]} />
-              </View>
-              <View style={styles.summaryMetaRow}>
-                <View style={[styles.summaryMetaCard, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                  <View style={styles.labelRow}>
-                    <MaterialIcons name="event" size={12} color={colors.textSecondary} />
-                    <Text style={[styles.summaryMetaLabel, { color: colors.textSecondary }]}>Range</Text>
-                  </View>
-                  <Text style={[styles.summaryMetaValue, { color: colors.textPrimary }]}>
-                    {filterMode === 'month' ? dayjs(`${selectedMonthKey}-01`).format(INDIA_MONTH_FORMAT) : 'Custom'}
-                  </Text>
-                </View>
-                <View style={[styles.summaryMetaCard, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                  <View style={styles.labelRow}>
-                    <MaterialIcons name="timeline" size={12} color={colors.textSecondary} />
-                    <Text style={[styles.summaryMetaLabel, { color: colors.textSecondary }]}>Trips</Text>
-                  </View>
-                  <Text style={[styles.summaryMetaValue, { color: colors.textPrimary }]}>{report.summary.totalTrips}</Text>
-                </View>
               </View>
             </View>
 
@@ -820,8 +807,18 @@ export function ReportScreen({ navigation }: Props) {
                   <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Settlement</Text>
                 </View>
                 <Text style={[styles.settlementHeadline, { color: colors.textPrimary }]}>
-                  {report.settlement.globalMessage}
+                  {report.settlement.title}
                 </Text>
+                <View style={styles.labelRow}>
+                  <MaterialIcons
+                    name={report.isSettled ? 'task-alt' : 'arrow-forward'}
+                    size={13}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.settlementDirection, { color: colors.textSecondary }]}>
+                    {report.settlement.directionMessage}
+                  </Text>
+                </View>
               </View>
 
               <Pressable
@@ -838,32 +835,10 @@ export function ReportScreen({ navigation }: Props) {
                   ]}
                 >
                   <Animated.Text style={[styles.settlementBadgeText, { color: statusTextColor }]}>
-                    {report.settlement.currentUserMessage}
+                    {report.isSettled ? 'Closed' : report.settlement.currentUserMessage}
                   </Animated.Text>
                 </Animated.View>
               </Pressable>
-            </View>
-
-            <View style={styles.settlementMetaGrid}>
-              <View style={[styles.settlementMetaCard, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                <View style={styles.labelRow}>
-                  <MaterialIcons name="calendar-month" size={12} color={colors.textSecondary} />
-                  <Text style={[styles.settlementMetaLabel, { color: colors.textSecondary }]}>Selection</Text>
-                </View>
-                <Text style={[styles.settlementMetaValue, { color: colors.textPrimary }]}>
-                  {filterMode === 'month' ? 'Month' : 'Custom range'}
-                </Text>
-              </View>
-
-              <View style={[styles.settlementMetaCard, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                <View style={styles.labelRow}>
-                  <MaterialIcons name="edit" size={12} color={colors.textSecondary} />
-                  <Text style={[styles.settlementMetaLabel, { color: colors.textSecondary }]}>Mileage</Text>
-                </View>
-                <Text style={[styles.settlementMetaValue, { color: colors.textPrimary }]}>
-                  {report.canEditMileage ? 'Open' : 'Locked'}
-                </Text>
-              </View>
             </View>
 
             {!canConfirmSettlement && !report.isSettled ? (
@@ -1043,7 +1018,7 @@ export function ReportScreen({ navigation }: Props) {
                       ]}
                     >
                       <Text style={[styles.infoBubbleText, { color: colors.textPrimary }]}>
-                        Fuel usage is calculated from each user&apos;s distance share divided by the mileage saved for that month.
+                        Fuel used = distance / mileage
                       </Text>
                     </View>
                   ) : null}
@@ -1213,7 +1188,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={400} style={styles.gridSpanHalf}>
+              <MotionCard delay={400} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1254,7 +1229,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={460} style={styles.gridSpanHalf}>
+              <MotionCard delay={460} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1326,6 +1301,92 @@ export function ReportScreen({ navigation }: Props) {
                   </View>
                 </SectionCard>
               </MotionCard>
+
+              {report.trafficFine.totalAmount > 0 ? (
+                <MotionCard delay={520} style={styles.gridSpanFull}>
+                  <SectionCard
+                    style={[
+                      styles.glassCard,
+                      {
+                        backgroundColor: surfaceColor,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.sectionHeader}>
+                      <View style={styles.titleRow}>
+                        <MaterialIcons name="gavel" size={16} color={colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Traffic Fine</Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.inlineStatPill,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: secondarySurfaceColor,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="receipt-long" size={12} color={colors.textSecondary} />
+                        <Text style={[styles.inlineStatText, { color: colors.textPrimary }]}>
+                          {report.trafficFine.totalCount} {report.trafficFine.totalCount === 1 ? 'item' : 'items'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.doubleMetricRow}>
+                      <MetricPair
+                        label="Ayan"
+                        value={report.trafficFine.byUser.ayan ?? 0}
+                        formatter={formatINR}
+                        backgroundColor={secondarySurfaceColor}
+                        textPrimary={colors.textPrimary}
+                        textSecondary={colors.textSecondary}
+                        icon="person-outline"
+                      />
+                      <MetricPair
+                        label="Sourav"
+                        value={report.trafficFine.byUser.sourav ?? 0}
+                        formatter={formatINR}
+                        backgroundColor={secondarySurfaceColor}
+                        textPrimary={colors.textPrimary}
+                        textSecondary={colors.textSecondary}
+                        icon="person-outline"
+                      />
+                    </View>
+
+                    <View
+                      style={[
+                        styles.expenseSectionCard,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: secondarySurfaceColor,
+                        },
+                      ]}
+                    >
+                      <View style={styles.otherSectionHeader}>
+                        <View style={styles.labelRow}>
+                          <MaterialIcons name="warning-amber" size={14} color={colors.textSecondary} />
+                          <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>Entries</Text>
+                        </View>
+                        <CountUpText
+                          value={report.trafficFine.totalAmount}
+                          formatter={formatINR}
+                          style={[styles.otherSectionValue, { color: colors.textPrimary }]}
+                        />
+                      </View>
+
+                      <ExpenseItemRows
+                        items={report.trafficFine.items}
+                        borderColor={colors.border}
+                        textPrimary={colors.textPrimary}
+                        textSecondary={colors.textSecondary}
+                      />
+                    </View>
+                  </SectionCard>
+                </MotionCard>
+              ) : null}
             </View>
           ) : (
             <View style={styles.dashboardGrid}>
@@ -1341,47 +1402,49 @@ export function ReportScreen({ navigation }: Props) {
                 >
                   <View style={styles.sectionHeader}>
                     <View style={styles.titleRow}>
-                      <MaterialIcons name="receipt-long" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Others</Text>
+                      <MaterialIcons name="grid-view" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Overview</Text>
                     </View>
                   </View>
 
-                  {report.others.sections.length === 0 ? (
-                    <View style={styles.emptyBlock}>
-                      <MaterialIcons name="receipt-long" size={20} color={colors.textSecondary} />
-                      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No other expenses to show</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.othersGrid}>
-                      {report.others.sections.map((section) => (
-                        <View
-                          key={section.key}
-                          style={[
-                            styles.otherSectionCard,
-                            styles.gridBlockHalf,
-                            {
-                              borderColor: colors.border,
-                              backgroundColor: secondarySurfaceColor,
-                            },
-                          ]}
-                        >
-                          <View style={styles.otherSectionHeader}>
-                            <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>{section.title}</Text>
-                            <CountUpText value={section.totalAmount} formatter={formatINR} style={[styles.otherSectionValue, { color: colors.textPrimary }]} />
-                          </View>
-
-                          {Object.entries(section.paidByUser).map(([userId, amount]) => (
-                            <View key={`${section.key}-${userId}`} style={styles.otherLine}>
-                              <Text style={[styles.otherLineLabel, { color: colors.textSecondary }]}>
-                                {userId === 'ayan' ? 'Ayan' : 'Sourav'}
-                              </Text>
-                              <Text style={[styles.otherLineValue, { color: colors.textPrimary }]}>{formatINR(amount)}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                  <View style={styles.doubleMetricRow}>
+                    <MetricPair
+                      label="Ayan Paid"
+                      value={ayanSummary.totalPaidAmount}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="payments"
+                    />
+                    <MetricPair
+                      label="Sourav Paid"
+                      value={souravSummary.totalPaidAmount}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="payments"
+                    />
+                    <MetricPair
+                      label="Ayan Net"
+                      value={ayanSummary.netBalance}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="compare-arrows"
+                    />
+                    <MetricPair
+                      label="Sourav Net"
+                      value={souravSummary.netBalance}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="compare-arrows"
+                    />
+                  </View>
                 </SectionCard>
               </MotionCard>
 
@@ -1397,67 +1460,57 @@ export function ReportScreen({ navigation }: Props) {
                 >
                   <View style={styles.sectionHeader}>
                     <View style={styles.titleRow}>
-                      <MaterialIcons name="compare-arrows" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Settlement</Text>
+                      <MaterialIcons name="receipt-long" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Items</Text>
                     </View>
                   </View>
 
-                  <View
-                    style={[
-                      styles.finalSettlementPanel,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: secondarySurfaceColor,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.finalSettlementText, { color: colors.textPrimary }]}>
-                      {report.settlement.globalMessage}
-                    </Text>
-                    <Text style={[styles.finalSettlementSubtext, { color: colors.textSecondary }]}>{report.settlement.currentUserMessage}</Text>
-                  </View>
+                  {report.others.sections.length === 0 ? (
+                    <View style={styles.emptyBlock}>
+                      <MaterialIcons name="receipt-long" size={20} color={colors.textSecondary} />
+                      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No other expenses to show</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.expenseSectionStack}>
+                      {report.others.sections.map((section) => (
+                        <View
+                          key={section.key}
+                          style={[
+                            styles.expenseSectionCard,
+                            {
+                              borderColor: colors.border,
+                              backgroundColor: secondarySurfaceColor,
+                            },
+                          ]}
+                        >
+                          <View style={styles.otherSectionHeader}>
+                            <View style={styles.labelRow}>
+                              <MaterialIcons
+                                name={getOtherSectionIcon(section.key)}
+                                size={14}
+                                color={colors.textSecondary}
+                              />
+                              <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>
+                                {section.title}
+                              </Text>
+                            </View>
+                            <CountUpText
+                              value={section.totalAmount}
+                              formatter={formatINR}
+                              style={[styles.otherSectionValue, { color: colors.textPrimary }]}
+                            />
+                          </View>
 
-                  <View style={styles.doubleMetricRow}>
-                    <MetricPair
-                      label="Ayan net balance"
-                      value={ayanSummary.netBalance}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="north-east"
-                    />
-                    <MetricPair
-                      label="Sourav net balance"
-                      value={souravSummary.netBalance}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="north-east"
-                    />
-                  </View>
-
-                  <View style={styles.doubleMetricRow}>
-                    <MetricPair
-                      label="Ayan paid total"
-                      value={ayanSummary.totalPaidAmount}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="payments"
-                    />
-                    <MetricPair
-                      label="Sourav paid total"
-                      value={souravSummary.totalPaidAmount}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="payments"
-                    />
-                  </View>
+                          <ExpenseItemRows
+                            items={section.items}
+                            borderColor={colors.border}
+                            textPrimary={colors.textPrimary}
+                            textSecondary={colors.textSecondary}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </SectionCard>
               </MotionCard>
             </View>
@@ -1542,6 +1595,10 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 24,
     gap: 10,
+  },
+  pageHeader: {
+    gap: 10,
+    paddingTop: 2,
   },
   heroCard: {
     borderWidth: 1,
@@ -1708,8 +1765,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
   },
+  summaryTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
   summaryFrame: {
     gap: 2,
+  },
+  inlineStatPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  inlineStatText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   summaryMetaRow: {
     flexDirection: 'row',
@@ -1763,6 +1839,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
     lineHeight: 22,
+  },
+  settlementDirection: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   settlementBadgePressable: {
     alignSelf: 'flex-start',
@@ -2028,7 +2108,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     gap: 10,
-    width: '48%',
+    width: '100%',
   },
   userSplitHeader: {
     flexDirection: 'row',
@@ -2108,11 +2188,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     gap: 5,
-    width: '100%',
+    width: '48%',
   },
-  othersGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  expenseSectionStack: {
     gap: 10,
   },
   fastagUserName: {
@@ -2128,7 +2206,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
-  otherSectionCard: {
+  expenseSectionCard: {
     borderWidth: 1,
     borderRadius: 16,
     padding: 12,
@@ -2148,33 +2226,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
-  otherLine: {
+  expenseList: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  expenseRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
+    paddingVertical: 10,
   },
-  otherLineLabel: {
+  expenseRowLabel: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
   },
-  otherLineValue: {
+  expenseRowValue: {
     fontSize: 13,
     fontWeight: '800',
-  },
-  finalSettlementPanel: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    gap: 4,
-  },
-  finalSettlementText: {
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 24,
-  },
-  finalSettlementSubtext: {
-    fontSize: 12,
-    lineHeight: 15,
   },
   datePickerCard: {
     marginTop: 14,
