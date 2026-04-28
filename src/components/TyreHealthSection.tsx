@@ -5,23 +5,23 @@ import { useAppTheme } from '@/theme/useAppTheme';
 import type { TyrePosition, TyreRecord } from '@/types/models';
 import { dayjs } from '@/utils/day';
 import {
-  AVERAGE_TOTAL_TYRE_LIFE_KM,
-  MIN_SAFE_TREAD_MM,
-  NEW_TREAD_DEPTH_MM,
-  POSITION_LABELS,
-  POSITION_ORDER,
-  POSITION_SHORT,
-  TYRE_SIZE,
-  applyTyreInspectionUpdate,
-  applyTyrePositionUpdate,
-  buildTyrePositionAssignments,
-  calcCurrentHealth,
-  calcHealthFromTread,
-  calcRemainingKmFromHealth,
-  getTyreDisplayName,
-  isActiveTyrePosition,
-  normalizeTyreSetup,
-  sortTyresByCurrentPosition,
+    AVERAGE_TOTAL_TYRE_LIFE_KM,
+    MIN_SAFE_TREAD_MM,
+    NEW_TREAD_DEPTH_MM,
+    POSITION_LABELS,
+    POSITION_ORDER,
+    POSITION_SHORT,
+    TYRE_SIZE,
+    applyTyreInspectionUpdate,
+    applyTyrePositionUpdate,
+    buildTyrePositionAssignments,
+    calcCurrentHealth,
+    calcHealthFromTread,
+    calcRemainingKmFromHealth,
+    getTyreDisplayName,
+    isActiveTyrePosition,
+    normalizeTyreSetup,
+    sortTyresByCurrentPosition,
 } from '@/utils/tyreHealth';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -148,10 +148,6 @@ export function TyreHealthSection({ currentOdometer }: Props) {
       Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
       return;
     }
-    if (parsedOdometer < currentOdometer) {
-      Alert.alert('Invalid odometer', `Odometer must be >= ${currentOdometer} km.`);
-      return;
-    }
 
     const eventDate = dayjs().format('YYYY-MM-DD');
 
@@ -259,10 +255,6 @@ export function TyreHealthSection({ currentOdometer }: Props) {
     const parsedOdometer = Number(draftPositionOdometer);
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
       Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
-      return;
-    }
-    if (parsedOdometer < currentOdometer) {
-      Alert.alert('Invalid odometer', `Odometer must be >= ${currentOdometer} km.`);
       return;
     }
 
@@ -397,11 +389,6 @@ export function TyreHealthSection({ currentOdometer }: Props) {
               label="Odometer at Position Update (km)"
               value={draftPositionOdometer}
               onChangeText={setDraftPositionOdometer}
-              error={
-                draftPositionOdometer && Number(draftPositionOdometer) < currentOdometer
-                  ? `Must be >= ${currentOdometer}`
-                  : undefined
-              }
             />
 
             <View style={styles.editorActions}>
@@ -633,11 +620,6 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                           label="Odometer at Update (km)"
                           value={draftOdometer}
                           onChangeText={setDraftOdometer}
-                          error={
-                            draftOdometer && Number(draftOdometer) < currentOdometer
-                              ? `Must be >= ${currentOdometer}`
-                              : undefined
-                          }
                         />
 
                         <View style={styles.editorActions}>

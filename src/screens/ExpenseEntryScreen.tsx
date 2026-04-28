@@ -1,18 +1,18 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
+    Alert,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Switch,
+    Text,
+    View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -182,16 +182,6 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 
     const parsedOdometer = Number(odometer);
     const parsedCost = Number(cost);
-    const odometerFloor = isEditing ? null : lastOdometer;
-
-    if (odometerFloor !== null && parsedOdometer < odometerFloor) {
-      Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
-      return;
-    }
-    if (odometerFloor !== null && parsedOdometer - odometerFloor > 500) {
-      Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
-      return;
-    }
 
     const category = inferExpenseCategory(expenseTitle);
     const isShareable = SHAREABLE_CATEGORIES.includes(category);
