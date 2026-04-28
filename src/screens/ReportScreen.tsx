@@ -42,7 +42,6 @@ import { CountUpText } from './reporting/components/CountUpText';
 import { ExpenseItemRows } from './reporting/components/ExpenseItemRows';
 import { MetricPair } from './reporting/components/MetricPair';
 import { MotionCard } from './reporting/components/MotionCard';
-import { ReportHeroIcon } from './reporting/components/ReportHeroIcon';
 import { SectionCard } from './reporting/components/SectionCard';
 import { UserSplitCard } from './reporting/components/UserSplitCard';
 
@@ -265,12 +264,6 @@ export function ReportScreen({ navigation }: Props) {
                 <Text style={[styles.heroEyebrow, { color: colors.textSecondary }]}>REPORT</Text>
                 <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Trip Expenses</Text>
               </View>
-
-              <ReportHeroIcon
-                cardColor={secondarySurfaceColor}
-                borderColor={colors.border}
-                iconColor={colors.textPrimary}
-              />
             </View>
 
             <View style={styles.filterBlock}>
