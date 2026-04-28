@@ -1,27 +1,27 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Asset } from 'expo-asset';
+import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { TyreHealthSection } from '@/components/TyreHealthSection';
 import { pushDocumentToRealtimeDb } from '@/services/realtime/documentsRepository';
 import { getLocalDocument, saveDocumentFromUri } from '@/services/storage/localDocuments';
-import { useAppTheme } from '@/theme/useAppTheme';
 import { useAppStore } from '@/store/useAppStore';
+import { useAppTheme } from '@/theme/useAppTheme';
 import type {
-  CarDocumentKey,
-  CarSpec,
-  CarSpecEditableFieldKey,
-  CarSpecFieldUpdateSubmission,
+    CarDocumentKey,
+    CarSpec,
+    CarSpecEditableFieldKey,
+    CarSpecFieldUpdateSubmission,
 } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
@@ -184,6 +184,23 @@ const MAINTENANCE_INTERVALS_DAYS: Partial<Record<CarSpecEditableFieldKey, number
 
 type TrafficLightColor = 'green' | 'yellow' | 'orange' | 'red';
 
+function convertDaysToYMD(days: number): { years: number; months: number; days: number } {
+  const years = Math.floor(days / 365);
+  const remainingDaysAfterYears = days % 365;
+  const months = Math.floor(remainingDaysAfterYears / 30);
+  const remainingDays = remainingDaysAfterYears % 30;
+  
+  return { years, months, days: remainingDays };
+}
+
+function formatYMD(years: number, months: number, days: number): string {
+  const parts = [];
+  if (years > 0) parts.push(`${years}Y`);
+  if (months > 0) parts.push(`${months}M`);
+  if (days > 0) parts.push(`${days}D`);
+  return parts.join(' ');
+}
+
 function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey, isExpiryDate: boolean): { color: TrafficLightColor, hex: string, rgba: string, text: string, remainingDays: number } | null {
   if (value === 'Not set' || !value) {
     return null;
@@ -224,11 +241,14 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
 
   let text = '';
   if (remainingDays < 0) {
-    text = `Overdue by ${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
+    const absDays = Math.abs(remainingDays);
+    const { years, months, days } = convertDaysToYMD(absDays);
+    text = `Overdue by ${formatYMD(years, months, days)}`;
   } else if (remainingDays === 0) {
     text = 'Due today';
   } else {
-    text = `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
+    const { years, months, days } = convertDaysToYMD(remainingDays);
+    text = `${formatYMD(years, months, days)} left`;
   }
 
   return { color, hex, rgba, text, remainingDays };
@@ -900,12 +920,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.fastagTitle, { color: colors.textPrimary }]}>FASTag Balance</Text>
-                      <Text style={[styles.fastagSubtitle, { color: colors.textSecondary }]}>Calculated from recharges & toll deductions</Text>
+                      <Text style={[styles.fastagSubtitle, { color: colors.textSecondary }]}>Current balance</Text>
                     </View>
                   </View>
 
                   <View style={[styles.fastagBalanceRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                    <Text style={[styles.fastagBalanceLabel, { color: colors.textSecondary }]}>ESTIMATED BALANCE</Text>
+                    <Text style={[styles.fastagBalanceLabel, { color: colors.textSecondary }]}>CURRENT BALANCE</Text>
                     <Text style={[
                       styles.fastagBalanceValue,
                       {
@@ -919,32 +939,6 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                       ₹{fastagData.balance.toLocaleString('en-IN')}
                     </Text>
                   </View>
-
-                  <View style={styles.fastagStatsRow}>
-                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>RECHARGED</Text>
-                      <Text style={[styles.fastagStatValue, { color: '#10B981' }]}>₹{fastagData.totalRecharges.toLocaleString('en-IN')}</Text>
-                      {fastagData.lastRechargeDate ? (
-                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>Last: ₹{fastagData.lastRechargeAmount}</Text>
-                      ) : null}
-                    </View>
-                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>TOLL SPENT</Text>
-                      <Text style={[styles.fastagStatValue, { color: '#EF4444' }]}>₹{fastagData.totalTolls.toLocaleString('en-IN')}</Text>
-                      {fastagData.tollCount > 0 ? (
-                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>{fastagData.tollCount} tolls • Avg ₹{fastagData.avgToll}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  {fastagData.balance <= 200 && fastagData.totalRecharges > 0 ? (
-                    <View style={[styles.fastagLowBanner, { backgroundColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', borderColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)' }]}>
-                      <MaterialIcons name="warning" size={14} color={fastagData.balance <= 0 ? '#EF4444' : '#F59E0B'} />
-                      <Text style={[styles.fastagLowText, { color: fastagData.balance <= 0 ? '#EF4444' : '#F59E0B' }]}>
-                        {fastagData.balance <= 0 ? 'FASTag balance exhausted — recharge needed!' : 'Low FASTag balance — consider recharging soon.'}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
               <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
                 <View style={styles.galleryHeader}>
