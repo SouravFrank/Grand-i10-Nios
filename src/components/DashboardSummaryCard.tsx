@@ -6,6 +6,7 @@ import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, SyncStatus } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
+import { getEntryOwnerName } from '@/utils/entryOwnership';
 
 type DashboardSummaryCardProps = {
   latestEntry?: EntryRecord;
@@ -28,7 +29,7 @@ export function DashboardSummaryCard({
   const syncButtonDisabled = syncStatus === 'syncing';
   const syncIconName = syncStatus === 'syncing' ? 'sync' : 'refresh';
   const recordedDate = latestEntry ? dayjs(latestEntry.createdAt).format(INDIA_DATE_FORMAT) : 'No records yet';
-  const recordedBy = latestEntry?.userName ? latestEntry.userName.toUpperCase() : 'N/A';
+  const recordedBy = latestEntry ? getEntryOwnerName(latestEntry).toUpperCase() : 'N/A';
 
   // Entrance animation
   const slideY = useRef(new Animated.Value(30)).current;

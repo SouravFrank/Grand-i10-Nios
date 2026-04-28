@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Grand i10 Nios",
+    "name": "Viraaj i10",
     "slug": "grand-i10-Nios",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -103,7 +103,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Grand i10 Nios to use Face ID for secure login."
+          "faceIDPermission": "Allow Viraaj i10 to use Face ID for secure login."
         }
       ],
       [

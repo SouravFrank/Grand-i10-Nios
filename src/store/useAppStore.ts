@@ -38,10 +38,12 @@ import type {
   RemoteEntryDocument,
   SpecUpdateDetail,
   SyncStatus,
+  TyreRecord,
 } from "@/types/models";
 import { dayjs, normalizeIndianDate } from "@/utils/day";
 import { createId } from "@/utils/id";
 import { syncLog } from "@/utils/syncLogger";
+import { buildDefaultTyreSetup, normalizeTyreSetup } from "@/utils/tyreHealth";
 
 type PersistedAppData = {
   entries: EntryRecord[];
@@ -89,10 +91,15 @@ type UpdateEntryInput = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  userId?: string;
+  userName?: string;
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
   sharedTrip?: boolean;
+  sharedTripMarkedById?: string;
+  sharedTripMarkedByName?: string;
+  createdAt?: number;
 };
 
 const DEFAULT_CAR_SPEC: CarSpec = {
@@ -120,6 +127,7 @@ const DEFAULT_CAR_SPEC: CarSpec = {
   lastBatteryChangedOn: "Not set",
   lastBrakePadsChangedOn: "05 Sep 2025",
   lastTyresChangedOn: "Not set",
+  tyreSetup: buildDefaultTyreSetup(),
   puccExpireDate: "20 Sep 2026",
   insuranceValidUpTo: "26 Feb 2027",
   fitnessValidUpTo: "08 Aug 2038",
@@ -168,6 +176,7 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
     lastBatteryChangedOn: normalizeIndianDate(merged.lastBatteryChangedOn),
     lastBrakePadsChangedOn: normalizeIndianDate(merged.lastBrakePadsChangedOn),
     lastTyresChangedOn: normalizeIndianDate(merged.lastTyresChangedOn),
+    tyreSetup: normalizeTyreSetup(merged.tyreSetup),
     puccExpireDate: normalizeIndianDate(merged.puccExpireDate),
     insuranceValidUpTo: normalizeIndianDate(merged.insuranceValidUpTo),
     fitnessValidUpTo: normalizeIndianDate(merged.fitnessValidUpTo),
@@ -184,12 +193,15 @@ function requiresCarSpecNormalization(
 
   const normalized = normalizeCarSpec(carSpec);
   const keys = Object.keys(DEFAULT_CAR_SPEC) as (keyof CarSpec)[];
+  const serializeCarSpecValue = (value: unknown) =>
+    typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
 
   return keys.some((key) => {
     const rawValue = carSpec[key];
     const normalizedValue = normalized[key];
     return (
-      rawValue === undefined || String(rawValue) !== String(normalizedValue)
+      rawValue === undefined ||
+      serializeCarSpecValue(rawValue) !== serializeCarSpecValue(normalizedValue)
     );
   });
 }
@@ -238,6 +250,7 @@ type AppState = PersistedAppData & {
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
   updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  updateTyreSetup: (tyreSetup: TyreRecord[]) => void;
   markCarSpecSynced: () => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
   setReportMileage: (monthKey: string, value: number) => void;
@@ -299,21 +312,31 @@ function validateUpdatedEntryOdometer(
   entries: EntryRecord[],
   entryId: string,
   nextOdometer: number,
+  nextCreatedAt?: number,
 ): void {
   if (!Number.isFinite(nextOdometer) || nextOdometer <= 0) {
     throw new Error("Enter a valid odometer reading.");
   }
 
-  const chronologicalEntries = [...entries].sort(
-    (a, b) => a.createdAt - b.createdAt,
-  );
+  const targetEntry = entries.find((entry) => entry.id === entryId);
+  if (!targetEntry) {
+    throw new Error("Entry not found.");
+  }
+
+  const effectiveCreatedAt = nextCreatedAt ?? targetEntry.createdAt;
+  const chronologicalEntries = entries
+    .map((entry) =>
+      entry.id === entryId
+        ? {
+            ...entry,
+            createdAt: effectiveCreatedAt,
+          }
+        : entry,
+    )
+    .sort((a, b) => a.createdAt - b.createdAt);
   const targetIndex = chronologicalEntries.findIndex(
     (entry) => entry.id === entryId,
   );
-
-  if (targetIndex === -1) {
-    throw new Error("Entry not found.");
-  }
 
   const previousEntry = chronologicalEntries[targetIndex - 1];
   const nextEntry = chronologicalEntries[targetIndex + 1];
@@ -332,6 +355,32 @@ function validateUpdatedEntryOdometer(
     throw new Error(
       "Single odometer entry cannot exceed 500 km from the previous reading.",
     );
+  }
+
+  if (targetEntry.tripId && targetEntry.tripStage) {
+    const pairedEntry = entries.find(
+      (entry) =>
+        entry.id !== entryId &&
+        entry.tripId === targetEntry.tripId &&
+        entry.tripStage &&
+        entry.tripStage !== targetEntry.tripStage,
+    );
+
+    if (
+      pairedEntry &&
+      targetEntry.tripStage === "start" &&
+      effectiveCreatedAt > pairedEntry.createdAt
+    ) {
+      throw new Error("Trip start date cannot be after the trip end date.");
+    }
+
+    if (
+      pairedEntry &&
+      targetEntry.tripStage === "end" &&
+      effectiveCreatedAt < pairedEntry.createdAt
+    ) {
+      throw new Error("Trip end date cannot be before the trip start date.");
+    }
   }
 }
 
@@ -611,12 +660,31 @@ export const useAppStore = create<AppState>()(
           );
         }
 
-        validateUpdatedEntryOdometer(entries, entryId, updates.odometer);
+        validateUpdatedEntryOdometer(
+          entries,
+          entryId,
+          updates.odometer,
+          updates.createdAt ?? targetEntry.createdAt,
+        );
 
         const secret = await ensureIntegritySecret();
+        const isPayerEditableEntry =
+          targetEntry.type === "fuel" || targetEntry.type === "expense";
+        const preservedLastSyncedAt =
+          targetEntry.lastSyncedAt ??
+          (targetEntry.synced ? targetEntry.createdAt : undefined);
         const updatedEntry: Entry = {
           ...targetEntry,
+          userId:
+            isPayerEditableEntry
+              ? updates.userId ?? targetEntry.userId
+              : targetEntry.userId,
+          userName:
+            isPayerEditableEntry
+              ? updates.userName ?? targetEntry.userName
+              : targetEntry.userName,
           odometer: updates.odometer,
+          createdAt: updates.createdAt ?? targetEntry.createdAt,
           fuelAmount:
             targetEntry.type === "fuel" ? updates.fuelAmount : undefined,
           fuelLiters:
@@ -633,12 +701,21 @@ export const useAppStore = create<AppState>()(
             updates.sharedTrip !== undefined
               ? updates.sharedTrip
               : targetEntry.sharedTrip,
-          sharedTripMarkedById: updates.sharedTrip
-            ? targetEntry.userId
-            : undefined,
-          sharedTripMarkedByName: updates.sharedTrip
-            ? targetEntry.userName
-            : undefined,
+          // Fuel and expense entries reuse the existing sharedTripMarkedBy
+          // fields to retain who entered the record, even when a different
+          // user paid.
+          sharedTripMarkedById:
+            isPayerEditableEntry
+              ? updates.sharedTripMarkedById ?? targetEntry.sharedTripMarkedById
+              : updates.sharedTrip
+                ? targetEntry.userId
+                : undefined,
+          sharedTripMarkedByName:
+            isPayerEditableEntry
+              ? updates.sharedTripMarkedByName ?? targetEntry.sharedTripMarkedByName
+              : updates.sharedTrip
+                ? targetEntry.userName
+                : undefined,
           synced: false,
         };
         const integrityHash = await buildEntryIntegrityHash(
@@ -655,18 +732,28 @@ export const useAppStore = create<AppState>()(
         const nextRecord: EntryRecord = {
           ...updatedEntry,
           integrityHash,
+          lastSyncedAt: preservedLastSyncedAt,
         };
 
         set((state) => {
-          const nextEntries = state.entries.map((entry) =>
-            entry.id === entryId ? nextRecord : entry,
-          );
+          const nextEntries = state.entries
+            .map((entry) => (entry.id === entryId ? nextRecord : entry))
+            .sort((a, b) => b.createdAt - a.createdAt);
 
           return {
             entries: nextEntries,
             pendingQueue: nextQueue,
             lastOdometerValue: recalculateLastOdometer(nextEntries),
             syncStatus: "failed",
+            activeTrip:
+              state.activeTrip?.startEntryId === entryId
+                ? {
+                    ...state.activeTrip,
+                    startEntryId: nextRecord.id,
+                    startOdometer: nextRecord.odometer,
+                    startedAt: nextRecord.createdAt,
+                  }
+                : state.activeTrip,
           };
         });
 
@@ -698,6 +785,7 @@ export const useAppStore = create<AppState>()(
 
       markEntriesSynced: (entryIds) => {
         const ids = new Set(entryIds);
+        const lastSyncedAt = Date.now();
 
         set((state) => ({
           entries: state.entries.map((entry) =>
@@ -705,6 +793,7 @@ export const useAppStore = create<AppState>()(
               ? {
                   ...entry,
                   synced: true,
+                  lastSyncedAt,
                 }
               : entry,
           ),
@@ -720,6 +809,7 @@ export const useAppStore = create<AppState>()(
 
       mergeRemoteEntries: async (remoteEntries) => {
         const secret = await ensureIntegritySecret();
+        const lastSyncedAt = Date.now();
         const remoteRecords: EntryRecord[] = [];
         for (const remoteEntry of remoteEntries) {
           const baseEntry: Entry = {
@@ -730,7 +820,11 @@ export const useAppStore = create<AppState>()(
             baseEntry,
             secret,
           );
-          remoteRecords.push({ ...baseEntry, integrityHash });
+          remoteRecords.push({
+            ...baseEntry,
+            integrityHash,
+            lastSyncedAt,
+          });
         }
 
         set((state) => {
@@ -746,11 +840,14 @@ export const useAppStore = create<AppState>()(
           // deleted on the server and must be removed locally.
           const allEntries = Array.from(byId.values())
             .sort((a, b) => b.createdAt - a.createdAt)
-            .filter((entry) => !entry.synced || remoteIdSet.has(entry.id));
+            .filter((entry) => {
+              const localOnlyEntry = !entry.synced && !entry.lastSyncedAt;
+              return remoteIdSet.has(entry.id) || localOnlyEntry;
+            });
 
           const lastOdometerValue = allEntries.reduce(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
-            state.lastOdometerValue,
+            0,
           );
           const unsyncedIds = new Set(
             allEntries
@@ -839,6 +936,16 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      updateTyreSetup: (tyreSetup) => {
+        set((state) => ({
+          carSpec: normalizeCarSpec({
+            ...state.carSpec,
+            tyreSetup,
+          }),
+          carSpecDirty: true,
+        }));
+      },
+
       markCarSpecSynced: () => {
         set({ carSpecDirty: false });
       },
@@ -907,6 +1014,9 @@ export const useAppStore = create<AppState>()(
               ? {
                   ...updatedEntry,
                   integrityHash,
+                  lastSyncedAt:
+                    entry.lastSyncedAt ??
+                    (entry.synced ? entry.createdAt : undefined),
                 }
               : entry,
           ),

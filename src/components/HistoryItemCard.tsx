@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
+import { isPayerSelectableEntryType } from '@/utils/entryOwnership';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef } from 'react';
@@ -148,6 +149,7 @@ export function HistoryItemCard({
         : isTripSummary
           ? `${tripStartOdometer} -> ${tripEndOdometer} km`
           : `${entry.odometer} km`;
+  const userChipLabel = isPayerSelectableEntryType(entry.type) ? `Paid by ${entry.userName}` : entry.userName;
 
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string; size?: 'large' | 'small' }> = [];
 
@@ -227,7 +229,7 @@ export function HistoryItemCard({
                 </Text>
                 <Text style={[styles.entryType, { color: colors.textSecondary }]}>{entryTypeLabel}</Text>
                 <View style={[styles.userChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                  <Text style={[styles.userName, { color: colors.textPrimary }]}>{entry.userName}</Text>
+                  <Text style={[styles.userName, { color: colors.textPrimary }]}>{userChipLabel}</Text>
                 </View>
               </View>
 

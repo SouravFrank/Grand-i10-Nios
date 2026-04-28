@@ -26,6 +26,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, EntryType } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, INDIA_MONTH_FORMAT } from '@/utils/day';
+import { getEntryOwnerId } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'History'>;
 
@@ -42,6 +43,13 @@ type DatePreset = 'all' | 'last7' | 'last30' | 'thisMonth' | 'custom';
 
 const MIN_FILTER_DATE = dayjs('2026-02-01').startOf('day');
 const MAX_FILTER_DATE = dayjs().endOf('day');
+
+function canEditEntry(entry: EntryRecord, currentUserId?: string | null) {
+  if (!currentUserId) {
+    return false;
+  }
+  return getEntryOwnerId(entry) === currentUserId;
+}
 
 function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
@@ -744,7 +752,7 @@ export function HistoryScreen({ navigation }: Props) {
             tripStartOdometer={item.tripStartOdometer}
             tripEndOdometer={item.tripEndOdometer}
             index={index}
-            canEdit={Boolean(currentUser && item.entry.userId === currentUser.id)}
+            canEdit={canEditEntry(item.entry, currentUser?.id)}
             onPressEdit={() => {
               if (item.entry.type === 'fuel') {
                 navigation.navigate('FuelEntryModal', { entryId: item.entry.id });

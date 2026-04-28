@@ -1,8 +1,9 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   Alert,
@@ -20,10 +21,13 @@ import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { ALLOWED_USERS } from '@/constants/users';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
+import { dayjs, INDIA_DATE_FORMAT, mergeDateWithExistingTime } from '@/utils/day';
+import { getEntryOwnerId, getEntryOwnerName } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'FuelEntryModal'>;
 
@@ -47,6 +51,11 @@ const fuelSchema = z
       .min(1, 'Fuel liters is required.')
       .refine((value) => Number(value) > 0, 'Fuel liters must be positive.'),
     fullTank: z.boolean(),
+    paidByUserId: z
+      .string()
+      .trim()
+      .min(1, 'Select who paid.')
+      .refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
   })
   .superRefine((data, context) => {
     const liters = Number(data.fuelLiters);
@@ -84,6 +93,8 @@ export function FuelEntryScreen({ navigation, route }: Props) {
     ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'fuel')
     : undefined;
   const isEditing = Boolean(editingEntry);
+  const [entryDate, setEntryDate] = useState(() => new Date(editingEntry?.createdAt ?? Date.now()));
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   const {
     control,
@@ -98,9 +109,11 @@ export function FuelEntryScreen({ navigation, route }: Props) {
       fuelAmount: editingEntry?.fuelAmount ? String(editingEntry.fuelAmount) : '',
       fuelLiters: editingEntry?.fuelLiters ? String(editingEntry.fuelLiters) : '',
       fullTank: editingEntry?.fullTank ?? false,
+      paidByUserId: editingEntry?.userId ?? currentUser?.id ?? '',
     },
   });
   const fullTankSelected = watch('fullTank');
+  const selectedPaidByUserId = watch('paidByUserId');
 
   useEffect(() => {
     if (fullTankSelected) {
@@ -110,6 +123,28 @@ export function FuelEntryScreen({ navigation, route }: Props) {
       });
     }
   }, [fullTankSelected, setValue]);
+
+  useEffect(() => {
+    if (!isEditing && currentUser && !selectedPaidByUserId) {
+      setValue('paidByUserId', currentUser.id, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  }, [currentUser, isEditing, selectedPaidByUserId, setValue]);
+
+  useEffect(() => {
+    if (editingEntry) {
+      setEntryDate(new Date(editingEntry.createdAt));
+    }
+  }, [editingEntry]);
+
+  const handleDatePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (selectedDate) {
+      setEntryDate(selectedDate);
+    }
+    setIsDatePickerVisible(false);
+  };
 
   const onSubmit = handleSubmit(async (values) => {
     if (!currentUser) {
@@ -122,7 +157,7 @@ export function FuelEntryScreen({ navigation, route }: Props) {
       navigation.goBack();
       return;
     }
-    if (editingEntry && editingEntry.userId !== currentUser.id) {
+    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) {
       Alert.alert('Edit not allowed', 'You can only edit your own fuel entries.');
       return;
     }
@@ -141,26 +176,41 @@ export function FuelEntryScreen({ navigation, route }: Props) {
 
     const amount = Number(values.fuelAmount);
     const liters = Number(values.fuelLiters);
+    const selectedPayer = ALLOWED_USERS.find((user) => user.id === values.paidByUserId);
+
+    if (!selectedPayer) {
+      Alert.alert('Invalid payer', 'Select who paid for this fuel entry.');
+      return;
+    }
 
     try {
       if (editingEntry) {
+        const entryOwnerId = getEntryOwnerId(editingEntry);
+        const entryOwnerName = getEntryOwnerName(editingEntry);
         await updateEntryOfflineFirst(editingEntry.id, {
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
           odometer: parsedOdometer,
+          createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
           fuelAmount: amount,
           fuelLiters: liters,
           cost: amount,
           fullTank: values.fullTank,
+          sharedTripMarkedById: entryOwnerId,
+          sharedTripMarkedByName: entryOwnerName,
         });
       } else {
         await addEntryOfflineFirst({
           type: 'fuel',
-          userId: currentUser.id,
-          userName: currentUser.name,
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
           odometer: parsedOdometer,
           fuelAmount: amount,
           fuelLiters: liters,
           cost: amount,
           fullTank: values.fullTank,
+          sharedTripMarkedById: currentUser.id,
+          sharedTripMarkedByName: currentUser.name,
         });
       }
 
@@ -176,6 +226,11 @@ export function FuelEntryScreen({ navigation, route }: Props) {
 
   const handleDelete = () => {
     if (!editingEntry) return;
+    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) {
+      Alert.alert('Delete not allowed', 'You can only delete your own fuel entries.');
+      return;
+    }
+
     Alert.alert('Delete Entry', 'Are you sure you want to delete this fuel entry?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -232,6 +287,73 @@ export function FuelEntryScreen({ navigation, route }: Props) {
 
           <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.fieldsGroup}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
+              <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
+                Choose who paid for this fuel entry. The logged-in user is selected by default.
+              </Text>
+              <View style={styles.payerGrid}>
+                {ALLOWED_USERS.map((user) => {
+                  const active = selectedPaidByUserId === user.id;
+                  const isCurrentUser = currentUser?.id === user.id;
+
+                  return (
+                    <Pressable
+                      key={user.id}
+                      onPress={() => setValue('paidByUserId', user.id, { shouldValidate: true, shouldDirty: true })}
+                      style={[
+                        styles.payerOption,
+                        {
+                          borderColor: active ? colors.textPrimary : colors.border,
+                          backgroundColor: active ? colors.backgroundSecondary : colors.card,
+                        },
+                      ]}>
+                      <View style={styles.payerOptionHead}>
+                        <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
+                        <MaterialIcons
+                          name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
+                          size={20}
+                          color={active ? colors.textPrimary : colors.textSecondary}
+                        />
+                      </View>
+                      <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
+                        {isCurrentUser ? 'Logged in user' : 'Choose if they paid'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {errors.paidByUserId ? (
+                <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>
+              ) : null}
+            </View>
+
+            {isEditing ? (
+              <View style={styles.fieldsGroup}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Date</Text>
+                <Pressable
+                  onPress={() => setIsDatePickerVisible(true)}
+                  style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                  <MaterialIcons name="calendar-today" size={18} color={colors.textPrimary} />
+                  <View style={styles.dateCopy}>
+                    <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Recorded on</Text>
+                    <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
+                      {dayjs(entryDate).format(INDIA_DATE_FORMAT)}
+                    </Text>
+                  </View>
+                </Pressable>
+                {isDatePickerVisible ? (
+                  <DateTimePicker
+                    value={entryDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDatePickerChange}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={styles.fieldsGroup}>
               <Controller
                 control={control}
                 name="odometer"
@@ -253,46 +375,50 @@ export function FuelEntryScreen({ navigation, route }: Props) {
                 )}
               />
 
-              <Controller
-                control={control}
-                name="fuelAmount"
-                render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Fuel Amount (Rs)"
-                    value={value ?? ''}
-                    onChangeText={onChange}
-                    keyboardType="decimal-pad"
-                    placeholder="e.g. 2000"
-                    error={errors.fuelAmount?.message}
+              <View style={styles.metricsRow}>
+                <View style={styles.metricField}>
+                  <Controller
+                    control={control}
+                    name="fuelAmount"
+                    render={({ field: { onChange, value } }) => (
+                      <AppTextField
+                        label="Fuel Amount (Rs)"
+                        value={value ?? ''}
+                        onChangeText={onChange}
+                        keyboardType="decimal-pad"
+                        placeholder="e.g. 2000"
+                        error={errors.fuelAmount?.message}
+                      />
+                    )}
                   />
-                )}
-              />
+                </View>
 
-              <Controller
-                control={control}
-                name="fuelLiters"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.fieldWrap}>
-                    <AppTextField
-                      label="Fuel Liters"
-                      value={value ?? ''}
-                      onChangeText={onChange}
-                      keyboardType="decimal-pad"
-                      placeholder="e.g. 24.6"
-                      error={errors.fuelLiters?.message}
-                      editable={!fullTankSelected}
-                    />
-                    <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
-                      Full tank fills {GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L for Grand i10 Nios 2023 petrol.
-                    </Text>
-                  </View>
-                )}
-              />
+                <View style={styles.metricField}>
+                  <Controller
+                    control={control}
+                    name="fuelLiters"
+                    render={({ field: { onChange, value } }) => (
+                      <AppTextField
+                        label="Fuel Liters"
+                        value={value ?? ''}
+                        onChangeText={onChange}
+                        keyboardType="decimal-pad"
+                        placeholder="e.g. 24.6"
+                        error={errors.fuelLiters?.message}
+                        editable={!fullTankSelected}
+                      />
+                    )}
+                  />
+                </View>
+              </View>
             </View>
 
             <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
               <View style={styles.switchCopy}>
                 <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Full Tank</Text>
+                <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
+                  Full tank fills {GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L for Grand i10 Nios 2023 petrol.
+                </Text>
               </View>
               <Controller
                 control={control}
@@ -413,6 +539,77 @@ const styles = StyleSheet.create({
   fieldsGroup: {
     gap: 12,
   },
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  metricField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  payerHint: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  payerGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  payerOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  payerOptionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  payerName: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  payerMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  selectionError: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dateCopy: {
+    gap: 2,
+  },
+  dateLabel: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  dateValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
   odoPanel: {
     borderWidth: 1,
     borderRadius: 18,
@@ -434,12 +631,6 @@ const styles = StyleSheet.create({
   odoPanelHint: {
     fontSize: 12,
   },
-  fieldWrap: {
-    gap: 4,
-  },
-  fieldHint: {
-    fontSize: 12,
-  },
   switchRow: {
     borderWidth: 1,
     borderRadius: 16,
@@ -452,10 +643,15 @@ const styles = StyleSheet.create({
   },
   switchCopy: {
     flex: 1,
+    gap: 2,
   },
   switchLabel: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  switchHint: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   actionRow: {
     flexDirection: 'row',

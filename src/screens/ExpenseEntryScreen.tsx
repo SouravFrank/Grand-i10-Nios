@@ -1,8 +1,9 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   Alert,
@@ -20,11 +21,14 @@ import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { ALLOWED_USERS } from '@/constants/users';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { ExpenseCategory } from '@/types/models';
+import { dayjs, INDIA_DATE_FORMAT, mergeDateWithExistingTime } from '@/utils/day';
+import { getEntryOwnerId, getEntryOwnerName } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ExpenseEntryModal'>;
 
@@ -86,6 +90,11 @@ const expenseSchema = z.object({
     .trim()
     .min(1, 'Cost is required.')
     .refine((value) => Number(value) > 0, 'Cost must be positive.'),
+  paidByUserId: z
+    .string()
+    .trim()
+    .min(1, 'Select who paid.')
+    .refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
 });
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
@@ -108,6 +117,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const isEditing = Boolean(editingEntry);
 
   const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
+  const [entryDate, setEntryDate] = useState(() => new Date(editingEntry?.createdAt ?? Date.now()));
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   const {
     control,
@@ -121,15 +132,39 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       odometer: String(editingEntry?.odometer ?? lastOdometer),
       expenseTitle: editingEntry?.expenseTitle ?? '',
       cost: editingEntry?.cost ? String(editingEntry.cost) : '',
+      paidByUserId: editingEntry?.userId ?? currentUser?.id ?? '',
     },
   });
 
   const selectedExpenseTitle = watch('expenseTitle');
+  const selectedPaidByUserId = watch('paidByUserId');
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
 
-  const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost }) => {
+  useEffect(() => {
+    if (!isEditing && currentUser && !selectedPaidByUserId) {
+      setValue('paidByUserId', currentUser.id, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  }, [currentUser, isEditing, selectedPaidByUserId, setValue]);
+
+  useEffect(() => {
+    if (editingEntry) {
+      setEntryDate(new Date(editingEntry.createdAt));
+    }
+  }, [editingEntry]);
+
+  const handleDatePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (selectedDate) {
+      setEntryDate(selectedDate);
+    }
+    setIsDatePickerVisible(false);
+  };
+
+  const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost, paidByUserId }) => {
     if (!currentUser) {
       Alert.alert('Session expired', 'Please login again.');
       return;
@@ -140,7 +175,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       navigation.goBack();
       return;
     }
-    if (editingEntry && editingEntry.userId !== currentUser.id) {
+    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) {
       Alert.alert('Edit not allowed', 'You can only edit your own expense entries.');
       return;
     }
@@ -161,28 +196,41 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     const category = inferExpenseCategory(expenseTitle);
     const isShareable = SHAREABLE_CATEGORIES.includes(category);
     const shouldShare = isShareable && sharedExpense;
+    const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
+
+    if (!selectedPayer) {
+      Alert.alert('Invalid payer', 'Select who paid for this expense.');
+      return;
+    }
 
     try {
       if (editingEntry) {
+        const expenseOwnerId = getEntryOwnerId(editingEntry);
+        const expenseOwnerName = getEntryOwnerName(editingEntry);
         await updateEntryOfflineFirst(editingEntry.id, {
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
           odometer: parsedOdometer,
+          createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
           expenseCategory: category,
           expenseTitle: expenseTitle.trim(),
           cost: parsedCost,
           sharedTrip: shouldShare,
+          sharedTripMarkedById: expenseOwnerId,
+          sharedTripMarkedByName: expenseOwnerName,
         });
       } else {
         await addEntryOfflineFirst({
           type: 'expense',
-          userId: currentUser.id,
-          userName: currentUser.name,
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
           odometer: parsedOdometer,
           expenseCategory: category,
           expenseTitle: expenseTitle.trim(),
           cost: parsedCost,
           sharedTrip: shouldShare,
-          sharedTripMarkedById: shouldShare ? currentUser.id : undefined,
-          sharedTripMarkedByName: shouldShare ? currentUser.name : undefined,
+          sharedTripMarkedById: currentUser.id,
+          sharedTripMarkedByName: currentUser.name,
         });
       }
 
@@ -198,6 +246,11 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 
   const handleDelete = () => {
     if (!editingEntry) return;
+    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) {
+      Alert.alert('Delete not allowed', 'You can only delete your own expense entries.');
+      return;
+    }
+
     Alert.alert('Delete Entry', 'Are you sure you want to delete this expense entry?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -296,6 +349,73 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
           </View>
 
           <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={styles.formSection}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
+              <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
+                Choose who paid this expense. The logged-in user is selected by default.
+              </Text>
+              <View style={styles.payerGrid}>
+                {ALLOWED_USERS.map((user) => {
+                  const active = selectedPaidByUserId === user.id;
+                  const isCurrentUser = currentUser?.id === user.id;
+
+                  return (
+                    <Pressable
+                      key={user.id}
+                      onPress={() => setValue('paidByUserId', user.id, { shouldValidate: true, shouldDirty: true })}
+                      style={[
+                        styles.payerOption,
+                        {
+                          borderColor: active ? colors.textPrimary : colors.border,
+                          backgroundColor: active ? colors.backgroundSecondary : colors.card,
+                        },
+                      ]}>
+                      <View style={styles.payerOptionHead}>
+                        <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
+                        <MaterialIcons
+                          name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
+                          size={20}
+                          color={active ? colors.textPrimary : colors.textSecondary}
+                        />
+                      </View>
+                      <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
+                        {isCurrentUser ? 'Logged in user' : 'Choose if they paid'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {errors.paidByUserId ? (
+                <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>
+              ) : null}
+            </View>
+
+            {isEditing ? (
+              <View style={styles.formSection}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Date</Text>
+                <Pressable
+                  onPress={() => setIsDatePickerVisible(true)}
+                  style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+                  <MaterialIcons name="calendar-today" size={18} color={colors.textPrimary} />
+                  <View style={styles.dateCopy}>
+                    <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Recorded on</Text>
+                    <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
+                      {dayjs(entryDate).format(INDIA_DATE_FORMAT)}
+                    </Text>
+                  </View>
+                </Pressable>
+                {isDatePickerVisible ? (
+                  <DateTimePicker
+                    value={entryDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDatePickerChange}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
             <View style={styles.formSection}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Expense Details</Text>
               <Controller
@@ -493,6 +613,62 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   inferredValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  payerHint: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  payerGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  payerOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  payerOptionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  payerName: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  payerMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  selectionError: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dateCopy: {
+    gap: 2,
+  },
+  dateLabel: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  dateValue: {
     fontSize: 15,
     fontWeight: '700',
   },

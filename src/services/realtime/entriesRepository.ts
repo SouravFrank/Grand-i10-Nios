@@ -12,6 +12,23 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
   return Object.fromEntries(filteredEntries) as T;
 }
 
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedDeep(item))
+      .filter((item) => item !== undefined) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const filteredEntries = Object.entries(value as Record<string, unknown>)
+      .filter(([, nestedValue]) => nestedValue !== undefined)
+      .map(([key, nestedValue]) => [key, stripUndefinedDeep(nestedValue)]);
+    return Object.fromEntries(filteredEntries) as T;
+  }
+
+  return value;
+}
+
 export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
   const db = getFirebaseDb();
   if (!db) {
@@ -109,7 +126,7 @@ export async function pushCarSpecToRealtimeDb(carSpec: CarSpec): Promise<void> {
 
   try {
     syncLog('realtime_push_car_spec_start');
-    await set(ref(db, CAR_SPEC_PATH), carSpec);
+    await set(ref(db, CAR_SPEC_PATH), stripUndefinedDeep(carSpec));
     syncLog('realtime_push_car_spec_success');
   } catch (error) {
     syncError('realtime_push_car_spec_failed', toErrorPayload(error));

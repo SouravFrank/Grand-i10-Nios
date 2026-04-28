@@ -33,7 +33,6 @@ export function HomeScreen({ navigation }: Props) {
   const syncStatus = useAppStore((state) => state.syncStatus);
   const lastSyncError = useAppStore((state) => state.lastSyncError);
   const isOnline = useAppStore((state) => state.isOnline);
-  const securityIssue = useAppStore((state) => state.securityIssue);
   const [carSheetVisible, setCarSheetVisible] = useState(false);
   const appVersion =
     Constants.expoConfig?.extra?.appVersion ??
@@ -158,7 +157,7 @@ export function HomeScreen({ navigation }: Props) {
 
           <CarDisplayCard
             registrationText={carSpec.registrationNumber}
-            subtitle={carSpec.model}
+            subtitle="Viraaj i10 Nios"
             onPress={() => setCarSheetVisible(true)}
             onLongPressRegistration={() => void handleCopyVehicleNumber()}
           />
@@ -248,8 +247,6 @@ export function HomeScreen({ navigation }: Props) {
               </Text>
             </View>
           </Pressable>
-
-          {securityIssue ? <Text style={[styles.securityText, { color: colors.textSecondary }]}>{securityIssue}</Text> : null}
           </Animated.View>
         </ScrollView>
 

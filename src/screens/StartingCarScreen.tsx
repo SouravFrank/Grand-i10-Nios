@@ -1,10 +1,11 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AnimatedCarSvg } from '@/components/AnimatedCarSvg';
@@ -17,6 +18,7 @@ import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import { StartingCarFormValues, startingCarSchema } from '@/types/startingCarSchema';
+import { dayjs, INDIA_DATE_FORMAT, mergeDateWithExistingTime } from '@/utils/day';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'StartingCarModal'>;
 
@@ -30,6 +32,8 @@ export function StartingCarScreen({ navigation, route }: Props) {
   } = useAppStore();
 
   const [sharedTripEnabled, setSharedTripEnabled] = useState(false);
+  const [entryDate, setEntryDate] = useState(() => new Date());
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   // Logic derivations
   const tripMode = route.params?.mode ?? 'start';
@@ -64,6 +68,19 @@ export function StartingCarScreen({ navigation, route }: Props) {
     if (isEditing && editingEntry) setSharedTripEnabled(Boolean(editingEntry.sharedTrip));
   }, [isEditing, editingEntry]);
 
+  useEffect(() => {
+    if (isEditing && editingEntry) {
+      setEntryDate(new Date(editingEntry.createdAt));
+    }
+  }, [isEditing, editingEntry]);
+
+  const handleDatePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (selectedDate) {
+      setEntryDate(selectedDate);
+    }
+    setIsDatePickerVisible(false);
+  };
+
   // Handlers
   const onSubmit = handleSubmit(async ({ odometer }) => {
     if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
@@ -78,7 +95,10 @@ export function StartingCarScreen({ navigation, route }: Props) {
     try {
       const payload = { odometer: parsedOdometer, sharedTrip: sharedTripEnabled };
       if (isEditing && entryId) {
-        await updateEntryOfflineFirst(entryId, payload);
+        await updateEntryOfflineFirst(entryId, {
+          ...payload,
+          createdAt: editingEntry ? mergeDateWithExistingTime(entryDate, editingEntry.createdAt) : undefined,
+        });
       } else {
         const tripData = { userId: currentUser.id, userName: currentUser.name, ...payload };
         await (isEndingTrip ? endTrip(tripData) : startTrip(tripData));
@@ -149,6 +169,25 @@ export function StartingCarScreen({ navigation, route }: Props) {
             )}
           </View>
 
+          {isEditing ? (
+            <View style={[styles.datePanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Entry date</Text>
+              <Pressable onPress={() => setIsDatePickerVisible(true)} style={styles.dateButton}>
+                <MaterialIcons name="calendar-today" size={18} color={colors.textPrimary} />
+                <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(entryDate).format(INDIA_DATE_FORMAT)}</Text>
+              </Pressable>
+              {isDatePickerVisible ? (
+                <DateTimePicker
+                  value={entryDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  maximumDate={new Date()}
+                  onChange={handleDatePickerChange}
+                />
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={{ marginTop: 16 }}>
             <Controller
               control={control}
@@ -207,8 +246,11 @@ const styles = StyleSheet.create({
   iconTitle: { fontSize: 15, fontWeight: '700' },
   iconText: { fontSize: 12, lineHeight: 18 },
   metaPanel: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, gap: 2 },
+  datePanel: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, gap: 10, marginTop: 16 },
+  dateButton: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   metaLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   metaValue: { fontSize: 20, fontWeight: '800' },
+  dateValue: { fontSize: 16, fontWeight: '700' },
   metaHint: { fontSize: 12, lineHeight: 18 },
   actionRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   primaryAction: { flex: 1, height: 56, borderRadius: 999, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },

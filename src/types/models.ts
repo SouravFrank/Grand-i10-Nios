@@ -17,6 +17,24 @@ export type SpecUpdateDetail = {
   nextValue: string;
 };
 
+export type TyrePosition = 'pf' | 'df' | 'pb' | 'db' | 's';
+
+export type TyreRecord = {
+  // Physical tyre identity. This stays stable even if the tyre rotates.
+  id: TyrePosition;
+  // Where the tyre is currently mounted: one of the four active positions or spare.
+  currentPosition: TyrePosition;
+  treadDepthAtInspection: number;
+  inspectionOdometer: number;
+  inspectionDate: string;
+  // Total active-use distance accumulated since the last inspection baseline.
+  accumulatedActiveKm: number;
+  // Odometer when the tyre was last assigned to its current position.
+  positionAssignedAtOdometer: number;
+  isNew: boolean;
+  movedFromPosition?: TyrePosition;
+};
+
 export type Entry = {
   id: string;
   type: EntryType;
@@ -43,6 +61,7 @@ export type Entry = {
 
 export type EntryRecord = Entry & {
   integrityHash: string;
+  lastSyncedAt?: number;
 };
 
 export type ActiveTrip = {
@@ -108,6 +127,7 @@ export type CarSpec = {
   lastBatteryChangedOn: string;
   lastBrakePadsChangedOn: string;
   lastTyresChangedOn: string;
+  tyreSetup: TyreRecord[];
   puccExpireDate: string;
   insuranceValidUpTo: string;
   fitnessValidUpTo: string;

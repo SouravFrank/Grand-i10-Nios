@@ -1,124 +1,33 @@
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
+import { runSyncCycle } from '@/services/sync/syncEngine';
+import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
+import type { TyrePosition, TyreRecord } from '@/types/models';
 import { dayjs } from '@/utils/day';
+import {
+  AVERAGE_TOTAL_TYRE_LIFE_KM,
+  MIN_SAFE_TREAD_MM,
+  NEW_TREAD_DEPTH_MM,
+  POSITION_LABELS,
+  POSITION_ORDER,
+  POSITION_SHORT,
+  TYRE_SIZE,
+  applyTyreInspectionUpdate,
+  applyTyrePositionUpdate,
+  buildTyrePositionAssignments,
+  calcCurrentHealth,
+  calcHealthFromTread,
+  calcRemainingKmFromHealth,
+  getTyreDisplayName,
+  isActiveTyrePosition,
+  normalizeTyreSetup,
+  sortTyresByCurrentPosition,
+} from '@/utils/tyreHealth';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-// ─── Constants ──────────────────────────────────────────────────────────────────
-const TYRE_SIZE = '175/60R15';
-// Industry standard: new tread depth for passenger tyres is ~8mm, legal minimum is ~1.6mm
-const NEW_TREAD_DEPTH_MM = 8.0;
-const MIN_SAFE_TREAD_MM = 1.6;
-const USABLE_TREAD_MM = NEW_TREAD_DEPTH_MM - MIN_SAFE_TREAD_MM; // 6.4mm
-
-// Average tyre life for this car class ~50,000 km on good roads
-const AVERAGE_TOTAL_TYRE_LIFE_KM = 50000;
-
-// ─── Types ──────────────────────────────────────────────────────────────────────
-type TyrePosition = 'pf' | 'df' | 'pb' | 'db' | 's';
-
-type TyreRecord = {
-  id: TyrePosition;
-  location: string;
-  /** Tread depth at the time of the last inspection (mm) */
-  treadDepthAtInspection: number;
-  /** Odometer reading at time of inspection */
-  inspectionOdometer: number;
-  /** Date of inspection */
-  inspectionDate: string;
-  /** If true, this is a brand new tyre (100% health from installation) */
-  isNew: boolean;
-  /** If replaced, tracks which position it was swapped from (e.g. stepney) */
-  replacedFrom?: TyrePosition;
-};
-
-const POSITION_LABELS: Record<TyrePosition, string> = {
-  pf: 'Passenger Front',
-  df: 'Driver Front',
-  pb: 'Passenger Back',
-  db: 'Driver Back',
-  s: 'Stepney (Spare)',
-};
-
-const POSITION_SHORT: Record<TyrePosition, string> = {
-  pf: 'PF',
-  df: 'DF',
-  pb: 'PB',
-  db: 'DB',
-  s: 'SP',
-};
-
-// ─── Initial inspection data (baseline) ─────────────────────────────────────
-const INITIAL_INSPECTION_DATE = '2026-02-21';
-const INITIAL_INSPECTION_ODOMETER = 29703;
-
-const DEFAULT_TYRE_DATA: TyreRecord[] = [
-  { id: 'pf', location: 'Passenger Front', treadDepthAtInspection: 6.1, inspectionOdometer: INITIAL_INSPECTION_ODOMETER, inspectionDate: INITIAL_INSPECTION_DATE, isNew: false },
-  { id: 'db', location: 'Driver Back', treadDepthAtInspection: 6.0, inspectionOdometer: INITIAL_INSPECTION_ODOMETER, inspectionDate: INITIAL_INSPECTION_DATE, isNew: false },
-  { id: 's', location: 'Stepney (Spare)', treadDepthAtInspection: 5.2, inspectionOdometer: INITIAL_INSPECTION_ODOMETER, inspectionDate: INITIAL_INSPECTION_DATE, isNew: false },
-  { id: 'df', location: 'Driver Front', treadDepthAtInspection: 4.8, inspectionOdometer: INITIAL_INSPECTION_ODOMETER, inspectionDate: INITIAL_INSPECTION_DATE, isNew: false },
-  { id: 'pb', location: 'Passenger Back', treadDepthAtInspection: 4.7, inspectionOdometer: INITIAL_INSPECTION_ODOMETER, inspectionDate: INITIAL_INSPECTION_DATE, isNew: false },
-];
-
-// ─── Industry standard calculations ─────────────────────────────────────────
-
-/**
- * Calculate initial health % from tread depth at inspection.
- * Uses the industry-standard usable tread range (8.0mm new → 1.6mm legal min).
- */
-function calcHealthFromTread(treadMm: number): number {
-  if (treadMm >= NEW_TREAD_DEPTH_MM) return 100;
-  if (treadMm <= MIN_SAFE_TREAD_MM) return 0;
-  return Math.round(((treadMm - MIN_SAFE_TREAD_MM) / USABLE_TREAD_MM) * 100);
-}
-
-/**
- * Estimate total remaining km from health %.
- * Uses linear wear model: remaining_km = (health% / 100) * AVERAGE_TOTAL_TYRE_LIFE_KM
- */
-function calcRemainingKmFromHealth(healthPercent: number): number {
-  return Math.round((healthPercent / 100) * AVERAGE_TOTAL_TYRE_LIFE_KM);
-}
-
-/**
- * Calculate current health based on km driven since last inspection.
- * Uses the km/mm wear rate derived from the tread depth.
- *
- * Industry formula:
- *   wearRateKmPerMm = AVERAGE_TOTAL_TYRE_LIFE_KM / USABLE_TREAD_MM
- *   treadWornMm = kmDriven / wearRateKmPerMm
- *   currentTread = inspectionTread - treadWornMm
- *   currentHealth = ((currentTread - MIN_SAFE_TREAD) / USABLE_TREAD) * 100
- */
-function calcCurrentHealth(tyre: TyreRecord, currentOdometer: number): { healthPercent: number; estimatedRemainingKm: number; currentTreadMm: number } {
-  if (tyre.isNew) {
-    // For new tyres, start from 100% and degrade based on km driven
-    const kmDriven = Math.max(0, currentOdometer - tyre.inspectionOdometer);
-    const wearRateKmPerMm = AVERAGE_TOTAL_TYRE_LIFE_KM / USABLE_TREAD_MM;
-    const treadWorn = kmDriven / wearRateKmPerMm;
-    const currentTread = Math.max(MIN_SAFE_TREAD_MM, NEW_TREAD_DEPTH_MM - treadWorn);
-    const healthPercent = calcHealthFromTread(currentTread);
-    return { healthPercent, estimatedRemainingKm: calcRemainingKmFromHealth(healthPercent), currentTreadMm: Math.round(currentTread * 10) / 10 };
-  }
-
-  const kmDriven = Math.max(0, currentOdometer - tyre.inspectionOdometer);
-  const wearRateKmPerMm = AVERAGE_TOTAL_TYRE_LIFE_KM / USABLE_TREAD_MM;
-  const treadWorn = kmDriven / wearRateKmPerMm;
-  const currentTread = Math.max(MIN_SAFE_TREAD_MM, tyre.treadDepthAtInspection - treadWorn);
-  const healthPercent = calcHealthFromTread(currentTread);
-  return { healthPercent, estimatedRemainingKm: calcRemainingKmFromHealth(healthPercent), currentTreadMm: Math.round(currentTread * 10) / 10 };
-}
-
-function getHealthColor(percent: number): { color: string; bg: string; label: string } {
-  if (percent >= 55) return { color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Healthy' };
-  if (percent >= 25) return { color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', label: 'Moderate' };
-  if (percent > 0) return { color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Replace' };
-  return { color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)', label: 'Expired' };
-}
-
-// ─── Edit Action Types ──────────────────────────────────────────────────────
 type EditActionType = 'change' | 'swap_stepney' | 'inspect';
 
 const EDIT_ACTIONS: { key: EditActionType; label: string; icon: string; description: string }[] = [
@@ -127,31 +36,84 @@ const EDIT_ACTIONS: { key: EditActionType; label: string; icon: string; descript
   { key: 'inspect', label: 'Re-inspect', icon: 'search', description: 'Update tread depth reading' },
 ];
 
-// ─── Component ──────────────────────────────────────────────────────────────
 type Props = {
   currentOdometer: number;
 };
 
+function getHealthColor(percent: number): { color: string; bg: string; label: string } {
+  if (percent >= 55) return { color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Healthy' };
+  if (percent >= 25) return { color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', label: 'Moderate' };
+  if (percent > 0) return { color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Replace' };
+  return { color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)', label: 'Expired' };
+}
+
+function formatKm(km: number): string {
+  if (km >= 1000) return `~${(km / 1000).toFixed(1)}k km`;
+  return `~${km} km`;
+}
+
+function areAssignmentsEqual(
+  left: Record<TyrePosition, TyrePosition>,
+  right: Record<TyrePosition, TyrePosition>,
+) {
+  return POSITION_ORDER.every((position) => left[position] === right[position]);
+}
+
 export function TyreHealthSection({ currentOdometer }: Props) {
   const { colors, isDark } = useAppTheme();
-  const [tyreData, setTyreData] = useState<TyreRecord[]>(DEFAULT_TYRE_DATA);
+  const tyreSetup = useAppStore((state) => state.carSpec.tyreSetup);
+  const updateTyreSetup = useAppStore((state) => state.updateTyreSetup);
 
-  // Edit state
+  const tyres = useMemo(
+    () => sortTyresByCurrentPosition(normalizeTyreSetup(tyreSetup)),
+    [tyreSetup],
+  );
+  const currentAssignments = useMemo(
+    () => buildTyrePositionAssignments(tyres),
+    [tyres],
+  );
+
   const [editingTyre, setEditingTyre] = useState<TyrePosition | null>(null);
   const [editAction, setEditAction] = useState<EditActionType | null>(null);
   const [draftOdometer, setDraftOdometer] = useState('');
   const [draftTreadDepth, setDraftTreadDepth] = useState('');
+  const [isPositionEditorOpen, setIsPositionEditorOpen] = useState(false);
+  const [draftAssignments, setDraftAssignments] = useState<Record<TyrePosition, TyrePosition>>(
+    currentAssignments,
+  );
+  const [draftPositionOdometer, setDraftPositionOdometer] = useState(String(currentOdometer));
 
-  const beginEdit = useCallback((tyreId: TyrePosition) => {
-    if (editingTyre === tyreId) {
-      cancelEdit();
-      return;
+  const editingTyreRecord = useMemo(
+    () => tyres.find((tyre) => tyre.id === editingTyre) ?? null,
+    [editingTyre, tyres],
+  );
+  const editingTyrePosition = editingTyreRecord?.currentPosition ?? 's';
+
+  useEffect(() => {
+    if (!isPositionEditorOpen) {
+      setDraftAssignments(currentAssignments);
+      setDraftPositionOdometer(String(currentOdometer));
     }
-    setEditingTyre(tyreId);
-    setEditAction(null);
-    setDraftOdometer(String(currentOdometer));
-    setDraftTreadDepth('');
-  }, [editingTyre, currentOdometer]);
+  }, [currentAssignments, currentOdometer, isPositionEditorOpen]);
+
+  const beginEdit = useCallback(
+    (tyreId: TyrePosition) => {
+      if (editingTyre === tyreId) {
+        setEditingTyre(null);
+        setEditAction(null);
+        setDraftOdometer('');
+        setDraftTreadDepth('');
+        return;
+      }
+
+      setIsPositionEditorOpen(false);
+      setEditingTyre(tyreId);
+      setEditAction(null);
+      setDraftOdometer(String(currentOdometer));
+      setDraftTreadDepth('');
+    },
+    [currentOdometer, editingTyre],
+  );
 
   const cancelEdit = useCallback(() => {
     setEditingTyre(null);
@@ -161,19 +123,25 @@ export function TyreHealthSection({ currentOdometer }: Props) {
   }, []);
 
   const filteredEditActions = useMemo(() => {
-    if (!editingTyre) return EDIT_ACTIONS;
-    const tyre = tyreData.find((t) => t.id === editingTyre);
-    if (!tyre) return EDIT_ACTIONS;
+    if (!editingTyreRecord) return EDIT_ACTIONS;
 
-    // You can't swap stepney with stepney itself
-    if (editingTyre === 's') {
-      return EDIT_ACTIONS.filter((a) => a.key !== 'swap_stepney');
+    if (editingTyreRecord.currentPosition === 's') {
+      return EDIT_ACTIONS.filter((action) => action.key !== 'swap_stepney');
     }
+
     return EDIT_ACTIONS;
-  }, [editingTyre, tyreData]);
+  }, [editingTyreRecord]);
+
+  const persistTyreSetup = useCallback(
+    (nextTyreSetup: TyreRecord[]) => {
+      updateTyreSetup(nextTyreSetup);
+      void runSyncCycle();
+    },
+    [updateTyreSetup],
+  );
 
   const saveEdit = useCallback(() => {
-    if (!editingTyre || !editAction) return;
+    if (!editingTyreRecord || !editAction) return;
 
     const parsedOdometer = Number(draftOdometer);
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
@@ -185,93 +153,139 @@ export function TyreHealthSection({ currentOdometer }: Props) {
       return;
     }
 
-    const now = dayjs().format('YYYY-MM-DD');
+    const eventDate = dayjs().format('YYYY-MM-DD');
 
     if (editAction === 'change') {
-      // Installing a brand new tyre
-      setTyreData((prev) =>
-        prev.map((t) =>
-          t.id === editingTyre
-            ? {
-              ...t,
-              treadDepthAtInspection: NEW_TREAD_DEPTH_MM,
-              inspectionOdometer: parsedOdometer,
-              inspectionDate: now,
-              isNew: true,
-              replacedFrom: undefined,
-            }
-            : t
-        )
+      persistTyreSetup(
+        applyTyreInspectionUpdate(tyres, editingTyreRecord.id, {
+          odometer: parsedOdometer,
+          inspectionDate: eventDate,
+          treadDepthAtInspection: NEW_TREAD_DEPTH_MM,
+          isNew: true,
+        }),
       );
-    } else if (editAction === 'swap_stepney') {
-      // Swap stepney into this position
-      const stepney = tyreData.find((t) => t.id === 's');
-      const target = tyreData.find((t) => t.id === editingTyre);
-      if (!stepney || !target) return;
-
-      setTyreData((prev) =>
-        prev.map((t) => {
-          if (t.id === editingTyre) {
-            // This position now gets the stepney tyre data
-            return {
-              ...t,
-              treadDepthAtInspection: stepney.treadDepthAtInspection,
-              inspectionOdometer: parsedOdometer,
-              inspectionDate: now,
-              isNew: stepney.isNew,
-              replacedFrom: 's',
-            };
-          }
-          if (t.id === 's') {
-            // Stepney position gets the old tyre from target
-            return {
-              ...t,
-              treadDepthAtInspection: target.treadDepthAtInspection,
-              inspectionOdometer: parsedOdometer,
-              inspectionDate: now,
-              isNew: target.isNew,
-              replacedFrom: editingTyre,
-            };
-          }
-          return t;
-        })
-      );
-    } else if (editAction === 'inspect') {
-      // Re-inspection with new tread depth
-      const parsedTread = Number(draftTreadDepth);
-      if (!Number.isFinite(parsedTread) || parsedTread < MIN_SAFE_TREAD_MM || parsedTread > NEW_TREAD_DEPTH_MM) {
-        Alert.alert('Invalid tread depth', `Tread depth must be between ${MIN_SAFE_TREAD_MM} and ${NEW_TREAD_DEPTH_MM} mm.`);
-        return;
-      }
-      setTyreData((prev) =>
-        prev.map((t) =>
-          t.id === editingTyre
-            ? {
-              ...t,
-              treadDepthAtInspection: parsedTread,
-              inspectionOdometer: parsedOdometer,
-              inspectionDate: now,
-              isNew: false,
-              replacedFrom: undefined,
-            }
-            : t
-        )
-      );
+      cancelEdit();
+      return;
     }
 
+    if (editAction === 'swap_stepney') {
+      if (editingTyreRecord.currentPosition === 's') {
+        return;
+      }
+
+      const nextAssignments = {
+        ...currentAssignments,
+        [editingTyreRecord.currentPosition]: currentAssignments.s,
+        s: currentAssignments[editingTyreRecord.currentPosition],
+      };
+
+      persistTyreSetup(
+        applyTyrePositionUpdate(tyres, nextAssignments, parsedOdometer),
+      );
+      cancelEdit();
+      return;
+    }
+
+    const parsedTread = Number(draftTreadDepth);
+    if (
+      !Number.isFinite(parsedTread) ||
+      parsedTread < MIN_SAFE_TREAD_MM ||
+      parsedTread > NEW_TREAD_DEPTH_MM
+    ) {
+      Alert.alert(
+        'Invalid tread depth',
+        `Tread depth must be between ${MIN_SAFE_TREAD_MM} and ${NEW_TREAD_DEPTH_MM} mm.`,
+      );
+      return;
+    }
+
+    persistTyreSetup(
+      applyTyreInspectionUpdate(tyres, editingTyreRecord.id, {
+        odometer: parsedOdometer,
+        inspectionDate: eventDate,
+        treadDepthAtInspection: parsedTread,
+        isNew: false,
+      }),
+    );
     cancelEdit();
-  }, [editingTyre, editAction, draftOdometer, draftTreadDepth, currentOdometer, tyreData, cancelEdit]);
+  }, [
+    cancelEdit,
+    currentAssignments,
+    currentOdometer,
+    draftOdometer,
+    draftTreadDepth,
+    editAction,
+    editingTyreRecord,
+    persistTyreSetup,
+    tyres,
+  ]);
+
+  const openPositionEditor = () => {
+    cancelEdit();
+    setDraftAssignments(currentAssignments);
+    setDraftPositionOdometer(String(currentOdometer));
+    setIsPositionEditorOpen(true);
+  };
+
+  const cancelPositionEditor = () => {
+    setDraftAssignments(currentAssignments);
+    setDraftPositionOdometer(String(currentOdometer));
+    setIsPositionEditorOpen(false);
+  };
+
+  const assignTyreToPosition = (position: TyrePosition, tyreId: TyrePosition) => {
+    setDraftAssignments((previous) => {
+      if (previous[position] === tyreId) {
+        return previous;
+      }
+
+      const swappedPosition = POSITION_ORDER.find(
+        (candidate) => previous[candidate] === tyreId,
+      );
+
+      if (!swappedPosition) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [swappedPosition]: previous[position],
+        [position]: tyreId,
+      };
+    });
+  };
+
+  const savePositionEditor = () => {
+    const parsedOdometer = Number(draftPositionOdometer);
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
+      Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
+      return;
+    }
+    if (parsedOdometer < currentOdometer) {
+      Alert.alert('Invalid odometer', `Odometer must be >= ${currentOdometer} km.`);
+      return;
+    }
+
+    if (areAssignmentsEqual(currentAssignments, draftAssignments)) {
+      cancelPositionEditor();
+      return;
+    }
+
+    persistTyreSetup(
+      applyTyrePositionUpdate(tyres, draftAssignments, parsedOdometer),
+    );
+    setIsPositionEditorOpen(false);
+  };
 
   return (
     <View style={[styles.container, { borderColor: colors.border, backgroundColor: colors.card }]}>
-      {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={[styles.iconWrap, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
             <MaterialCommunityIcons name="tire" size={20} color={colors.textPrimary} />
           </View>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={styles.headerMetaRow}>
               <Text style={[styles.title, { color: colors.textPrimary }]}>Tyre Life Analysis</Text>
               <View style={[styles.sizeBadge, { backgroundColor: colors.backgroundSecondary }]}>
                 <Text style={[styles.sizeBadgeLabel, { color: colors.textSecondary }]}>SIZE</Text>
@@ -279,55 +293,201 @@ export function TyreHealthSection({ currentOdometer }: Props) {
               </View>
             </View>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Live health based on odometer • Tap edit to update
+              Health follows the physical tyre. Spare wear stays paused until mounted.
             </Text>
           </View>
         </View>
       </View>
 
-      {/* ── Column Headers ──────────────────────────────────────────────── */}
+      <View style={[styles.positionManager, { borderBottomColor: colors.border }]}>
+        <View style={styles.positionManagerHead}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.managerTitle, { color: colors.textPrimary }]}>Active Tyre Setup</Text>
+            <Text style={[styles.managerSubtitle, { color: colors.textSecondary }]}>
+              Choose which four tyres are active and which tyre is currently spare.
+            </Text>
+          </View>
+          <Pressable
+            onPress={openPositionEditor}
+            style={[styles.manageButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+          >
+            <MaterialIcons name="tune" size={16} color={colors.textPrimary} />
+            <Text style={[styles.manageButtonText, { color: colors.textPrimary }]}>Manage</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.positionSummaryGrid}>
+          {POSITION_ORDER.map((position) => (
+            <View
+              key={position}
+              style={[styles.positionSummaryChip, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+            >
+              <Text style={[styles.positionSummaryLabel, { color: colors.textSecondary }]}>
+                {position === 's' ? 'SPARE' : POSITION_SHORT[position]}
+              </Text>
+              <Text style={[styles.positionSummaryValue, { color: colors.textPrimary }]}>
+                {getTyreDisplayName(currentAssignments[position])}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {isPositionEditorOpen ? (
+          <View style={[styles.positionEditor, { borderColor: colors.border, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }]}>
+            <View style={[styles.hintBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <MaterialIcons name="info-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.hintText, { color: colors.textSecondary }]}>
+                Set the current mounted tyre for each position. If you choose a tyre that is already assigned elsewhere, the UI auto-swaps it so every tyre stays unique.
+              </Text>
+            </View>
+
+            {POSITION_ORDER.map((position) => (
+              <View
+                key={position}
+                style={[styles.positionCard, { borderColor: colors.border, backgroundColor: colors.background }]}
+              >
+                <View style={styles.positionCardHead}>
+                  <View>
+                    <Text style={[styles.positionCardTitle, { color: colors.textPrimary }]}>
+                      {POSITION_LABELS[position]}
+                    </Text>
+                    <Text style={[styles.positionCardSubtitle, { color: colors.textSecondary }]}>
+                      {position === 's' ? 'Safety / standby tyre' : 'Currently active on-road'}
+                    </Text>
+                  </View>
+                  <View style={[styles.positionBadge, { backgroundColor: colors.backgroundSecondary }]}>
+                    <Text style={[styles.positionBadgeText, { color: colors.textPrimary }]}>
+                      {draftAssignments[position]}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.assignmentChipRow}>
+                  {POSITION_ORDER.map((tyreId) => {
+                    const active = draftAssignments[position] === tyreId;
+
+                    return (
+                      <Pressable
+                        key={`${position}-${tyreId}`}
+                        onPress={() => assignTyreToPosition(position, tyreId)}
+                        style={[
+                          styles.assignmentChip,
+                          {
+                            borderColor: active ? colors.textPrimary : colors.border,
+                            backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.assignmentChipText,
+                            { color: active ? colors.invertedText : colors.textPrimary },
+                          ]}
+                        >
+                          {getTyreDisplayName(tyreId)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+
+            <OdometerDigitInput
+              label="Odometer at Position Update (km)"
+              value={draftPositionOdometer}
+              onChangeText={setDraftPositionOdometer}
+              error={
+                draftPositionOdometer && Number(draftPositionOdometer) < currentOdometer
+                  ? `Must be >= ${currentOdometer}`
+                  : undefined
+              }
+            />
+
+            <View style={styles.editorActions}>
+              <Pressable
+                onPress={cancelPositionEditor}
+                style={({ pressed }) => [
+                  styles.coolActionBtn,
+                  {
+                    backgroundColor: colors.backgroundSecondary,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <MaterialIcons name="close" size={18} color={colors.textSecondary} />
+                <Text style={[styles.coolActionBtnText, { color: colors.textSecondary }]}>CANCEL</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={savePositionEditor}
+                style={({ pressed }) => [
+                  styles.coolActionBtn,
+                  {
+                    backgroundColor: colors.textPrimary,
+                    borderColor: colors.textPrimary,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <MaterialIcons name="check" size={18} color={colors.invertedText} />
+                <Text style={[styles.coolActionBtnText, { color: colors.invertedText }]}>SAVE SETUP</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
       <View style={[styles.colHeaderRow, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.colHeader, styles.colH1, { color: colors.textSecondary }]}>TYRE</Text>
+        <Text style={[styles.colHeader, styles.colH1, { color: colors.textSecondary }]}>POSITION</Text>
         <Text style={[styles.colHeader, styles.colH2, { color: colors.textSecondary }]}>INITIAL</Text>
         <Text style={[styles.colHeader, styles.colH3, { color: colors.textSecondary }]}>CURRENT</Text>
         <View style={styles.colH4} />
       </View>
 
-      {/* ── Tyre Rows ──────────────────────────────────────────────────── */}
       <View style={styles.list}>
-        {tyreData.map((tyre, index) => {
+        {tyres.map((tyre, index) => {
           const isEditing = editingTyre === tyre.id;
           const initialHealth = tyre.isNew ? 100 : calcHealthFromTread(tyre.treadDepthAtInspection);
           const initialRemainingKm = calcRemainingKmFromHealth(initialHealth);
           const current = calcCurrentHealth(tyre, currentOdometer);
           const currentColor = getHealthColor(current.healthPercent);
           const initialColor = getHealthColor(initialHealth);
+          const movementText =
+            tyre.movedFromPosition && tyre.movedFromPosition !== tyre.currentPosition
+              ? ` • moved from ${POSITION_SHORT[tyre.movedFromPosition]}`
+              : '';
 
           return (
             <View key={tyre.id}>
               <View
                 style={[
                   styles.row,
-                  index < tyreData.length - 1 && !isEditing && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                  index < tyres.length - 1 && !isEditing && { borderBottomWidth: 1, borderBottomColor: colors.border },
                   isEditing && { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' },
                 ]}
               >
-                {/* ── Col 1: Tyre Info ─────── */}
                 <View style={styles.col1}>
                   <View style={styles.tyreNameRow}>
-                    <View style={[styles.positionBadge, { backgroundColor: currentColor.bg }]}>
-                      <Text style={[styles.positionBadgeText, { color: currentColor.color }]}>{POSITION_SHORT[tyre.id]}</Text>
+                    <View style={[styles.positionChip, { backgroundColor: currentColor.bg }]}>
+                      <Text style={[styles.positionChipText, { color: currentColor.color }]}>
+                        {POSITION_SHORT[tyre.currentPosition]}
+                      </Text>
                     </View>
                     <View style={styles.tyreNameWrap}>
-                      <Text style={[styles.locName, { color: colors.textPrimary }]} numberOfLines={1}>{tyre.location}</Text>
+                      <Text style={[styles.locName, { color: colors.textPrimary }]} numberOfLines={1}>
+                        {POSITION_LABELS[tyre.currentPosition]}
+                      </Text>
                       <Text style={[styles.treadLabel, { color: colors.textSecondary }]}>
-                        {current.currentTreadMm} mm{tyre.isNew ? ' • New' : ''}{tyre.replacedFrom ? ` • from ${POSITION_SHORT[tyre.replacedFrom]}` : ''}
+                        {getTyreDisplayName(tyre.id)} • {current.currentTreadMm} mm • {isActiveTyrePosition(tyre.currentPosition) ? 'Active' : 'Spare'}
+                        {tyre.isNew ? ' • New' : ''}
+                        {movementText}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                {/* ── Col 2: Initial Health ─────── */}
                 <View style={styles.col2}>
                   <Text style={[styles.healthValue, { color: initialColor.color }]}>{initialHealth}%</Text>
                   <Text style={[styles.kmValue, { color: initialColor.color, opacity: 0.7 }]}>
@@ -335,15 +495,15 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                   </Text>
                 </View>
 
-                {/* ── Col 3: Current Health ─────── */}
                 <View style={styles.col3}>
-                  <Text style={[styles.healthValue, { color: currentColor.color, fontWeight: '900' }]}>{current.healthPercent}%</Text>
+                  <Text style={[styles.healthValue, { color: currentColor.color, fontWeight: '900' }]}>
+                    {current.healthPercent}%
+                  </Text>
                   <Text style={[styles.kmValue, { color: currentColor.color }]}>
                     {formatKm(current.estimatedRemainingKm)}
                   </Text>
                 </View>
 
-                {/* ── Col 4: Edit Button ─────── */}
                 <View style={styles.col4}>
                   <Pressable
                     onPress={() => beginEdit(tyre.id)}
@@ -364,11 +524,18 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                 </View>
               </View>
 
-              {/* ── Inline Edit Panel ──────────────────────────────────── */}
               {isEditing ? (
-                <View style={[styles.editPanel, { borderBottomWidth: index < tyreData.length - 1 ? 1 : 0, borderBottomColor: colors.border, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }]}>
+                <View
+                  style={[
+                    styles.editPanel,
+                    {
+                      borderBottomWidth: index < tyres.length - 1 ? 1 : 0,
+                      borderBottomColor: colors.border,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
+                    },
+                  ]}
+                >
                   <View style={[styles.editCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    {/* Action Selector */}
                     <Text style={[styles.editSectionTitle, { color: colors.textSecondary }]}>WHAT DID YOU DO?</Text>
                     <View style={styles.actionRow}>
                       {filteredEditActions.map((action) => {
@@ -405,31 +572,35 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
                     {editAction ? (
                       <>
-                        {/* Action-specific hint */}
                         <View style={[styles.hintBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                           <MaterialIcons name="info-outline" size={14} color={colors.textSecondary} />
                           <Text style={[styles.hintText, { color: colors.textSecondary }]}>
                             {editAction === 'change'
-                              ? 'New tyre installed → health resets to 100%'
+                              ? `Replace the tyre currently mounted at ${POSITION_LABELS[editingTyrePosition]} with a brand new tyre.`
                               : editAction === 'swap_stepney'
-                                ? `Stepney swaps with ${tyre.location}. Both positions updated.`
-                                : 'Enter the new tread depth from a manual inspection.'}
+                                ? `The current spare swaps into ${POSITION_LABELS[editingTyrePosition]}. The outgoing tyre becomes the spare.`
+                                : 'Capture a fresh tread depth reading and reset the health baseline from this odometer.'}
                           </Text>
                         </View>
 
-                        {/* Tread depth input for inspect action */}
                         {editAction === 'inspect' ? (
                           <View style={styles.treadInputWrap}>
                             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Tread Depth (mm)</Text>
                             <View style={[styles.treadInput, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
                               <Text style={[styles.treadInputPrefix, { color: colors.textSecondary }]}>mm</Text>
                               <View style={styles.treadInputField}>
-                                {/* Simple inline number input */}
                                 <Pressable
                                   style={[styles.treadStepBtn, { borderColor: colors.border }]}
                                   onPress={() => {
-                                    const val = Number(draftTreadDepth) || MIN_SAFE_TREAD_MM;
-                                    setDraftTreadDepth(String(Math.max(MIN_SAFE_TREAD_MM, Math.round((val - 0.1) * 10) / 10)));
+                                    const currentValue = Number(draftTreadDepth) || MIN_SAFE_TREAD_MM;
+                                    setDraftTreadDepth(
+                                      String(
+                                        Math.max(
+                                          MIN_SAFE_TREAD_MM,
+                                          Math.round((currentValue - 0.1) * 10) / 10,
+                                        ),
+                                      ),
+                                    );
                                   }}
                                 >
                                   <MaterialIcons name="remove" size={16} color={colors.textPrimary} />
@@ -440,8 +611,15 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                                 <Pressable
                                   style={[styles.treadStepBtn, { borderColor: colors.border }]}
                                   onPress={() => {
-                                    const val = Number(draftTreadDepth) || MIN_SAFE_TREAD_MM;
-                                    setDraftTreadDepth(String(Math.min(NEW_TREAD_DEPTH_MM, Math.round((val + 0.1) * 10) / 10)));
+                                    const currentValue = Number(draftTreadDepth) || MIN_SAFE_TREAD_MM;
+                                    setDraftTreadDepth(
+                                      String(
+                                        Math.min(
+                                          NEW_TREAD_DEPTH_MM,
+                                          Math.round((currentValue + 0.1) * 10) / 10,
+                                        ),
+                                      ),
+                                    );
                                   }}
                                 >
                                   <MaterialIcons name="add" size={16} color={colors.textPrimary} />
@@ -451,23 +629,27 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                           </View>
                         ) : null}
 
-                        {/* Odometer input — always required */}
-                        <View style={{ marginTop: 4 }}>
-                          <OdometerDigitInput
-                            label="Odometer at Change (km)"
-                            value={draftOdometer}
-                            onChangeText={setDraftOdometer}
-                            error={draftOdometer && Number(draftOdometer) < currentOdometer ? `Must be >= ${currentOdometer}` : undefined}
-                          />
-                        </View>
+                        <OdometerDigitInput
+                          label="Odometer at Update (km)"
+                          value={draftOdometer}
+                          onChangeText={setDraftOdometer}
+                          error={
+                            draftOdometer && Number(draftOdometer) < currentOdometer
+                              ? `Must be >= ${currentOdometer}`
+                              : undefined
+                          }
+                        />
 
-                        {/* Save / Cancel */}
                         <View style={styles.editorActions}>
                           <Pressable
                             onPress={cancelEdit}
                             style={({ pressed }) => [
                               styles.coolActionBtn,
-                              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                              {
+                                backgroundColor: colors.backgroundSecondary,
+                                borderColor: colors.border,
+                                opacity: pressed ? 0.7 : 1,
+                              },
                             ]}
                           >
                             <MaterialIcons name="close" size={18} color={colors.textSecondary} />
@@ -478,7 +660,11 @@ export function TyreHealthSection({ currentOdometer }: Props) {
                             onPress={saveEdit}
                             style={({ pressed }) => [
                               styles.coolActionBtn,
-                              { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary, opacity: pressed ? 0.8 : 1 },
+                              {
+                                backgroundColor: colors.textPrimary,
+                                borderColor: colors.textPrimary,
+                                opacity: pressed ? 0.8 : 1,
+                              },
                             ]}
                           >
                             <MaterialIcons name="check" size={18} color={colors.invertedText} />
@@ -495,9 +681,8 @@ export function TyreHealthSection({ currentOdometer }: Props) {
         })}
       </View>
 
-      {/* ── Legend ────────────────────────────────────────────────────── */}
       <View style={[styles.legend, { borderTopColor: colors.border }]}>
-        {[
+        {/* {[
           { label: 'Healthy', color: '#10B981' },
           { label: 'Moderate', color: '#F59E0B' },
           { label: 'Replace', color: '#EF4444' },
@@ -507,19 +692,15 @@ export function TyreHealthSection({ currentOdometer }: Props) {
             <View style={[styles.legendDot, { backgroundColor: item.color }]} />
             <Text style={[styles.legendText, { color: colors.textSecondary }]}>{item.label}</Text>
           </View>
-        ))}
+        ))} */}
+        <Text style={[styles.legendNote, { color: colors.textSecondary }]}>
+          Life estimate uses an average {AVERAGE_TOTAL_TYRE_LIFE_KM.toLocaleString()} km tyre lifespan.
+        </Text>
       </View>
     </View>
   );
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-function formatKm(km: number): string {
-  if (km >= 1000) return `~${(km / 1000).toFixed(1)}k km`;
-  return `~${km} km`;
-}
-
-// ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     borderWidth: 1,
@@ -543,6 +724,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   title: {
     fontSize: 16,
@@ -572,7 +759,118 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  // ── Column Headers ──
+  positionManager: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  positionManagerHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  managerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  managerSubtitle: {
+    fontSize: 11,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  manageButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  positionSummaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  positionSummaryChip: {
+    minWidth: '31%',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  positionSummaryLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  positionSummaryValue: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  positionEditor: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 12,
+  },
+  positionCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+  },
+  positionCardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  positionCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  positionCardSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  positionBadge: {
+    minWidth: 40,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  positionBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  assignmentChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  assignmentChip: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  assignmentChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   colHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -590,7 +888,6 @@ const styles = StyleSheet.create({
   colH2: { flex: 2, textAlign: 'center' },
   colH3: { flex: 2, textAlign: 'center' },
   colH4: { width: 32 },
-  // ── Row ──
   list: {
     paddingBottom: 2,
   },
@@ -609,14 +906,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  positionBadge: {
+  positionChip: {
     width: 28,
     height: 28,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  positionBadgeText: {
+  positionChipText: {
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.3,
@@ -666,7 +963,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // ── Edit Panel ──
   editPanel: {
     paddingHorizontal: 14,
     paddingBottom: 14,
@@ -758,51 +1054,52 @@ const styles = StyleSheet.create({
   },
   treadValueText: {
     fontSize: 22,
-    fontWeight: '800',
-    minWidth: 48,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    minWidth: 54,
     textAlign: 'center',
   },
   editorActions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 4,
   },
   coolActionBtn: {
     flex: 1,
-    flexDirection: 'row',
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    gap: 6,
+    flexDirection: 'row',
+    gap: 8,
   },
   coolActionBtnText: {
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
-  // ── Legend ──
   legend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
+    gap: 10,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
   legendDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   legendText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.3,
+  },
+  legendNote: {
+    fontSize: 10,
+    lineHeight: 15,
   },
 });

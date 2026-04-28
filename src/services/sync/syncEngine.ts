@@ -79,6 +79,11 @@ async function runSyncCycleInternal(): Promise<void> {
   syncLog('sync_cycle_queue_snapshot', { queueLength: queueSnapshot.length });
 
   try {
+    syncLog('sync_cycle_pull_remote_entries_before_push_start');
+    const remoteEntriesBeforePush = await pullEntriesFromRealtimeDb();
+    syncLog('sync_cycle_pull_remote_entries_before_push_success', { remoteCount: remoteEntriesBeforePush.length });
+    const remoteEntriesById = new Map(remoteEntriesBeforePush.map((entry) => [entry.id, entry]));
+
     const entriesMap = new Map(cycleState.entries.map((entry) => [entry.id, entry]));
     const syncedIds: string[] = [];
     const failedQueue: PendingQueueItem[] = [];
@@ -91,6 +96,17 @@ async function runSyncCycleInternal(): Promise<void> {
           retries: queueItem.retries,
         });
         failedQueue.push(buildFailedQueueItem(queueItem));
+        continue;
+      }
+
+      const alreadyExistsOnServer = remoteEntriesById.has(entry.id);
+      const existedOnServerEarlier = Boolean(entry.lastSyncedAt ?? entry.synced);
+
+      if (alreadyExistsOnServer || existedOnServerEarlier) {
+        syncLog('sync_cycle_skip_local_entry_server_authoritative', {
+          entryId: entry.id,
+          reason: alreadyExistsOnServer ? 'remote_entry_exists' : 'remote_entry_missing_after_prior_sync',
+        });
         continue;
       }
 
