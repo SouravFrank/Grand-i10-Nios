@@ -6,13 +6,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-    Alert,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Switch,
-    Text,
-    View,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -268,19 +268,12 @@ export function FuelEntryScreen({ navigation, route }: Props) {
                 <MaterialCommunityIcons name="fuel" size={20} color={colors.textPrimary} />
               </View>
             </View>
-
-            <View style={[styles.odoBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.odoBadgeLabel, { color: colors.textSecondary }]}>{isEditing ? 'Latest odometer' : 'Last odometer'}</Text>
-              <Text style={[styles.odoBadgeValue, { color: colors.textPrimary }]}>{lastOdometer} km</Text>
-            </View>
           </View>
 
           <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.fieldsGroup}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
-              <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
-                Choose who paid for this fuel entry. The logged-in user is selected by default.
-              </Text>
+
               <View style={styles.payerGrid}>
                 {ALLOWED_USERS.map((user) => {
                   const active = selectedPaidByUserId === user.id;

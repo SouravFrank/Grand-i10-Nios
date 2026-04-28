@@ -6,13 +6,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-    Alert,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Switch,
-    Text,
-    View,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -93,8 +93,24 @@ const expenseSchema = z.object({
   paidByUserId: z
     .string()
     .trim()
-    .min(1, 'Select who paid.')
-    .refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
+    .optional(),
+}).superRefine((data, context) => {
+  const category = inferExpenseCategory(data.expenseTitle);
+  if (category !== 'fasttag_toll_paid') {
+    if (!data.paidByUserId || data.paidByUserId.trim() === '') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Select who paid.',
+        path: ['paidByUserId'],
+      });
+    } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Select a valid user.',
+        path: ['paidByUserId'],
+      });
+    }
+  }
 });
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
@@ -141,15 +157,16 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
+  const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
 
   useEffect(() => {
-    if (!isEditing && currentUser && !selectedPaidByUserId) {
+    if (!isEditing && currentUser && !selectedPaidByUserId && showPaidBySection) {
       setValue('paidByUserId', currentUser.id, {
         shouldDirty: false,
         shouldValidate: true,
       });
     }
-  }, [currentUser, isEditing, selectedPaidByUserId, setValue]);
+  }, [currentUser, isEditing, selectedPaidByUserId, setValue, showPaidBySection]);
 
   useEffect(() => {
     if (editingEntry) {
@@ -186,11 +203,19 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     const category = inferExpenseCategory(expenseTitle);
     const isShareable = SHAREABLE_CATEGORIES.includes(category);
     const shouldShare = isShareable && sharedExpense;
-    const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
-
-    if (!selectedPayer) {
-      Alert.alert('Invalid payer', 'Select who paid for this expense.');
-      return;
+    
+    // For FASTag toll, use currentUser as the entry user (no paid by selection)
+    // For other expenses (including FASTag recharge), use selected payer
+    let entryUser = currentUser;
+    let selectedPayer = null;
+    
+    if (category !== 'fasttag_toll_paid') {
+      selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
+      if (!selectedPayer) {
+        Alert.alert('Invalid payer', 'Select who paid for this expense.');
+        return;
+      }
+      entryUser = selectedPayer;
     }
 
     try {
@@ -198,8 +223,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
         const expenseOwnerId = getEntryOwnerId(editingEntry);
         const expenseOwnerName = getEntryOwnerName(editingEntry);
         await updateEntryOfflineFirst(editingEntry.id, {
-          userId: selectedPayer.id,
-          userName: selectedPayer.name,
+          userId: entryUser.id,
+          userName: entryUser.name,
           odometer: parsedOdometer,
           createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
           expenseCategory: category,
@@ -212,8 +237,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       } else {
         await addEntryOfflineFirst({
           type: 'expense',
-          userId: selectedPayer.id,
-          userName: selectedPayer.name,
+          userId: entryUser.id,
+          userName: entryUser.name,
           odometer: parsedOdometer,
           expenseCategory: category,
           expenseTitle: expenseTitle.trim(),
@@ -290,30 +315,10 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <View style={styles.heroTop}>
-              <View style={[styles.heroIcon, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                <MaterialIcons name="receipt-long" size={22} color={colors.textPrimary} />
-              </View>
-              <View style={styles.heroCopy}>
-                <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>{isEditing ? 'Update expense' : 'Log an expense'}</Text>
-                <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-                  The app auto-detects the category from the title you enter.
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.inferredBadge, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-              <MaterialIcons name={inferredCategoryMeta.icon} size={18} color={colors.textPrimary} />
-              <View style={styles.inferredCopy}>
-                <Text style={[styles.inferredLabel, { color: colors.textSecondary }]}>Detected category</Text>
-                <Text style={[styles.inferredValue, { color: colors.textPrimary }]}>{inferredCategoryMeta.label}</Text>
-              </View>
-            </View>
-          </View>
+        
 
           <View style={styles.quickWrap}>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Titles</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Categories</Text>
             <View style={styles.quickGrid}>
               {quickExpenseTitles.map((title) => {
                 const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
@@ -339,46 +344,53 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
           </View>
 
           <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <View style={styles.formSection}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
-              <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
-                Choose who paid this expense. The logged-in user is selected by default.
-              </Text>
-              <View style={styles.payerGrid}>
-                {ALLOWED_USERS.map((user) => {
-                  const active = selectedPaidByUserId === user.id;
-                  const isCurrentUser = currentUser?.id === user.id;
+            {showPaidBySection ? (
+              <View style={styles.formSection}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
 
-                  return (
-                    <Pressable
-                      key={user.id}
-                      onPress={() => setValue('paidByUserId', user.id, { shouldValidate: true, shouldDirty: true })}
-                      style={[
-                        styles.payerOption,
-                        {
-                          borderColor: active ? colors.textPrimary : colors.border,
-                          backgroundColor: active ? colors.backgroundSecondary : colors.card,
-                        },
-                      ]}>
-                      <View style={styles.payerOptionHead}>
-                        <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
-                        <MaterialIcons
-                          name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
-                          size={20}
-                          color={active ? colors.textPrimary : colors.textSecondary}
-                        />
-                      </View>
-                      <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
-                        {isCurrentUser ? 'Logged in user' : 'Choose if they paid'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                <View style={styles.payerGrid}>
+                  {ALLOWED_USERS.map((user) => {
+                    const active = selectedPaidByUserId === user.id;
+                    const isCurrentUser = currentUser?.id === user.id;
+
+                    return (
+                      <Pressable
+                        key={user.id}
+                        onPress={() => setValue('paidByUserId', user.id, { shouldValidate: true, shouldDirty: true })}
+                        style={[
+                          styles.payerOption,
+                          {
+                            borderColor: active ? colors.textPrimary : colors.border,
+                            backgroundColor: active ? colors.backgroundSecondary : colors.card,
+                          },
+                        ]}>
+                        <View style={styles.payerOptionHead}>
+                          <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
+                          <MaterialIcons
+                            name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
+                            size={20}
+                            color={active ? colors.textPrimary : colors.textSecondary}
+                          />
+                        </View>
+                        <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
+                          {isCurrentUser ? 'Logged in user' : 'Choose if they paid'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {errors.paidByUserId ? (
+                  <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>
+                ) : null}
               </View>
-              {errors.paidByUserId ? (
-                <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>
-              ) : null}
-            </View>
+            ) : (
+              <View style={styles.formSection}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Details</Text>
+                <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
+                  FASTag toll amount will be deducted from your FASTag wallet balance.
+                </Text>
+              </View>
+            )}
 
             {isEditing ? (
               <View style={styles.formSection}>
@@ -422,7 +434,9 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                   />
                 )}
               />
-
+              <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>
+                Detected category: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
+              </Text>
               <Controller
                 control={control}
                 name="cost"
@@ -633,8 +647,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   payerMeta: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 9,
+    lineHeight: 5,
   },
   selectionError: {
     color: '#EF4444',

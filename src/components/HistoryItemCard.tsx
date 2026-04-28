@@ -60,9 +60,13 @@ export function HistoryItemCard({
       ? '#F59E0B'
       : entry.type === 'odometer'
         ? '#0EA5E9'
-        : entry.type === 'expense'
-          ? '#22C55E'
-          : '#A855F7';
+        : entry.type === 'expense' && entry.expenseCategory === 'fasttag_toll_paid'
+          ? '#EF4444'
+          : entry.type === 'expense' && entry.expenseCategory === 'utility_addon' && (entry.expenseTitle?.toLowerCase().includes('fastag') || entry.expenseTitle?.toLowerCase().includes('fast tag')) && entry.expenseTitle?.toLowerCase().includes('recharge')
+            ? '#3B82F6'
+            : entry.type === 'expense'
+              ? '#22C55E'
+              : '#A855F7';
   const accentBorder = hexToRgba(accentHex, isDark ? 0.45 : 0.32);
   const accentTone = hexToRgba(accentHex, isDark ? 0.18 : 0.12);
   const accentIconColor = accentHex;
@@ -137,9 +141,13 @@ export function HistoryItemCard({
       ? 'local-gas-station'
       : entry.type === 'spec_update'
         ? 'tune'
-        : entry.type === 'expense'
-          ? 'receipt-long'
-          : 'speed';
+        : entry.type === 'expense' && entry.expenseCategory === 'fasttag_toll_paid'
+          ? 'toll'
+          : entry.type === 'expense' && entry.expenseCategory === 'utility_addon' && (entry.expenseTitle?.toLowerCase().includes('fastag') || entry.expenseTitle?.toLowerCase().includes('fast tag')) && entry.expenseTitle?.toLowerCase().includes('recharge')
+            ? 'account-balance-wallet'
+            : entry.type === 'expense'
+              ? 'receipt-long'
+              : 'speed';
 
   const primaryText =
     entry.type === 'spec_update'
@@ -149,7 +157,7 @@ export function HistoryItemCard({
         : isTripSummary
           ? `${tripStartOdometer} -> ${tripEndOdometer} km`
           : `${entry.odometer} km`;
-  const userChipLabel = isPayerSelectableEntryType(entry.type) ? `Paid by ${entry.userName}` : entry.userName;
+  const userChipLabel = isPayerSelectableEntryType(entry.type) && entry.expenseCategory !== 'fasttag_toll_paid' ? `Paid by ${entry.userName}` : entry.userName;
 
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string; size?: 'large' | 'small' }> = [];
 
