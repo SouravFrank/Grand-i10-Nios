@@ -1,18 +1,30 @@
-import { ensureAnonymousFirebaseAuth, getFirebaseConfigErrorMessage, getFirebaseDb } from '@/config/firebase';
-import type { CarDocumentKey, PendingQueueItem } from '@/types/models';
 import {
-  pullCarSpecFromRealtimeDb,
-  pullEntriesFromRealtimeDb,
-  pushCarSpecToRealtimeDb,
-  pushEntryToRealtimeDb,
-} from '@/services/realtime/entriesRepository';
+    ensureAnonymousFirebaseAuth,
+    getFirebaseConfigErrorMessage,
+    getFirebaseDb,
+} from "@/config/firebase";
 import {
-  pullDocumentMetadataFromRealtimeDb,
-  pullSingleDocumentFromRealtimeDb,
-} from '@/services/realtime/documentsRepository';
-import { getAllLocalDocuments, saveDocumentLocally } from '@/services/storage/localDocuments';
-import { useAppStore } from '@/store/useAppStore';
-import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger';
+    pullDocumentMetadataFromRealtimeDb,
+    pullSingleDocumentFromRealtimeDb,
+} from "@/services/realtime/documentsRepository";
+import {
+    pullCarSpecFromRealtimeDb,
+    pullEntriesFromRealtimeDb,
+    pushCarSpecToRealtimeDb,
+    pushEntryToRealtimeDb,
+} from "@/services/realtime/entriesRepository";
+import {
+    getAllLocalDocuments,
+    saveDocumentLocally,
+} from "@/services/storage/localDocuments";
+import { useAppStore } from "@/store/useAppStore";
+import type { CarDocumentKey, PendingQueueItem } from "@/types/models";
+import {
+    syncError,
+    syncLog,
+    syncWarn,
+    toErrorPayload,
+} from "@/utils/syncLogger";
 
 function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
   return {
@@ -23,15 +35,22 @@ function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
 }
 
 function getSyncFailureMessage(error: unknown): string {
-  const errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
+  const errorMessage =
+    error instanceof Error ? error.message : "Unknown sync error";
   const errorCode =
-    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
       ? error.code
       : null;
   const normalizedMessage = errorMessage.toLowerCase();
 
-  if (errorCode === 'PERMISSION_DENIED' || normalizedMessage.includes('permission denied')) {
-    return 'Sync access denied. Check Firebase Realtime Database rules for /carEntries and /carMeta/carSpec, and ensure anonymous users are allowed.';
+  if (
+    errorCode === "PERMISSION_DENIED" ||
+    normalizedMessage.includes("permission denied")
+  ) {
+    return "Sync access denied. Check Firebase Realtime Database rules for /carEntries and /carMeta/carSpec, and ensure anonymous users are allowed.";
   }
 
   return errorMessage;
@@ -41,7 +60,7 @@ let inFlightSyncCycle: Promise<void> | null = null;
 
 async function runSyncCycleInternal(): Promise<void> {
   const initialState = useAppStore.getState();
-  syncLog('sync_cycle_start', {
+  syncLog("sync_cycle_start", {
     isOnline: initialState.isOnline,
     isSyncing: initialState.isSyncing,
     queueLength: initialState.pendingQueue.length,
@@ -50,48 +69,64 @@ async function runSyncCycleInternal(): Promise<void> {
   });
 
   if (!initialState.isOnline) {
-    syncWarn('sync_cycle_skipped', { reason: 'offline' });
+    syncWarn("sync_cycle_skipped", { reason: "offline" });
     return;
   }
 
   if (initialState.isSyncing) {
-    syncWarn('sync_cycle_skipped', { reason: 'already_syncing' });
+    syncWarn("sync_cycle_skipped", { reason: "already_syncing" });
     return;
   }
 
   initialState.setSyncing();
 
   if (!getFirebaseDb()) {
-    syncWarn('sync_cycle_failed_no_firebase_db');
-    useAppStore.getState().setSyncOutcome('failed', `Sync not configured. ${getFirebaseConfigErrorMessage()}`);
+    syncWarn("sync_cycle_failed_no_firebase_db");
+    useAppStore
+      .getState()
+      .setSyncOutcome(
+        "failed",
+        `Sync not configured. ${getFirebaseConfigErrorMessage()}`,
+      );
     return;
   }
 
   const authState = await ensureAnonymousFirebaseAuth();
   if (!authState.ok) {
-    syncWarn('sync_cycle_failed_auth', { reason: authState.reason });
-    useAppStore.getState().setSyncOutcome('failed', `Firebase anonymous auth failed: ${authState.reason}`);
+    syncWarn("sync_cycle_failed_auth", { reason: authState.reason });
+    useAppStore
+      .getState()
+      .setSyncOutcome(
+        "failed",
+        `Firebase anonymous auth failed: ${authState.reason}`,
+      );
     return;
   }
 
   const cycleState = useAppStore.getState();
   const queueSnapshot = [...cycleState.pendingQueue];
-  syncLog('sync_cycle_queue_snapshot', { queueLength: queueSnapshot.length });
+  syncLog("sync_cycle_queue_snapshot", { queueLength: queueSnapshot.length });
 
   try {
-    syncLog('sync_cycle_pull_remote_entries_before_push_start');
+    syncLog("sync_cycle_pull_remote_entries_before_push_start");
     const remoteEntriesBeforePush = await pullEntriesFromRealtimeDb();
-    syncLog('sync_cycle_pull_remote_entries_before_push_success', { remoteCount: remoteEntriesBeforePush.length });
-    const remoteEntriesById = new Map(remoteEntriesBeforePush.map((entry) => [entry.id, entry]));
+    syncLog("sync_cycle_pull_remote_entries_before_push_success", {
+      remoteCount: remoteEntriesBeforePush.length,
+    });
+    const remoteEntriesById = new Map(
+      remoteEntriesBeforePush.map((entry) => [entry.id, entry]),
+    );
 
-    const entriesMap = new Map(cycleState.entries.map((entry) => [entry.id, entry]));
+    const entriesMap = new Map(
+      cycleState.entries.map((entry) => [entry.id, entry]),
+    );
     const syncedIds: string[] = [];
     const failedQueue: PendingQueueItem[] = [];
 
     for (const queueItem of queueSnapshot) {
       const entry = entriesMap.get(queueItem.entryId);
       if (!entry) {
-        syncWarn('sync_cycle_missing_entry_for_queue_item', {
+        syncWarn("sync_cycle_missing_entry_for_queue_item", {
           entryId: queueItem.entryId,
           retries: queueItem.retries,
         });
@@ -100,23 +135,45 @@ async function runSyncCycleInternal(): Promise<void> {
       }
 
       const alreadyExistsOnServer = remoteEntriesById.has(entry.id);
-      const existedOnServerEarlier = Boolean(entry.lastSyncedAt ?? entry.synced);
+      const existedOnServerEarlier = Boolean(
+        entry.lastSyncedAt ?? entry.synced,
+      );
+      const remoteEntry = alreadyExistsOnServer
+        ? remoteEntriesById.get(entry.id)
+        : null;
 
-      if (alreadyExistsOnServer || existedOnServerEarlier) {
-        syncLog('sync_cycle_skip_local_entry_server_authoritative', {
+      // Check if local entry has been modified since last sync
+      // For edited entries, check if they were updated after last sync
+      const localModifiedAfterSync =
+        existedOnServerEarlier && (!entry.lastSyncedAt || !entry.synced);
+
+      // If local entry was modified after last sync, push the update
+      if (localModifiedAfterSync) {
+        syncLog("sync_cycle_push_modified_entry", {
           entryId: entry.id,
-          reason: alreadyExistsOnServer ? 'remote_entry_exists' : 'remote_entry_missing_after_prior_sync',
+          localCreatedAt: entry.createdAt,
+          lastSyncedAt: entry.lastSyncedAt,
+        });
+      } else if (alreadyExistsOnServer || existedOnServerEarlier) {
+        syncLog("sync_cycle_skip_local_entry_server_authoritative", {
+          entryId: entry.id,
+          reason: alreadyExistsOnServer
+            ? "remote_entry_exists"
+            : "remote_entry_missing_after_prior_sync",
         });
         continue;
       }
 
       try {
-        syncLog('sync_cycle_push_entry_start', { entryId: entry.id, retries: queueItem.retries });
+        syncLog("sync_cycle_push_entry_start", {
+          entryId: entry.id,
+          retries: queueItem.retries,
+        });
         await pushEntryToRealtimeDb(entry);
-        syncLog('sync_cycle_push_entry_success', { entryId: entry.id });
+        syncLog("sync_cycle_push_entry_success", { entryId: entry.id });
         syncedIds.push(entry.id);
       } catch (error) {
-        syncError('sync_cycle_push_entry_failed', {
+        syncError("sync_cycle_push_entry_failed", {
           entryId: entry.id,
           retries: queueItem.retries,
           ...toErrorPayload(error),
@@ -126,47 +183,59 @@ async function runSyncCycleInternal(): Promise<void> {
     }
 
     if (syncedIds.length > 0) {
-      syncLog('sync_cycle_mark_entries_synced', { count: syncedIds.length });
+      syncLog("sync_cycle_mark_entries_synced", { count: syncedIds.length });
       useAppStore.getState().markEntriesSynced(syncedIds);
     }
 
-    syncLog('sync_cycle_update_failed_queue', { failedQueueLength: failedQueue.length });
+    syncLog("sync_cycle_update_failed_queue", {
+      failedQueueLength: failedQueue.length,
+    });
     useAppStore.getState().updatePendingQueue(failedQueue);
 
-    syncLog('sync_cycle_pull_remote_entries_start');
+    syncLog("sync_cycle_pull_remote_entries_start");
     const remoteEntries = await pullEntriesFromRealtimeDb();
-    syncLog('sync_cycle_pull_remote_entries_success', { remoteCount: remoteEntries.length });
+    syncLog("sync_cycle_pull_remote_entries_success", {
+      remoteCount: remoteEntries.length,
+    });
     await useAppStore.getState().mergeRemoteEntries(remoteEntries);
-    syncLog('sync_cycle_merge_remote_entries_done', { mergedCount: remoteEntries.length });
+    syncLog("sync_cycle_merge_remote_entries_done", {
+      mergedCount: remoteEntries.length,
+    });
 
     const currentState = useAppStore.getState();
-    syncLog('sync_cycle_pull_car_spec_start');
+    syncLog("sync_cycle_pull_car_spec_start");
     const remoteCarSpec = await pullCarSpecFromRealtimeDb();
-    syncLog('sync_cycle_pull_car_spec_result', { hasRemoteCarSpec: Boolean(remoteCarSpec), carSpecDirty: currentState.carSpecDirty });
+    syncLog("sync_cycle_pull_car_spec_result", {
+      hasRemoteCarSpec: Boolean(remoteCarSpec),
+      carSpecDirty: currentState.carSpecDirty,
+    });
 
     if (remoteCarSpec && !currentState.carSpecDirty) {
-      syncLog('sync_cycle_replace_car_spec_from_remote');
+      syncLog("sync_cycle_replace_car_spec_from_remote");
       useAppStore.getState().replaceCarSpecFromRemote(remoteCarSpec);
       const normalizedState = useAppStore.getState();
       if (normalizedState.carSpecDirty) {
-        syncLog('sync_cycle_push_normalized_car_spec_start');
+        syncLog("sync_cycle_push_normalized_car_spec_start");
         await pushCarSpecToRealtimeDb(normalizedState.carSpec);
-        syncLog('sync_cycle_push_normalized_car_spec_success');
+        syncLog("sync_cycle_push_normalized_car_spec_success");
         useAppStore.getState().markCarSpecSynced();
       }
     } else {
-      syncLog('sync_cycle_push_car_spec_start');
+      syncLog("sync_cycle_push_car_spec_start");
       await pushCarSpecToRealtimeDb(currentState.carSpec);
-      syncLog('sync_cycle_push_car_spec_success');
+      syncLog("sync_cycle_push_car_spec_success");
       useAppStore.getState().markCarSpecSynced();
     }
 
     // ── Document Sync (non-blocking) ──────────────────────────────────────────
     try {
-      syncLog('sync_cycle_documents_start');
+      syncLog("sync_cycle_documents_start");
       const remoteMeta = await pullDocumentMetadataFromRealtimeDb();
       const remoteKeys = Object.keys(remoteMeta) as CarDocumentKey[];
-      syncLog('sync_cycle_documents_remote_meta', { count: remoteKeys.length, keys: remoteKeys });
+      syncLog("sync_cycle_documents_remote_meta", {
+        count: remoteKeys.length,
+        keys: remoteKeys,
+      });
 
       if (remoteKeys.length > 0) {
         const localDocs = await getAllLocalDocuments();
@@ -179,7 +248,7 @@ async function runSyncCycleInternal(): Promise<void> {
           const needsUpdate = !local || local.updatedAt < remote.uploadedAt;
 
           if (needsUpdate) {
-            syncLog('sync_cycle_document_pull_needed', {
+            syncLog("sync_cycle_document_pull_needed", {
               docKey,
               localUpdatedAt: local?.updatedAt ?? null,
               remoteUploadedAt: remote.uploadedAt,
@@ -187,37 +256,52 @@ async function runSyncCycleInternal(): Promise<void> {
 
             const fullDoc = await pullSingleDocumentFromRealtimeDb(docKey);
             if (fullDoc) {
-              await saveDocumentLocally(docKey, fullDoc.data, fullDoc.fileName, fullDoc.mimeType);
-              syncLog('sync_cycle_document_saved_locally', { docKey, fileName: fullDoc.fileName });
+              await saveDocumentLocally(
+                docKey,
+                fullDoc.data,
+                fullDoc.fileName,
+                fullDoc.mimeType,
+              );
+              syncLog("sync_cycle_document_saved_locally", {
+                docKey,
+                fileName: fullDoc.fileName,
+              });
             }
           } else {
-            syncLog('sync_cycle_document_up_to_date', { docKey });
+            syncLog("sync_cycle_document_up_to_date", { docKey });
           }
         }
       }
 
-      syncLog('sync_cycle_documents_done');
+      syncLog("sync_cycle_documents_done");
     } catch (docError) {
       // Document sync failures should not break the main sync cycle
-      syncWarn('sync_cycle_documents_error', toErrorPayload(docError));
+      syncWarn("sync_cycle_documents_error", toErrorPayload(docError));
     }
 
     const hasPending = useAppStore.getState().pendingQueue.length > 0;
-    syncLog('sync_cycle_finish', {
+    syncLog("sync_cycle_finish", {
       hasPending,
       finalQueueLength: useAppStore.getState().pendingQueue.length,
-      resultStatus: hasPending ? 'failed' : 'synced',
+      resultStatus: hasPending ? "failed" : "synced",
     });
-    useAppStore.getState().setSyncOutcome(hasPending ? 'failed' : 'synced', hasPending ? 'Pending items queued.' : null);
+    useAppStore
+      .getState()
+      .setSyncOutcome(
+        hasPending ? "failed" : "synced",
+        hasPending ? "Pending items queued." : null,
+      );
   } catch (error) {
-    syncError('sync_cycle_unhandled_error', toErrorPayload(error));
-    useAppStore.getState().setSyncOutcome('failed', getSyncFailureMessage(error));
+    syncError("sync_cycle_unhandled_error", toErrorPayload(error));
+    useAppStore
+      .getState()
+      .setSyncOutcome("failed", getSyncFailureMessage(error));
   }
 }
 
 export function runSyncCycle(): Promise<void> {
   if (inFlightSyncCycle) {
-    syncWarn('sync_cycle_join_existing_inflight');
+    syncWarn("sync_cycle_join_existing_inflight");
     return inFlightSyncCycle;
   }
 

@@ -124,9 +124,11 @@ export function HistoryItemCard({
                 ? 'TRAFFIC VIOLATION FINE'
                 : entry.expenseCategory === 'fasttag_toll_paid'
                   ? 'FASTAG TOLL PAID'
-                  : entry.expenseCategory === 'other'
-                    ? 'OTHER'
-                    : null;
+                  : entry.expenseCategory === 'parking'
+                    ? 'PARKING'
+                    : entry.expenseCategory === 'other'
+                      ? 'OTHER'
+                      : null;
 
   const specUpdateLines =
     entry.specUpdateDetails?.map((detail) => {
@@ -143,11 +145,13 @@ export function HistoryItemCard({
         ? 'tune'
         : entry.type === 'expense' && entry.expenseCategory === 'fasttag_toll_paid'
           ? 'toll'
-          : entry.type === 'expense' && entry.expenseCategory === 'utility_addon' && (entry.expenseTitle?.toLowerCase().includes('fastag') || entry.expenseTitle?.toLowerCase().includes('fast tag')) && entry.expenseTitle?.toLowerCase().includes('recharge')
-            ? 'account-balance-wallet'
-            : entry.type === 'expense'
-              ? 'receipt-long'
-              : 'speed';
+          : entry.type === 'expense' && entry.expenseCategory === 'parking'
+            ? 'local-parking'
+            : entry.type === 'expense' && entry.expenseCategory === 'utility_addon' && (entry.expenseTitle?.toLowerCase().includes('fastag') || entry.expenseTitle?.toLowerCase().includes('fast tag')) && entry.expenseTitle?.toLowerCase().includes('recharge')
+              ? 'account-balance-wallet'
+              : entry.type === 'expense'
+                ? 'receipt-long'
+                : 'speed';
 
   const primaryText =
     entry.type === 'spec_update'

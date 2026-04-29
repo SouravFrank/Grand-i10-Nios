@@ -55,18 +55,20 @@ const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof 
   purchase: { label: 'Purchase', icon: 'shopping-cart' },
   traffic_violation_fine: { label: 'Traffic Violation Fine', icon: 'gavel' },
   fasttag_toll_paid: { label: 'FASTag Toll Paid', icon: 'toll' },
+  parking: { label: 'Parking', icon: 'local-parking' },
   other: { label: 'Other', icon: 'apps' },
 };
 
 const keywordCategoryRules: Array<{ keywords: string[]; category: ExpenseCategory }> = [
   { keywords: ['traffic', 'violation', 'fine', 'challan'], category: 'traffic_violation_fine' },
   { keywords: ['fastag toll', 'fast tag toll', 'fasttag toll', 'toll paid'], category: 'fasttag_toll_paid' },
+  { keywords: ['parking', 'park', 'car park', 'carpark'], category: 'parking' },
   { keywords: ['purchase', 'downpayment', 'down payment', 'booking', 'cars24', 'inspection', 'delivery', 'wages'], category: 'purchase' },
   { keywords: ['car maintenance', 'maintenance', 'service', 'engine oil', 'oil', 'coolant', 'coolent', 'pucc renewal', 'insurance renewal', 'insurence renewal', 'filter', 'alignment', 'balancing', 'repair'], category: 'maintenance_lab' },
   { keywords: ['insurance', 'pucc', 'cover', 'rat', 'protector', 'safety', 'helmet'], category: 'shield_safety' },
   { keywords: ['fastag', 'fast tag', 'fasttag', 'tax', 'fitness', 'recharge', 'tag'], category: 'utility_addon' },
-  { keywords: ['parking', 'parking fee', 'parking fees'], category: 'other' },
-  { keywords: ['seat', 'clean', 'wash', 'mat', 'perfume', 'comfort', 'vacuum'], category: 'care_comfort' },
+  { keywords: ['wash', 'cleaning', 'clean', 'detailing', 'polish', 'wax', 'vacuum', 'shampoo'], category: 'care_comfort' },
+  { keywords: ['other'], category: 'other' },
 ];
 
 function inferExpenseCategory(title: string): ExpenseCategory {
@@ -118,7 +120,7 @@ const expenseSchema = z.object({
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
 
-const SHAREABLE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid'];
+const SHAREABLE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid', 'parking'];
 
 export function ExpenseEntryScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
@@ -138,6 +140,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
   const [entryDate, setEntryDate] = useState(() => new Date(editingEntry?.createdAt ?? Date.now()));
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [previousCategory, setPreviousCategory] = useState<string | undefined>(editingEntry?.expenseCategory);
   const [showMaintenanceOptions, setShowMaintenanceOptions] = useState(() => {
     const title = editingEntry?.expenseTitle?.trim().toLowerCase() ?? '';
     return title === 'car maintenance' || maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === title);
@@ -173,6 +176,29 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     showMaintenanceOptions ||
     normalizedSelectedExpenseTitle === 'car maintenance' ||
     selectedMaintenanceSubcategory;
+
+  // Effect to manage shared state when category changes during editing
+  useEffect(() => {
+    if (isEditing && editingEntry && previousCategory !== inferredCategory) {
+      const isCurrentCategoryShareable = SHAREABLE_CATEGORIES.includes(inferredCategory);
+      const originalCategory = editingEntry.expenseCategory;
+      const wasOriginallyShareable = originalCategory ? SHAREABLE_CATEGORIES.includes(originalCategory) : false;
+      
+      if (!isCurrentCategoryShareable) {
+        // If current category is not shareable, reset shared state to false
+        setSharedExpense(false);
+      } else if (wasOriginallyShareable) {
+        // If original category was shareable, preserve the original shared state
+        setSharedExpense(editingEntry.sharedTrip ?? false);
+      } else {
+        // If original category was not shareable but current is, allow user to choose (default to false)
+        // Don't override the current sharedExpense state unless category becomes non-shareable
+        // This allows user to set shared state when changing from non-shareable to shareable category
+      }
+      
+      setPreviousCategory(inferredCategory);
+    }
+  }, [inferredCategory, isEditing, editingEntry, previousCategory]);
 
   const handleQuickCategoryPress = (title: (typeof quickExpenseCategories)[number]['title']) => {
     const isMaintenance = title === 'Car Maintenance';
@@ -248,7 +274,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
       if (editingEntry) {
         const expenseOwnerId = getEntryOwnerId(editingEntry);
         const expenseOwnerName = getEntryOwnerName(editingEntry);
-        await updateEntryOfflineFirst(editingEntry.id, {
+        
+        const updateData = {
           userId: entryUser.id,
           userName: entryUser.name,
           odometer: parsedOdometer,
@@ -259,7 +286,9 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
           sharedTrip: shouldShare,
           sharedTripMarkedById: expenseOwnerId,
           sharedTripMarkedByName: expenseOwnerName,
-        });
+        };
+        
+        await updateEntryOfflineFirst(editingEntry.id, updateData);
       } else {
         await addEntryOfflineFirst({
           type: 'expense',
@@ -551,7 +580,9 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                 <View style={styles.switchCopy}>
                   <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Shared Expense</Text>
                   <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
-                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 'Violation expense was shared'}
+                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 
+                     inferredCategory === 'parking' ? 'Parking expense was shared' : 
+                     'Violation expense was shared'}
                   </Text>
                 </View>
                 <Switch

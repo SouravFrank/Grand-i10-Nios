@@ -344,9 +344,19 @@ function validateUpdatedEntryOdometer(
   const nextEntry = chronologicalEntries[targetIndex + 1];
 
   if (previousEntry && nextOdometer < previousEntry.odometer) {
-    throw new Error(
-      "Edited odometer cannot be less than the previous recorded value.",
-    );
+    // Allow lower odometer values for expense entries (users might need to correct readings or add missed expenses)
+    if (targetEntry.type === "expense") {
+      // For expenses, allow lower odometer values but still validate for reasonable ranges
+      if (previousEntry.odometer - nextOdometer > 1000) {
+        throw new Error(
+          "Edited odometer for expense cannot be more than 1000 km less than the previous recorded value.",
+        );
+      }
+    } else {
+      throw new Error(
+        "Edited odometer cannot be less than the previous recorded value.",
+      );
+    }
   }
 
   if (nextEntry && nextOdometer > nextEntry.odometer) {
@@ -696,10 +706,12 @@ export const useAppStore = create<AppState>()(
           fullTank: targetEntry.type === "fuel" ? updates.fullTank : undefined,
           expenseCategory:
             targetEntry.type === "expense"
-              ? updates.expenseCategory
+              ? (updates.expenseCategory ?? targetEntry.expenseCategory)
               : undefined,
           expenseTitle:
-            targetEntry.type === "expense" ? updates.expenseTitle : undefined,
+            targetEntry.type === "expense"
+              ? (updates.expenseTitle ?? targetEntry.expenseTitle)
+              : undefined,
           cost: updates.cost,
           sharedTrip:
             updates.sharedTrip !== undefined
