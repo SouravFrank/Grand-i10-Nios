@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleProp, StyleSheet, Text, TextInput, TextStyle, View } from 'react-native';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -12,6 +12,7 @@ type AppTextFieldProps = {
   error?: string;
   autoCapitalize?: 'none' | 'sentences';
   editable?: boolean;
+  inputStyle?: StyleProp<TextStyle>;
 };
 
 export function AppTextField({
@@ -24,6 +25,7 @@ export function AppTextField({
   error,
   autoCapitalize = 'none',
   editable = true,
+  inputStyle,
 }: AppTextFieldProps) {
   const { colors } = useAppTheme();
 
@@ -48,6 +50,7 @@ export function AppTextField({
           },
           error && { borderColor: colors.textSecondary },
           !editable && { backgroundColor: colors.backgroundSecondary },
+          inputStyle,
         ]}
       />
       {error ? <Text style={[styles.errorText, { color: colors.textSecondary }]}>{error}</Text> : null}

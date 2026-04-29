@@ -1,6 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
   useEffect,
   useMemo,
@@ -8,6 +10,7 @@ import {
   useState,
 } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   Modal,
@@ -31,6 +34,7 @@ import { styles } from './ReportScreen.styles';
 import {
   DateTarget,
   formatINR,
+  formatKm,
   formatLiters,
   formatMileage,
   getOtherSectionIcon,
@@ -69,6 +73,8 @@ export function ReportScreen({ navigation }: Props) {
   const [showFuelInfo, setShowFuelInfo] = useState(false);
   const [isMileageEditorVisible, setIsMileageEditorVisible] = useState(false);
   const [isSettlementModalVisible, setIsSettlementModalVisible] = useState(false);
+  const [isCalculationModalVisible, setIsCalculationModalVisible] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const monthOptions = useMemo(() => {
     const keys = new Set<string>([currentMonthKey]);
@@ -240,6 +246,38 @@ export function ReportScreen({ navigation }: Props) {
     ]).start();
   };
 
+  const handleExportCsv = async () => {
+    if (isExportingCsv) return;
+
+    setIsExportingCsv(true);
+    try {
+      const targetDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (!targetDirectory) {
+        Alert.alert('CSV export unavailable', 'No writable export directory is available on this device.');
+        return;
+      }
+
+      const fileUri = `${targetDirectory}${report.csv.fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, report.csv.content, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('CSV ready', fileUri);
+      }
+    } catch (error) {
+      Alert.alert('Could not export CSV', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
@@ -263,6 +301,38 @@ export function ReportScreen({ navigation }: Props) {
               <View style={styles.heroTitleBlock}>
                 <Text style={[styles.heroEyebrow, { color: colors.textSecondary }]}>REPORT</Text>
                 <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Trip Expenses</Text>
+              </View>
+
+              <View style={styles.heroActionRow}>
+                <Pressable
+                  onPress={() => setIsCalculationModalVisible(true)}
+                  hitSlop={10}
+                  style={[
+                    styles.headerIconButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="calculate" size={18} color={colors.textPrimary} />
+                </Pressable>
+
+                <Pressable
+                  onPress={handleExportCsv}
+                  disabled={isExportingCsv}
+                  hitSlop={10}
+                  style={[
+                    styles.headerIconButton,
+                    {
+                      opacity: isExportingCsv ? 0.55 : 1,
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name={isExportingCsv ? 'hourglass-empty' : 'file-download'} size={18} color={colors.textPrimary} />
+                </Pressable>
               </View>
             </View>
 
@@ -773,6 +843,81 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
+              <MotionCard delay={310} style={styles.gridSpanFull}>
+                <SectionCard
+                  style={[
+                    styles.glassCard,
+                    {
+                      backgroundColor: surfaceColor,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.titleRow}>
+                      <MaterialIcons name="route" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Monthly KM</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.monthSummaryStack}>
+                    {report.audit.monthlySummaries.map((month) => (
+                      <View
+                        key={month.monthKey}
+                        style={[
+                          styles.monthSummaryCard,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: secondarySurfaceColor,
+                          },
+                        ]}
+                      >
+                        <View style={styles.otherSectionHeader}>
+                          <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>{month.monthLabel}</Text>
+                          <CountUpText
+                            value={month.totalExpense}
+                            formatter={formatINR}
+                            style={[styles.otherSectionValue, { color: colors.textPrimary }]}
+                          />
+                        </View>
+
+                        <View style={styles.flowGrid}>
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Total KM</Text>
+                            <CountUpText value={month.totalKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Shared KM</Text>
+                            <CountUpText value={month.sharedKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Sourav KM</Text>
+                            <CountUpText value={month.souravKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Ayan KM</Text>
+                            <CountUpText value={month.ayanKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Left</Text>
+                            <CountUpText value={month.closingFuelLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+
+                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Value</Text>
+                            <CountUpText value={month.closingFuelValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </SectionCard>
+              </MotionCard>
+
               <MotionCard delay={340} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
@@ -792,13 +937,22 @@ export function ReportScreen({ navigation }: Props) {
 
                   <View style={styles.doubleMetricRow}>
                     <MetricPair
-                      label="Total fuel cost"
+                      label="Trip fuel cost"
                       value={report.fuel.totalFuelCost}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
                       textSecondary={colors.textSecondary}
                       icon="payments"
+                    />
+                    <MetricPair
+                      label="Fuel paid"
+                      value={report.fuel.filledAmount}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="account-balance-wallet"
                     />
                     <MetricPair
                       label="Cost per liter"
@@ -808,6 +962,15 @@ export function ReportScreen({ navigation }: Props) {
                       textPrimary={colors.textPrimary}
                       textSecondary={colors.textSecondary}
                       icon="opacity"
+                    />
+                    <MetricPair
+                      label="Inventory adjust"
+                      value={report.fuel.inventoryAdjustmentAmount}
+                      formatter={formatINR}
+                      backgroundColor={secondarySurfaceColor}
+                      textPrimary={colors.textPrimary}
+                      textSecondary={colors.textSecondary}
+                      icon="inventory"
                     />
                   </View>
 
@@ -865,6 +1028,11 @@ export function ReportScreen({ navigation }: Props) {
                     </View>
 
                     <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
+                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Opening Value</Text>
+                      <CountUpText value={report.fuel.openingValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                    </View>
+
+                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
                       <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Filled</Text>
                       <CountUpText value={report.fuel.filledLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
                     </View>
@@ -877,6 +1045,11 @@ export function ReportScreen({ navigation }: Props) {
                     <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
                       <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Fuel</Text>
                       <CountUpText value={report.fuel.closingLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                    </View>
+
+                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
+                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Value</Text>
+                      <CountUpText value={report.fuel.closingValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
                     </View>
                   </View>
                 </SectionCard>
@@ -919,6 +1092,11 @@ export function ReportScreen({ navigation }: Props) {
                       <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Balance</Text>
                       <CountUpText value={report.fastag.closingBalance} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
                     </View>
+
+                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
+                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Balance Change</Text>
+                      <CountUpText value={report.fastag.balanceAdjustmentAmount} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                    </View>
                   </View>
 
                   <View style={styles.fastagUsersRow}>
@@ -944,6 +1122,12 @@ export function ReportScreen({ navigation }: Props) {
                           <MaterialIcons name="toll" size={13} color={colors.textSecondary} />
                           <Text style={[styles.fastagLine, { color: colors.textSecondary }]}>
                             {formatINR(summary.fastagUsedAmount)}
+                          </Text>
+                        </View>
+                        <View style={styles.labelRow}>
+                          <MaterialIcons name="account-balance" size={13} color={colors.textSecondary} />
+                          <Text style={[styles.fastagLine, { color: colors.textSecondary }]}>
+                            {formatINR(summary.fastagBalanceShareAmount)}
                           </Text>
                         </View>
                         <Text style={[styles.fastagBalanceText, { color: colors.textPrimary }]}>
@@ -990,7 +1174,7 @@ export function ReportScreen({ navigation }: Props) {
 
                     <View style={styles.doubleMetricRow}>
                       <MetricPair
-                        label="Ayan"
+                        label="Ayan Share"
                         value={report.trafficFine.byUser.ayan ?? 0}
                         formatter={formatINR}
                         backgroundColor={secondarySurfaceColor}
@@ -999,7 +1183,7 @@ export function ReportScreen({ navigation }: Props) {
                         icon="person-outline"
                       />
                       <MetricPair
-                        label="Sourav"
+                        label="Sourav Share"
                         value={report.trafficFine.byUser.sourav ?? 0}
                         formatter={formatINR}
                         backgroundColor={secondarySurfaceColor}
@@ -1196,6 +1380,183 @@ export function ReportScreen({ navigation }: Props) {
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal animationType="slide" transparent visible={isCalculationModalVisible} onRequestClose={() => setIsCalculationModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.calculationModalCard,
+              {
+                borderColor: colors.border,
+                backgroundColor: surfaceColor,
+              },
+            ]}
+          >
+            <View style={styles.calculationModalHeader}>
+              <View style={styles.modalTitleBlock}>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Calculation details</Text>
+                <Text style={[styles.modalText, { color: colors.textSecondary }]}>{report.rangeLabel}</Text>
+              </View>
+
+              <View style={styles.heroActionRow}>
+                <Pressable
+                  onPress={handleExportCsv}
+                  disabled={isExportingCsv}
+                  style={[
+                    styles.headerIconButton,
+                    {
+                      opacity: isExportingCsv ? 0.55 : 1,
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name={isExportingCsv ? 'hourglass-empty' : 'file-download'} size={18} color={colors.textPrimary} />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setIsCalculationModalVisible(false)}
+                  style={[
+                    styles.headerIconButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="close" size={18} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.calculationScrollContent}>
+              <View style={styles.auditSection}>
+                <Text style={[styles.auditSectionTitle, { color: colors.textPrimary }]}>Formula</Text>
+                {report.audit.formulaNotes.map((note) => (
+                  <View key={note} style={styles.auditNoteRow}>
+                    <MaterialIcons name="check-circle-outline" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.auditNoteText, { color: colors.textSecondary }]}>{note}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.auditSection}>
+                <Text style={[styles.auditSectionTitle, { color: colors.textPrimary }]}>Settlement</Text>
+                {report.audit.settlementRows.map((row) => (
+                  <View
+                    key={row.userId}
+                    style={[
+                      styles.auditRowCard,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: secondarySurfaceColor,
+                      },
+                    ]}
+                  >
+                    <View style={styles.otherSectionHeader}>
+                      <Text style={[styles.auditRowTitle, { color: colors.textPrimary }]}>{row.userName}</Text>
+                      <Text style={[styles.auditRowValue, { color: colors.textPrimary }]}>{formatINR(row.netBalance)}</Text>
+                    </View>
+                    <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                      Paid {formatINR(row.paidAmount)} - Share {formatINR(row.shareAmount)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.auditSection}>
+                <Text style={[styles.auditSectionTitle, { color: colors.textPrimary }]}>Month summary</Text>
+                {report.audit.monthlySummaries.map((month) => (
+                  <View
+                    key={month.monthKey}
+                    style={[
+                      styles.auditRowCard,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: secondarySurfaceColor,
+                      },
+                    ]}
+                  >
+                    <View style={styles.otherSectionHeader}>
+                      <Text style={[styles.auditRowTitle, { color: colors.textPrimary }]}>{month.monthLabel}</Text>
+                      <Text style={[styles.auditRowValue, { color: colors.textPrimary }]}>{formatKm(month.totalKm)}</Text>
+                    </View>
+                    <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                      Sourav {formatKm(month.souravKm)} - Ayan {formatKm(month.ayanKm)} - Shared {formatKm(month.sharedKm)}
+                    </Text>
+                    <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                      Fuel left {formatLiters(month.closingFuelLiters)} - Value {formatINR(month.closingFuelValue)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.auditSection}>
+                <Text style={[styles.auditSectionTitle, { color: colors.textPrimary }]}>Trip rows</Text>
+                {report.audit.tripRows.length === 0 ? (
+                  <Text style={[styles.auditEmptyText, { color: colors.textSecondary }]}>No trip rows in this period.</Text>
+                ) : (
+                  report.audit.tripRows.map((row) => (
+                    <View
+                      key={row.id}
+                      style={[
+                        styles.auditRowCard,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: secondarySurfaceColor,
+                        },
+                      ]}
+                    >
+                      <View style={styles.otherSectionHeader}>
+                        <Text style={[styles.auditRowTitle, { color: colors.textPrimary }]}>
+                          {row.monthLabel} - {row.drivenBy}
+                        </Text>
+                        <Text style={[styles.auditRowValue, { color: colors.textPrimary }]}>{formatINR(row.totalCost)}</Text>
+                      </View>
+                      <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                        {row.startOdometer} to {row.endOdometer} - {formatKm(row.distanceKm)} - {formatINR(row.costPerKm)}/km
+                      </Text>
+                      <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                        Sourav {formatINR(row.souravCost)} - Ayan {formatINR(row.ayanCost)}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </View>
+
+              <View style={styles.auditSection}>
+                <Text style={[styles.auditSectionTitle, { color: colors.textPrimary }]}>Fuel log</Text>
+                {report.audit.fuelLogRows.length === 0 ? (
+                  <Text style={[styles.auditEmptyText, { color: colors.textSecondary }]}>No fuel refills in the selected month range.</Text>
+                ) : (
+                  report.audit.fuelLogRows.map((row) => (
+                    <View
+                      key={row.id}
+                      style={[
+                        styles.auditRowCard,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: secondarySurfaceColor,
+                        },
+                      ]}
+                    >
+                      <View style={styles.otherSectionHeader}>
+                        <Text style={[styles.auditRowTitle, { color: colors.textPrimary }]}>
+                          {row.monthLabel} - {row.paidByUserName}
+                        </Text>
+                        <Text style={[styles.auditRowValue, { color: colors.textPrimary }]}>{formatINR(row.amount)}</Text>
+                      </View>
+                      <Text style={[styles.auditRowMeta, { color: colors.textSecondary }]}>
+                        {formatLiters(row.liters)} - {formatINR(row.rate)}/L
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal animationType="fade" transparent visible={isSettlementModalVisible} onRequestClose={() => setIsSettlementModalVisible(false)}>
         <View style={styles.modalOverlay}>

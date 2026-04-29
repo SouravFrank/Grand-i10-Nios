@@ -32,17 +32,19 @@ import { getEntryOwnerId, getEntryOwnerName } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ExpenseEntryModal'>;
 
-const quickExpenseTitles = [
-  'Last Maintenance',
-  'Engine Oil Change',
-  'Coolant Refill',
-  'PUCC Renewal',
-  'Insurance Renewal',
-  'Fitness Renewal',
-  'Tax Renewal',
-  'FASTag Recharge',
-  'FASTag Toll Paid',
-  'Traffic Violation Fine',
+const quickExpenseCategories = [
+  { title: 'FASTag Recharge', icon: 'account-balance-wallet' },
+  { title: 'FASTag Toll Paid', icon: 'toll' },
+  { title: 'Traffic Violation', icon: 'gavel' },
+  { title: 'Parking Fees', icon: 'local-parking' },
+  { title: 'Car Maintenance', icon: 'build' },
+] as const;
+
+const maintenanceExpenseTitles = [
+  { title: 'Engine Oil Change', icon: 'opacity' },
+  { title: 'Coolant Refill', icon: 'water-drop' },
+  { title: 'PUCC Renewal', icon: 'verified-user' },
+  { title: 'Insurance Renewal', icon: 'policy' },
 ] as const;
 
 const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
@@ -58,11 +60,12 @@ const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof 
 
 const keywordCategoryRules: Array<{ keywords: string[]; category: ExpenseCategory }> = [
   { keywords: ['traffic', 'violation', 'fine', 'challan'], category: 'traffic_violation_fine' },
-  { keywords: ['fastag toll', 'fast tag toll', 'toll', 'toll paid'], category: 'fasttag_toll_paid' },
+  { keywords: ['fastag toll', 'fast tag toll', 'fasttag toll', 'toll paid'], category: 'fasttag_toll_paid' },
   { keywords: ['purchase', 'downpayment', 'down payment', 'booking', 'cars24', 'inspection', 'delivery', 'wages'], category: 'purchase' },
-  { keywords: ['maintenance', 'service', 'engine oil', 'oil', 'coolant', 'filter', 'alignment', 'balancing', 'repair'], category: 'maintenance_lab' },
+  { keywords: ['car maintenance', 'maintenance', 'service', 'engine oil', 'oil', 'coolant', 'coolent', 'pucc renewal', 'insurance renewal', 'insurence renewal', 'filter', 'alignment', 'balancing', 'repair'], category: 'maintenance_lab' },
   { keywords: ['insurance', 'pucc', 'cover', 'rat', 'protector', 'safety', 'helmet'], category: 'shield_safety' },
-  { keywords: ['fastag', 'fast tag', 'tax', 'fitness', 'recharge', 'tag'], category: 'utility_addon' },
+  { keywords: ['fastag', 'fast tag', 'fasttag', 'tax', 'fitness', 'recharge', 'tag'], category: 'utility_addon' },
+  { keywords: ['parking', 'parking fee', 'parking fees'], category: 'other' },
   { keywords: ['seat', 'clean', 'wash', 'mat', 'perfume', 'comfort', 'vacuum'], category: 'care_comfort' },
 ];
 
@@ -135,6 +138,10 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
   const [entryDate, setEntryDate] = useState(() => new Date(editingEntry?.createdAt ?? Date.now()));
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [showMaintenanceOptions, setShowMaintenanceOptions] = useState(() => {
+    const title = editingEntry?.expenseTitle?.trim().toLowerCase() ?? '';
+    return title === 'car maintenance' || maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === title);
+  });
 
   const {
     control,
@@ -158,6 +165,25 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
   const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
+  const normalizedSelectedExpenseTitle = selectedExpenseTitle.trim().toLowerCase();
+  const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some(
+    (item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle,
+  );
+  const showMaintenanceSubcategories =
+    showMaintenanceOptions ||
+    normalizedSelectedExpenseTitle === 'car maintenance' ||
+    selectedMaintenanceSubcategory;
+
+  const handleQuickCategoryPress = (title: (typeof quickExpenseCategories)[number]['title']) => {
+    const isMaintenance = title === 'Car Maintenance';
+    setShowMaintenanceOptions(isMaintenance);
+    setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const handleMaintenanceSubcategoryPress = (title: (typeof maintenanceExpenseTitles)[number]['title']) => {
+    setShowMaintenanceOptions(true);
+    setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true });
+  };
 
   useEffect(() => {
     if (!isEditing && currentUser && !selectedPaidByUserId && showPaidBySection) {
@@ -315,17 +341,18 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-        
-
           <View style={styles.quickWrap}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Categories</Text>
             <View style={styles.quickGrid}>
-              {quickExpenseTitles.map((title) => {
-                const active = selectedExpenseTitle.trim().toLowerCase() === title.toLowerCase();
+              {quickExpenseCategories.map((item) => {
+                const active =
+                  item.title === 'Car Maintenance'
+                    ? showMaintenanceSubcategories || inferredCategory === 'maintenance_lab'
+                    : normalizedSelectedExpenseTitle === item.title.toLowerCase();
                 return (
                   <Pressable
-                    key={title}
-                    onPress={() => setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true })}
+                    key={item.title}
+                    onPress={() => handleQuickCategoryPress(item.title)}
                     style={[
                       styles.quickChip,
                       {
@@ -333,14 +360,59 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                         backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
                       },
                     ]}>
-                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
+                    <MaterialIcons
+                      name={active ? 'check' : item.icon}
+                      size={14}
+                      color={active ? colors.invertedText : colors.textSecondary}
+                    />
                     <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                      {title}
+                      {item.title}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
+
+            {showMaintenanceSubcategories ? (
+              <View
+                style={[
+                  styles.maintenancePanel,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.backgroundSecondary,
+                  },
+                ]}
+              >
+                <Text style={[styles.subSectionTitle, { color: colors.textSecondary }]}>Maintenance Items</Text>
+                <View style={styles.quickGrid}>
+                  {maintenanceExpenseTitles.map((item) => {
+                    const active = normalizedSelectedExpenseTitle === item.title.toLowerCase();
+                    return (
+                      <Pressable
+                        key={item.title}
+                        onPress={() => handleMaintenanceSubcategoryPress(item.title)}
+                        style={[
+                          styles.subCategoryChip,
+                          {
+                            borderColor: active ? colors.textPrimary : colors.border,
+                            backgroundColor: active ? colors.textPrimary : colors.card,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={active ? 'check' : item.icon}
+                          size={14}
+                          color={active ? colors.invertedText : colors.textSecondary}
+                        />
+                        <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                          {item.title}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
           </View>
 
           <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -428,9 +500,10 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                     label="Expense title"
                     value={value}
                     onChangeText={onChange}
-                    placeholder="e.g. Insurance Renewal"
+                    placeholder="Type your own expense title"
                     autoCapitalize="sentences"
                     error={errors.expenseTitle?.message}
+                    inputStyle={styles.roundedInput}
                   />
                 )}
               />
@@ -448,6 +521,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                     keyboardType="decimal-pad"
                     placeholder="e.g. 950"
                     error={errors.cost?.message}
+                    inputStyle={styles.roundedInput}
                   />
                 )}
               />
@@ -477,7 +551,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                 <View style={styles.switchCopy}>
                   <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Shared Expense</Text>
                   <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
-                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 'Fine incurred on a shared trip'}
+                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 'Violation expense was shared'}
                   </Text>
                 </View>
                 <Switch
@@ -692,30 +766,58 @@ const styles = StyleSheet.create({
   },
   quickChip: {
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   quickChipText: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
+  maintenancePanel: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 12,
+    gap: 10,
+  },
+  subSectionTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  subCategoryChip: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   formCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 26,
     padding: 16,
     gap: 16,
   },
   formSection: {
     gap: 12,
   },
+  roundedInput: {
+    height: 52,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   odoPanel: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 12,
     gap: 10,
   },

@@ -67,6 +67,11 @@ export function UserSplitCard({
         </View>
 
         <View style={styles.userMetric}>
+          <Text style={[styles.userMetricLabel, { color: textSecondary }]}>Inventory share</Text>
+          <CountUpText value={summary.fuelInventoryShareAmount} formatter={formatINR} style={[styles.userMetricValue, { color: textPrimary }]} />
+        </View>
+
+        <View style={styles.userMetric}>
           <Text style={[styles.userMetricLabel, { color: textSecondary }]}>Fuel balance</Text>
           <CountUpText value={summary.fuelNetBalance} formatter={formatINR} style={[styles.userMetricValue, { color: textPrimary }]} />
         </View>
