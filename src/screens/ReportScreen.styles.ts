@@ -670,24 +670,237 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textAlign: "center",
   },
+  fuelSummaryGrid: {
+    gap: 12,
+  },
+  fuelSummaryCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  highlightedFuelCard: {
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  fuelCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fuelCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  fuelCardContent: {
+    gap: 6,
+  },
+  fuelAmount: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  fuelQuantity: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  fuelRate: {
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.1,
+  },
+  fuelRange: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  fuelRemainingCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+    marginTop: 8,
+  },
+  fastagSummaryGrid: {
+    gap: 12,
+  },
+  fastagSummaryCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  highlightedFastagCard: {
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  fastagCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fastagCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  fastagCardContent: {
+    gap: 6,
+  },
+  fastagAmount: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  fastagUserSplitSection: {
+    marginTop: 8,
+    gap: 12,
+  },
+  fastagSharedSection: {
+    marginTop: 8,
+    gap: 12,
+  },
+  fastagUserSplitTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  fastagUserCards: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  fastagUserCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    alignItems: "center",
+  },
+  fastagUserStats: {
+    alignItems: "center",
+    gap: 2,
+  },
+  fastagUserHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fastagUserName: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  fastagUserAmount: {
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  fastagUserLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
   fastagUsersRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
-  fastagUserCard: {
+  fineSummaryGrid: {
+    gap: 12,
+  },
+  fineSummaryCard: {
     borderWidth: 1,
     borderRadius: 16,
-    padding: 12,
-    gap: 5,
-    width: "48%",
+    padding: 16,
+    gap: 12,
+  },
+  highlightedFineCard: {
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  fineCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fineCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  fineCardContent: {
+    gap: 6,
+  },
+  fineAmount: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  parkingSummaryGrid: {
+    gap: 12,
+  },
+  parkingSummaryCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  highlightedParkingCard: {
+    borderWidth: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  parkingCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  parkingCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  parkingCardContent: {
+    gap: 6,
+  },
+  parkingAmount: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 0.4,
   },
   expenseSectionStack: {
     gap: 10,
   },
-  fastagUserName: {
-    fontSize: 14,
-    fontWeight: "900",
+  expenseSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  expenseSectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  expenseSectionContent: {
+    alignItems: "center",
   },
   fastagLine: {
     fontSize: 12,

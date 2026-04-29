@@ -157,7 +157,7 @@ export function HistoryItemCard({
         : isTripSummary
           ? `${tripStartOdometer} -> ${tripEndOdometer} km`
           : `${entry.odometer} km`;
-  const userChipLabel = isPayerSelectableEntryType(entry.type) && entry.expenseCategory !== 'fasttag_toll_paid' ? `Paid by ${entry.userName}` : entry.userName;
+  const userChipLabel = isPayerSelectableEntryType(entry.type) && entry.expenseCategory !== 'fasttag_toll_paid' ? `${entry.userName}` : entry.userName;
 
   const detailChips: Array<{ icon: keyof typeof MaterialIcons.glyphMap; text: string; size?: 'large' | 'small' }> = [];
 

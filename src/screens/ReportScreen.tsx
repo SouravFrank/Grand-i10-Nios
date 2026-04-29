@@ -47,7 +47,6 @@ import { ExpenseItemRows } from './reporting/components/ExpenseItemRows';
 import { MetricPair } from './reporting/components/MetricPair';
 import { MotionCard } from './reporting/components/MotionCard';
 import { SectionCard } from './reporting/components/SectionCard';
-import { UserSplitCard } from './reporting/components/UserSplitCard';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Report'>;
 
@@ -1000,76 +999,109 @@ export function ReportScreen({ navigation }: Props) {
                   <View style={styles.sectionHeader}>
                     <View style={styles.titleRow}>
                       <MaterialIcons name="local-gas-station" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel</Text>
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel Summary</Text>
                     </View>
                   </View>
 
-                  <View style={styles.doubleMetricRow}>
-                    <MetricPair
-                      label="Trip fuel cost"
-                      value={report.fuel.totalFuelCost}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="payments"
-                    />
-                    <MetricPair
-                      label="Fuel paid"
-                      value={report.fuel.filledAmount}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="account-balance-wallet"
-                    />
-                    <MetricPair
-                      label="Cost per liter"
-                      value={report.fuel.costPerLiter}
-                      formatter={(value) => `${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}/L`}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="opacity"
-                    />
-                    <MetricPair
-                      label="Inventory adjust"
-                      value={report.fuel.inventoryAdjustmentAmount}
-                      formatter={formatINR}
-                      backgroundColor={secondarySurfaceColor}
-                      textPrimary={colors.textPrimary}
-                      textSecondary={colors.textSecondary}
-                      icon="inventory"
-                    />
+                  <View style={styles.fuelSummaryGrid}>
+                    <View style={[styles.fuelSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fuelCardHeader}>
+                        <MaterialIcons name="add-circle" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fuelCardTitle, { color: colors.textPrimary }]}>Total Fuel Filled</Text>
+                      </View>
+                      <View style={styles.fuelCardContent}>
+                        <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
+                          {formatLiters(report.fuel.filledLiters)}
+                        </Text>
+                        <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
+                          {formatINR(report.fuel.filledAmount)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fuelSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fuelCardHeader}>
+                        <MaterialIcons name="arrow-downward" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fuelCardTitle, { color: colors.textPrimary }]}>Previous Month Brought Forward</Text>
+                      </View>
+                      <View style={styles.fuelCardContent}>
+                        <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
+                          {formatLiters(report.fuel.openingLiters)}
+                        </Text>
+                        <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
+                          {formatINR(report.fuel.openingValue)}
+                        </Text>
+                        <Text style={[styles.fuelRate, { color: colors.textSecondary }]}>
+                          Avg: {formatINR(report.fuel.costPerLiter)}/L
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fuelSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fuelCardHeader}>
+                        <MaterialIcons name="directions-car" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fuelCardTitle, { color: colors.textPrimary }]}>Total Fuel Spent</Text>
+                      </View>
+                      <View style={styles.fuelCardContent}>
+                        <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
+                          {formatLiters(report.fuel.usedLiters)}
+                        </Text>
+                        <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
+                          {formatINR(report.fuel.totalFuelCost)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fuelSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fuelCardHeader}>
+                        <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fuelCardTitle, { color: colors.textPrimary }]}>Ayan Paid for Fuel</Text>
+                      </View>
+                      <View style={styles.fuelCardContent}>
+                        <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
+                          {formatLiters(ayanSummary.fuelFilledLiters)}
+                        </Text>
+                        <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
+                          {formatINR(ayanSummary.fuelPaidAmount)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fuelSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fuelCardHeader}>
+                        <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fuelCardTitle, { color: colors.textPrimary }]}>Sourav Paid for Fuel</Text>
+                      </View>
+                      <View style={styles.fuelCardContent}>
+                        <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
+                          {formatLiters(souravSummary.fuelFilledLiters)}
+                        </Text>
+                        <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
+                          {formatINR(souravSummary.fuelPaidAmount)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
 
-                  {report.hasFuelData ? (
-                    <View style={styles.userSplitStack}>
-                      <UserSplitCard
-                        summary={ayanSummary}
-                        currentUserId={currentUser?.id}
-                        backgroundColor={secondarySurfaceColor}
-                        textPrimary={colors.textPrimary}
-                        textSecondary={colors.textSecondary}
-                        badgeBackgroundColor={colors.textPrimary}
-                        badgeTextColor={colors.invertedText}
-                      />
-                      <UserSplitCard
-                        summary={souravSummary}
-                        currentUserId={currentUser?.id}
-                        backgroundColor={secondarySurfaceColor}
-                        textPrimary={colors.textPrimary}
-                        textSecondary={colors.textSecondary}
-                        badgeBackgroundColor={colors.textPrimary}
-                        badgeTextColor={colors.invertedText}
-                      />
+                  <View style={[styles.fuelRemainingCard, styles.highlightedFuelCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
+                    <View style={styles.fuelCardHeader}>
+                      <MaterialIcons name="local-gas-station" size={20} color={colors.primary} />
+                      <Text style={[styles.fuelCardTitle, { color: colors.primary }]}>Fuel Remaining</Text>
                     </View>
-                  ) : (
-                    <View style={styles.emptyBlock}>
-                      <MaterialIcons name="local-gas-station" size={20} color={colors.textSecondary} />
-                      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No fuel data in this period</Text>
+                    <View style={styles.fuelCardContent}>
+                      <Text style={[styles.fuelQuantity, { color: colors.primary }]}>
+                        {formatLiters(report.fuel.closingLiters)}
+                      </Text>
+                      <Text style={[styles.fuelAmount, { color: colors.primary }]}>
+                        {formatINR(report.fuel.closingValue)}
+                      </Text>
+                      <Text style={[styles.fuelRange, { color: colors.primary }]}>
+                        Range: {Math.round(report.fuel.closingLiters * (report.fuel.costPerLiter > 0 ? report.fuel.costPerLiter : 15))} km
+                      </Text>
                     </View>
-                  )}
+                  </View>
+
+           
                 </SectionCard>
               </MotionCard>
 
@@ -1085,129 +1117,119 @@ export function ReportScreen({ navigation }: Props) {
                 >
                   <View style={styles.sectionHeader}>
                     <View style={styles.titleRow}>
-                      <MaterialIcons name="water-drop" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel Flow</Text>
+                      <MaterialIcons name="credit-card" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fastag Summary</Text>
                     </View>
                   </View>
 
-                  <View style={styles.flowGrid}>
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Opening Fuel</Text>
-                      <CountUpText value={report.fuel.openingLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Opening Value</Text>
-                      <CountUpText value={report.fuel.openingValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Filled</Text>
-                      <CountUpText value={report.fuel.filledLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Used</Text>
-                      <CountUpText value={report.fuel.usedLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Fuel</Text>
-                      <CountUpText value={report.fuel.closingLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Value</Text>
-                      <CountUpText value={report.fuel.closingValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-                  </View>
-                </SectionCard>
-              </MotionCard>
-
-              <MotionCard delay={460} style={styles.gridSpanFull}>
-                <SectionCard
-                  style={[
-                    styles.glassCard,
-                    {
-                      backgroundColor: surfaceColor,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.sectionHeader}>
-                    <View style={styles.titleRow}>
-                      <MaterialIcons name="toll" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>FASTag</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.flowGrid}>
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Opening Balance</Text>
-                      <CountUpText value={report.fastag.openingBalance} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Recharge</Text>
-                      <CountUpText value={report.fastag.rechargeAmount} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Toll Used</Text>
-                      <CountUpText value={report.fastag.usedAmount} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Closing Balance</Text>
-                      <CountUpText value={report.fastag.closingBalance} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-
-                    <View style={[styles.flowCard, styles.gridBlockHalf, { backgroundColor: secondarySurfaceColor, borderColor: colors.border }]}>
-                      <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Balance Change</Text>
-                      <CountUpText value={report.fastag.balanceAdjustmentAmount} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
-                    </View>
-                  </View>
-
-                  <View style={styles.fastagUsersRow}>
-                    {[ayanSummary, souravSummary].map((summary) => (
-                      <View
-                        key={summary.id}
-                        style={[
-                          styles.fastagUserCard,
-                          {
-                            borderColor: colors.border,
-                            backgroundColor: secondarySurfaceColor,
-                          },
-                        ]}
-                      >
-                        <Text style={[styles.fastagUserName, { color: colors.textPrimary }]}>{summary.name}</Text>
-                        <View style={styles.labelRow}>
-                          <MaterialIcons name="account-balance-wallet" size={13} color={colors.textSecondary} />
-                          <Text style={[styles.fastagLine, { color: colors.textSecondary }]}>
-                            {formatINR(summary.fastagRechargeAmount)}
-                          </Text>
-                        </View>
-                        <View style={styles.labelRow}>
-                          <MaterialIcons name="toll" size={13} color={colors.textSecondary} />
-                          <Text style={[styles.fastagLine, { color: colors.textSecondary }]}>
-                            {formatINR(summary.fastagUsedAmount)}
-                          </Text>
-                        </View>
-                        <View style={styles.labelRow}>
-                          <MaterialIcons name="account-balance" size={13} color={colors.textSecondary} />
-                          <Text style={[styles.fastagLine, { color: colors.textSecondary }]}>
-                            {formatINR(summary.fastagBalanceShareAmount)}
-                          </Text>
-                        </View>
-                        <Text style={[styles.fastagBalanceText, { color: colors.textPrimary }]}>
-                          Net: {formatINR(summary.fastagNetBalance)}
+                  <View style={styles.fastagSummaryGrid}>
+                    <View style={[styles.fastagSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fastagCardHeader}>
+                        <MaterialIcons name="add-circle" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fastagCardTitle, { color: colors.textPrimary }]}>Total Recharged</Text>
+                      </View>
+                      <View style={styles.fastagCardContent}>
+                        <Text style={[styles.fastagAmount, { color: colors.textPrimary }]}>
+                          {formatINR(report.fastag.rechargeAmount)}
                         </Text>
                       </View>
-                    ))}
+                    </View>
+
+                    <View style={[styles.fastagSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fastagCardHeader}>
+                        <MaterialIcons name="arrow-downward" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fastagCardTitle, { color: colors.textPrimary }]}>Opening Balance</Text>
+                      </View>
+                      <View style={styles.fastagCardContent}>
+                        <Text style={[styles.fastagAmount, { color: colors.textPrimary }]}>
+                          {formatINR(report.fastag.openingBalance)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fastagSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fastagCardHeader}>
+                        <MaterialIcons name="directions-car" size={20} color={colors.textPrimary} />
+                        <Text style={[styles.fastagCardTitle, { color: colors.textPrimary }]}>Total Tolls Used</Text>
+                      </View>
+                      <View style={styles.fastagCardContent}>
+                        <Text style={[styles.fastagAmount, { color: colors.textPrimary }]}>
+                          {formatINR(report.fastag.usedAmount)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.fastagSummaryCard, styles.highlightedFastagCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
+                      <View style={styles.fastagCardHeader}>
+                        <MaterialIcons name="account-balance-wallet" size={20} color={colors.primary} />
+                        <Text style={[styles.fastagCardTitle, { color: colors.primary }]}>Closing Balance</Text>
+                      </View>
+                      <View style={styles.fastagCardContent}>
+                        <Text style={[styles.fastagAmount, { color: colors.primary }]}>
+                          {formatINR(report.fastag.closingBalance)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.fastagUserSplitSection}>
+                    <Text style={[styles.fastagUserSplitTitle, { color: colors.textPrimary }]}>User-wise Usage</Text>
+                    <View style={styles.fastagUserCards}>
+                      <View style={[styles.fastagUserCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.fastagUserHeader}>
+                          <MaterialIcons name="person" size={18} color={colors.textPrimary} />
+                          <Text style={[styles.fastagUserName, { color: colors.textPrimary }]}>Ayan</Text>
+                        </View>
+                        <View style={styles.fastagUserStats}>
+                          <Text style={[styles.fastagUserAmount, { color: colors.textPrimary }]}>
+                            {formatINR(ayanSummary.fastagUsedAmount)}
+                          </Text>
+                          <Text style={[styles.fastagUserLabel, { color: colors.textSecondary }]}>Tolls Used</Text>
+                        </View>
+                        <View style={styles.fastagUserStats}>
+                          <Text style={[styles.fastagUserAmount, { color: colors.textPrimary }]}>
+                            {formatINR(ayanSummary.fastagRechargeAmount)}
+                          </Text>
+                          <Text style={[styles.fastagUserLabel, { color: colors.textSecondary }]}>Recharged</Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.fastagUserCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.fastagUserHeader}>
+                          <MaterialIcons name="person" size={18} color={colors.textPrimary} />
+                          <Text style={[styles.fastagUserName, { color: colors.textPrimary }]}>Sourav</Text>
+                        </View>
+                        <View style={styles.fastagUserStats}>
+                          <Text style={[styles.fastagUserAmount, { color: colors.textPrimary }]}>
+                            {formatINR(souravSummary.fastagUsedAmount)}
+                          </Text>
+                          <Text style={[styles.fastagUserLabel, { color: colors.textSecondary }]}>Tolls Used</Text>
+                        </View>
+                        <View style={styles.fastagUserStats}>
+                          <Text style={[styles.fastagUserAmount, { color: colors.textPrimary }]}>
+                            {formatINR(souravSummary.fastagRechargeAmount)}
+                          </Text>
+                          <Text style={[styles.fastagUserLabel, { color: colors.textSecondary }]}>Recharged</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.fastagSharedSection}>
+                    <Text style={[styles.fastagUserSplitTitle, { color: colors.textPrimary }]}>Shared Trip Tolls</Text>
+                    <View style={[styles.fastagSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                      <View style={styles.fastagCardContent}>
+                        <Text style={[styles.fastagAmount, { color: colors.textPrimary }]}>
+                          {formatINR(report.fastag.sharedTripTolls / 2)}
+                        </Text>
+                        
+                      </View>
+                    </View>
                   </View>
                 </SectionCard>
               </MotionCard>
 
+           
               {report.trafficFine.totalAmount > 0 ? (
                 <MotionCard delay={520} style={styles.gridSpanFull}>
                   <SectionCard
@@ -1241,25 +1263,45 @@ export function ReportScreen({ navigation }: Props) {
                       </View>
                     </View>
 
-                    <View style={styles.doubleMetricRow}>
-                      <MetricPair
-                        label="Ayan Share"
-                        value={report.trafficFine.byUser.ayan ?? 0}
-                        formatter={formatINR}
-                        backgroundColor={secondarySurfaceColor}
-                        textPrimary={colors.textPrimary}
-                        textSecondary={colors.textSecondary}
-                        icon="person-outline"
-                      />
-                      <MetricPair
-                        label="Sourav Share"
-                        value={report.trafficFine.byUser.sourav ?? 0}
-                        formatter={formatINR}
-                        backgroundColor={secondarySurfaceColor}
-                        textPrimary={colors.textPrimary}
-                        textSecondary={colors.textSecondary}
-                        icon="person-outline"
-                      />
+                    <View style={styles.fineSummaryGrid}>
+                      <View style={[styles.fineSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.fineCardHeader}>
+                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                          <Text style={[styles.fineCardTitle, { color: colors.textPrimary }]}>Ayan Fine</Text>
+                        </View>
+                        <View style={styles.fineCardContent}>
+                          <Text style={[styles.fineAmount, { color: colors.textPrimary }]}>
+                            {formatINR(report.trafficFine.byUser.ayan ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.fineSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.fineCardHeader}>
+                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                          <Text style={[styles.fineCardTitle, { color: colors.textPrimary }]}>Sourav Fine</Text>
+                        </View>
+                        <View style={styles.fineCardContent}>
+                          <Text style={[styles.fineAmount, { color: colors.textPrimary }]}>
+                            {formatINR(report.trafficFine.byUser.sourav ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.fineSummaryCard, styles.highlightedFineCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
+                        <View style={styles.fineCardHeader}>
+                          <MaterialIcons name="groups" size={20} color={colors.primary} />
+                          <Text style={[styles.fineCardTitle, { color: colors.primary }]}>Shared Trip Fine</Text>
+                        </View>
+                        <View style={styles.fineCardContent}>
+                          <Text style={[styles.fineAmount, { color: colors.primary }]}>
+                            {formatINR(report.trafficFine.sharedTripFines / 2)}
+                          </Text>
+                          <Text style={[styles.fineCardTitle, { color: colors.textSecondary }]}>
+                            Each user's share
+                          </Text>
+                        </View>
+                      </View>
                     </View>
 
                     <View
@@ -1285,6 +1327,114 @@ export function ReportScreen({ navigation }: Props) {
 
                       <ExpenseItemRows
                         items={report.trafficFine.items}
+                        borderColor={colors.border}
+                        textPrimary={colors.textPrimary}
+                        textSecondary={colors.textSecondary}
+                      />
+                    </View>
+                  </SectionCard>
+                </MotionCard>
+              ) : null}
+
+              {report.parking.totalAmount > 0 ? (
+                <MotionCard delay={540} style={styles.gridSpanFull}>
+                  <SectionCard
+                    style={[
+                      styles.glassCard,
+                      {
+                        backgroundColor: surfaceColor,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.sectionHeader}>
+                      <View style={styles.titleRow}>
+                        <MaterialIcons name="local-parking" size={16} color={colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Parking</Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.inlineStatPill,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: secondarySurfaceColor,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="receipt-long" size={12} color={colors.textSecondary} />
+                        <Text style={[styles.inlineStatText, { color: colors.textPrimary }]}>
+                          {report.parking.totalCount} {report.parking.totalCount === 1 ? 'item' : 'items'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.parkingSummaryGrid}>
+                      <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.parkingCardHeader}>
+                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                          <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Ayan Parking</Text>
+                        </View>
+                        <View style={styles.parkingCardContent}>
+                          <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
+                            {formatINR(report.parking.byUser.ayan ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                        <View style={styles.parkingCardHeader}>
+                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                          <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Sourav Parking</Text>
+                        </View>
+                        <View style={styles.parkingCardContent}>
+                          <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
+                            {formatINR(report.parking.byUser.sourav ?? 0)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.parkingSummaryCard, styles.highlightedParkingCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
+                        <View style={styles.parkingCardHeader}>
+                          <MaterialIcons name="groups" size={20} color={colors.primary} />
+                          <Text style={[styles.parkingCardTitle, { color: colors.primary }]}>Shared Trip Parking</Text>
+                        </View>
+                        <View style={styles.parkingCardContent}>
+                          <Text style={[styles.parkingAmount, { color: colors.primary }]}>
+                            {formatINR(report.parking.sharedTripParking / 2)}
+                          </Text>
+                          <Text style={[styles.parkingCardTitle, { color: colors.textSecondary }]}>
+                            Each user's share
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.expenseSectionCard,
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: secondarySurfaceColor,
+                        },
+                      ]}
+                    >
+                      <View style={styles.expenseSectionHeader}>
+                        <Text style={[styles.expenseSectionTitle, { color: colors.textPrimary }]}>
+                          Total Parking
+                        </Text>
+                      </View>
+
+                      <View style={styles.expenseSectionContent}>
+                        <CountUpText
+                          value={report.parking.totalAmount}
+                          formatter={formatINR}
+                          style={[styles.otherSectionValue, { color: colors.textPrimary }]}
+                        />
+                      </View>
+
+                      <ExpenseItemRows
+                        items={report.parking.items}
                         borderColor={colors.border}
                         textPrimary={colors.textPrimary}
                         textSecondary={colors.textSecondary}

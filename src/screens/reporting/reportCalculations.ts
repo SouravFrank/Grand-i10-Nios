@@ -36,6 +36,8 @@ export type ReportUserSummary = {
   fastagNetBalance: number;
   trafficFinePaidAmount: number;
   trafficFineShareAmount: number;
+  parkingPaidAmount: number;
+  parkingShareAmount: number;
   otherPaidAmount: number;
   otherShareAmount: number;
   totalPaidAmount: number;
@@ -169,11 +171,20 @@ export type ExpenseReport = {
     usedAmount: number;
     closingBalance: number;
     balanceAdjustmentAmount: number;
+    sharedTripTolls: number;
   };
   trafficFine: {
     totalAmount: number;
     totalCount: number;
     byUser: Record<string, number>;
+    sharedTripFines: number;
+    items: ReportExpenseItem[];
+  };
+  parking: {
+    totalAmount: number;
+    totalCount: number;
+    byUser: Record<string, number>;
+    sharedTripParking: number;
     items: ReportExpenseItem[];
   };
   others: {
@@ -238,6 +249,8 @@ function createEmptyUserSummary(user: ReportUser): ReportUserSummary {
     fastagNetBalance: 0,
     trafficFinePaidAmount: 0,
     trafficFineShareAmount: 0,
+    parkingPaidAmount: 0,
+    parkingShareAmount: 0,
     otherPaidAmount: 0,
     otherShareAmount: 0,
     totalPaidAmount: 0,
@@ -341,6 +354,16 @@ function isTrafficFine(entry: EntryRecord): boolean {
   return (
     entry.type === "expense" &&
     entry.expenseCategory === "traffic_violation_fine"
+  );
+}
+
+function isParkingExpense(entry: EntryRecord): boolean {
+  return (
+    entry.type === "expense" &&
+    (entry.expenseCategory === "parking" ||
+      (entry.expenseTitle !== null &&
+        entry.expenseTitle !== undefined &&
+        entry.expenseTitle.toLowerCase().includes("parking")))
   );
 }
 
@@ -806,6 +829,10 @@ export function buildExpenseReport(params: {
   let totalFastagRechargeBefore = 0;
   let totalFastagUsed = 0;
   let totalFastagUsedBefore = 0;
+  let totalSharedTripTolls = 0;
+  let totalSharedTripFines = 0;
+  let totalParkingAmount = 0;
+  let totalSharedTripParking = 0;
   let totalOtherSharedAmount = 0;
   let totalTrafficFineAmount = 0;
 
@@ -813,6 +840,11 @@ export function buildExpenseReport(params: {
     users.map((user) => [user.id, 0]),
   ) as Record<string, number>;
   const trafficFineItems: ReportExpenseItem[] = [];
+
+  const parkingByUser = Object.fromEntries(
+    users.map((user) => [user.id, 0]),
+  ) as Record<string, number>;
+  const parkingItems: ReportExpenseItem[] = [];
 
   const otherSections = new Map<ReportSection["key"], ReportSection>([
     [
@@ -867,30 +899,6 @@ export function buildExpenseReport(params: {
           : 0,
       ]),
     );
-    const workbookUserTripCost = tripTotalCost / users.length;
-    const workbookSouravCost =
-      trip.drivenBy === "Ayan" ? 0 : workbookUserTripCost;
-    const workbookAyanCost =
-      trip.drivenBy === "Sourav" ? 0 : workbookUserTripCost;
-
-    totalFuelUsedLiters += tripFuelUsedLiters;
-    totalTripFuelCost += tripTotalCost;
-
-    for (const [userId, distanceShare] of Object.entries(trip.sharesByUser)) {
-      const target = usersById[userId];
-      if (!target) continue;
-
-      const costShare = tripCostShares[userId] ?? 0;
-      target.distanceKm += distanceShare;
-      target.fuelUsedLiters += hasValidMileage ? distanceShare / mileage : 0;
-      target.fuelConsumptionCost += costShare;
-
-      if (trip.isShared) {
-        target.sharedDistanceKm += distanceShare;
-      } else {
-        target.personalDistanceKm += distanceShare;
-      }
-    }
 
     tripRows.push({
       id: trip.tripId,
@@ -904,8 +912,8 @@ export function buildExpenseReport(params: {
       mileage,
       costPerKm,
       totalCost: tripTotalCost,
-      souravCost: workbookSouravCost,
-      ayanCost: workbookAyanCost,
+      souravCost: tripCostShares.sourav || 0,
+      ayanCost: tripCostShares.ayan || 0,
       createdAt: trip.end.createdAt,
     });
   }
@@ -956,6 +964,11 @@ export function buildExpenseReport(params: {
       const amount = entry.cost ?? 0;
       totalFastagUsed += amount;
 
+      // Track shared trip tolls separately
+      if (entry.sharedTrip) {
+        totalSharedTripTolls += amount;
+      }
+
       const matchedTrip = findTripByOdometer(trips, entry.odometer);
       const sharesByUser = entry.sharedTrip
         ? getEqualShares(amount, users)
@@ -993,6 +1006,11 @@ export function buildExpenseReport(params: {
         payer.trafficFinePaidAmount += amount;
       }
 
+      // Track shared trip fines separately
+      if (entry.sharedTrip) {
+        totalSharedTripFines += amount;
+      }
+
       const sharesByUser = entry.sharedTrip
         ? getEqualShares(amount, users)
         : { [entry.userId]: amount };
@@ -1005,6 +1023,33 @@ export function buildExpenseReport(params: {
 
       totalTrafficFineAmount += amount;
       trafficFineItems.push(buildExpenseItem(entry, "Traffic Fine"));
+      continue;
+    }
+
+    if (isParkingExpense(entry) && typeof entry.cost === "number") {
+      const amount = entry.cost;
+      const payer = usersById[entry.userId];
+      if (payer) {
+        payer.parkingPaidAmount += amount;
+      }
+
+      // Track shared trip parking separately
+      if (entry.sharedTrip) {
+        totalSharedTripParking += amount;
+      }
+
+      const sharesByUser = entry.sharedTrip
+        ? getEqualShares(amount, users)
+        : { [entry.userId]: amount };
+      for (const [userId, value] of Object.entries(sharesByUser)) {
+        const target = usersById[userId];
+        if (!target) continue;
+        target.parkingShareAmount += value;
+        parkingByUser[userId] = (parkingByUser[userId] ?? 0) + value;
+      }
+
+      totalParkingAmount += amount;
+      parkingItems.push(buildExpenseItem(entry, "Parking"));
       continue;
     }
 
@@ -1374,6 +1419,7 @@ export function buildExpenseReport(params: {
       usedAmount: roundCurrency(totalFastagUsed),
       closingBalance: roundCurrency(closingFastagBalance),
       balanceAdjustmentAmount: roundCurrency(fastagBalanceAdjustment),
+      sharedTripTolls: roundCurrency(totalSharedTripTolls),
     },
     trafficFine: {
       totalAmount: roundCurrency(totalTrafficFineAmount),
@@ -1384,7 +1430,22 @@ export function buildExpenseReport(params: {
           roundCurrency(value),
         ]),
       ),
+      sharedTripFines: roundCurrency(totalSharedTripFines),
       items: [...trafficFineItems].sort(
+        (left, right) => right.createdAt - left.createdAt,
+      ),
+    },
+    parking: {
+      totalAmount: roundCurrency(totalParkingAmount),
+      totalCount: parkingItems.length,
+      byUser: Object.fromEntries(
+        Object.entries(parkingByUser).map(([userId, value]) => [
+          userId,
+          roundCurrency(value),
+        ]),
+      ),
+      sharedTripParking: roundCurrency(totalSharedTripParking),
+      items: [...parkingItems].sort(
         (left, right) => right.createdAt - left.createdAt,
       ),
     },
