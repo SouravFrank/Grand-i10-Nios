@@ -991,11 +991,6 @@ export function buildExpenseReport(params: {
         target.fastagUsedAmount += value;
       }
 
-      const tollSection = otherSections.get("toll");
-      if (tollSection) {
-        tollSection.totalAmount += amount;
-        tollSection.items.push(buildExpenseItem(entry, "Toll"));
-      }
       continue;
     }
 
@@ -1248,17 +1243,23 @@ export function buildExpenseReport(params: {
       .filter(isFastagToll)
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
     const otherExpenseAmount = monthEntries
-      .filter(
-        (entry) => Boolean(getOtherSectionKey(entry)) && !isFastagToll(entry),
-      )
+      .filter((entry) => {
+        // Only include expenses that have an other section key and are not trip-related or fuel
+        const hasOtherSectionKey = Boolean(getOtherSectionKey(entry));
+        const isNotToll = !isFastagToll(entry);
+        const isNotFuel = entry.type !== "fuel"; // Explicitly exclude fuel expenses
+        const isNotTripRelated = !entry.tripId; // Exclude expenses that are part of trips
+        return hasOtherSectionKey && isNotToll && isNotFuel && isNotTripRelated;
+      })
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
     const trafficFineAmount = monthEntries
       .filter((entry) => isTrafficFine(entry) && typeof entry.cost === "number")
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
-    const tripFuelCost = monthTripRows.reduce(
-      (total, row) => total + row.totalCost,
-      0,
-    );
+    // Calculate fuel cost using the same logic as totalFuelUsed calculation
+    const tripFuelCost =
+      monthMileage > 0 && totalKm > 0
+        ? (totalKm / monthMileage) * fuelRateForValue
+        : 0;
 
     return {
       monthKey,

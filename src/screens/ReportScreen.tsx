@@ -218,6 +218,7 @@ export function ReportScreen({ navigation }: Props) {
     }
 
     setReportMileage(report.mileageEditorMonthKey, parsedValue);
+    setIsMileageEditorVisible(false);
   };
 
   const handleConfirmSettlement = () => {
@@ -873,11 +874,6 @@ export function ReportScreen({ navigation }: Props) {
                       >
                         <View style={styles.otherSectionHeader}>
                           <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>{month.monthLabel}</Text>
-                          <CountUpText
-                            value={month.totalExpense}
-                            formatter={formatINR}
-                            style={[styles.otherSectionValue, { color: colors.textPrimary }]}
-                          />
                         </View>
 
                         <View style={styles.flowGrid}>
@@ -1044,10 +1040,10 @@ export function ReportScreen({ navigation }: Props) {
                       </View>
                       <View style={styles.fuelCardContent}>
                         <Text style={[styles.fuelQuantity, { color: colors.textPrimary }]}>
-                          {formatLiters(report.fuel.usedLiters)}
+                          {formatLiters(report.audit.monthlySummaries.find(month => month.monthKey === activeRange.monthKey)?.totalFuelUsed || 0)}
                         </Text>
                         <Text style={[styles.fuelAmount, { color: colors.textSecondary }]}>
-                          {formatINR(report.fuel.totalFuelCost)}
+                          {formatINR((report.audit.monthlySummaries.find(month => month.monthKey === activeRange.monthKey)?.totalKm || 0) * (report.audit.monthlySummaries.find(month => month.monthKey === activeRange.monthKey)?.costPerKm || 0))}
                         </Text>
                       </View>
                     </View>
@@ -1466,17 +1462,17 @@ export function ReportScreen({ navigation }: Props) {
                       icon="payments"
                     />
                     <MetricPair
-                      label="Ayan Net"
-                      value={ayanSummary.netBalance}
+                      label="Individual Share"
+                      value={(ayanSummary.totalPaidAmount + souravSummary.totalPaidAmount) / 2}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
                       textSecondary={colors.textSecondary}
-                      icon="compare-arrows"
+                      icon="account-balance-wallet"
                     />
                     <MetricPair
-                      label="Sourav Net"
-                      value={souravSummary.netBalance}
+                      label="Difference"
+                      value={Math.abs(((ayanSummary.totalPaidAmount + souravSummary.totalPaidAmount) / 2) - ayanSummary.totalPaidAmount)}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
