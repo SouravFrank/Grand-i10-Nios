@@ -1009,16 +1009,20 @@ export function buildExpenseReport(params: {
       // Track shared trip fines separately
       if (entry.sharedTrip) {
         totalSharedTripFines += amount;
-      }
-
-      const sharesByUser = entry.sharedTrip
-        ? getEqualShares(amount, users)
-        : { [entry.userId]: amount };
-      for (const [userId, value] of Object.entries(sharesByUser)) {
-        const target = usersById[userId];
-        if (!target) continue;
-        target.trafficFineShareAmount += value;
-        trafficFineByUser[userId] = (trafficFineByUser[userId] ?? 0) + value;
+        // For shared fines, add to individual share amounts but not to individual fine totals
+        const sharesByUser = getEqualShares(amount, users);
+        for (const [userId, value] of Object.entries(sharesByUser)) {
+          const target = usersById[userId];
+          if (!target) continue;
+          target.trafficFineShareAmount += value;
+        }
+      } else {
+        // For individual fines, add to individual fine totals
+        trafficFineByUser[entry.userId] =
+          (trafficFineByUser[entry.userId] ?? 0) + amount;
+        if (payer) {
+          payer.trafficFineShareAmount += amount;
+        }
       }
 
       totalTrafficFineAmount += amount;
@@ -1036,16 +1040,20 @@ export function buildExpenseReport(params: {
       // Track shared trip parking separately
       if (entry.sharedTrip) {
         totalSharedTripParking += amount;
-      }
-
-      const sharesByUser = entry.sharedTrip
-        ? getEqualShares(amount, users)
-        : { [entry.userId]: amount };
-      for (const [userId, value] of Object.entries(sharesByUser)) {
-        const target = usersById[userId];
-        if (!target) continue;
-        target.parkingShareAmount += value;
-        parkingByUser[userId] = (parkingByUser[userId] ?? 0) + value;
+        // For shared parking, add to individual share amounts but not to individual parking totals
+        const sharesByUser = getEqualShares(amount, users);
+        for (const [userId, value] of Object.entries(sharesByUser)) {
+          const target = usersById[userId];
+          if (!target) continue;
+          target.parkingShareAmount += value;
+        }
+      } else {
+        // For individual parking, add to individual parking totals
+        parkingByUser[entry.userId] =
+          (parkingByUser[entry.userId] ?? 0) + amount;
+        if (payer) {
+          payer.parkingShareAmount += amount;
+        }
       }
 
       totalParkingAmount += amount;

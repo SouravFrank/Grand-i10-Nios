@@ -1295,42 +1295,13 @@ export function ReportScreen({ navigation }: Props) {
                         </View>
                         <View style={styles.fineCardContent}>
                           <Text style={[styles.fineAmount, { color: colors.primary }]}>
-                            {formatINR(report.trafficFine.sharedTripFines / 2)}
+                            {formatINR(report.trafficFine.sharedTripFines)}
                           </Text>
                           <Text style={[styles.fineCardTitle, { color: colors.textSecondary }]}>
-                            Each user's share
+                            Total shared fines
                           </Text>
                         </View>
                       </View>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.expenseSectionCard,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: secondarySurfaceColor,
-                        },
-                      ]}
-                    >
-                      <View style={styles.otherSectionHeader}>
-                        <View style={styles.labelRow}>
-                          <MaterialIcons name="warning-amber" size={14} color={colors.textSecondary} />
-                          <Text style={[styles.otherSectionTitle, { color: colors.textPrimary }]}>Entries</Text>
-                        </View>
-                        <CountUpText
-                          value={report.trafficFine.totalAmount}
-                          formatter={formatINR}
-                          style={[styles.otherSectionValue, { color: colors.textPrimary }]}
-                        />
-                      </View>
-
-                      <ExpenseItemRows
-                        items={report.trafficFine.items}
-                        borderColor={colors.border}
-                        textPrimary={colors.textPrimary}
-                        textSecondary={colors.textSecondary}
-                      />
                     </View>
                   </SectionCard>
                 </MotionCard>
@@ -1370,44 +1341,56 @@ export function ReportScreen({ navigation }: Props) {
                     </View>
 
                     <View style={styles.parkingSummaryGrid}>
-                      <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
-                        <View style={styles.parkingCardHeader}>
-                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
-                          <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Ayan Parking</Text>
-                        </View>
-                        <View style={styles.parkingCardContent}>
-                          <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
-                            {formatINR(report.parking.byUser.ayan ?? 0)}
-                          </Text>
-                        </View>
-                      </View>
+                      {/* Show individual parking cards only for non-shared parking expenses */}
+                      {(report.parking.byUser.ayan > 0 || report.parking.byUser.sourav > 0) && (
+                        <>
+                          {report.parking.byUser.ayan > 0 && (
+                            <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                              <View style={styles.parkingCardHeader}>
+                                <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                                <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Ayan Parking</Text>
+                              </View>
+                              <View style={styles.parkingCardContent}>
+                                <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
+                                  {formatINR(report.parking.byUser.ayan)}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
 
-                      <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
-                        <View style={styles.parkingCardHeader}>
-                          <MaterialIcons name="person" size={20} color={colors.textPrimary} />
-                          <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Sourav Parking</Text>
-                        </View>
-                        <View style={styles.parkingCardContent}>
-                          <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
-                            {formatINR(report.parking.byUser.sourav ?? 0)}
-                          </Text>
-                        </View>
-                      </View>
+                          {report.parking.byUser.sourav > 0 && (
+                            <View style={[styles.parkingSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
+                              <View style={styles.parkingCardHeader}>
+                                <MaterialIcons name="person" size={20} color={colors.textPrimary} />
+                                <Text style={[styles.parkingCardTitle, { color: colors.textPrimary }]}>Sourav Parking</Text>
+                              </View>
+                              <View style={styles.parkingCardContent}>
+                                <Text style={[styles.parkingAmount, { color: colors.textPrimary }]}>
+                                  {formatINR(report.parking.byUser.sourav)}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+                        </>
+                      )}
 
-                      <View style={[styles.parkingSummaryCard, styles.highlightedParkingCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
-                        <View style={styles.parkingCardHeader}>
-                          <MaterialIcons name="groups" size={20} color={colors.primary} />
-                          <Text style={[styles.parkingCardTitle, { color: colors.primary }]}>Shared Trip Parking</Text>
+                      {/* Show shared parking only if there are shared parking expenses */}
+                      {report.parking.sharedTripParking > 0 && (
+                        <View style={[styles.parkingSummaryCard, styles.highlightedParkingCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
+                          <View style={styles.parkingCardHeader}>
+                            <MaterialIcons name="groups" size={20} color={colors.primary} />
+                            <Text style={[styles.parkingCardTitle, { color: colors.primary }]}>Shared Trip Parking</Text>
+                          </View>
+                          <View style={styles.parkingCardContent}>
+                            <Text style={[styles.parkingAmount, { color: colors.primary }]}>
+                              {formatINR(report.parking.sharedTripParking)}
+                            </Text>
+                            <Text style={[styles.parkingCardTitle, { color: colors.textSecondary }]}>
+                              Total shared parking
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.parkingCardContent}>
-                          <Text style={[styles.parkingAmount, { color: colors.primary }]}>
-                            {formatINR(report.parking.sharedTripParking / 2)}
-                          </Text>
-                          <Text style={[styles.parkingCardTitle, { color: colors.textSecondary }]}>
-                            Each user's share
-                          </Text>
-                        </View>
-                      </View>
+                      )}
                     </View>
 
                     <View
