@@ -724,9 +724,9 @@ export function ReportScreen({ navigation }: Props) {
                         </Pressable>
                       ) : null}
 
-                      <Pressable onPress={() => setShowFuelInfo((value) => !value)} style={styles.infoButton}>
+                      {/* <Pressable onPress={() => setShowFuelInfo((value) => !value)} style={styles.infoButton}>
                         <MaterialIcons name="info-outline" size={16} color={colors.textPrimary} />
-                      </Pressable>
+                      </Pressable> */}
                     </View>
                   </View>
 
@@ -856,7 +856,7 @@ export function ReportScreen({ navigation }: Props) {
                   <View style={styles.sectionHeader}>
                     <View style={styles.titleRow}>
                       <MaterialIcons name="route" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Monthly KM</Text>
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Trip Summary</Text>
                     </View>
                   </View>
 
@@ -883,33 +883,102 @@ export function ReportScreen({ navigation }: Props) {
 
                         <View style={styles.flowGrid}>
                           <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Total KM</Text>
-                            <CountUpText value={month.totalKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Total Trip</Text>
+                            <View style={styles.tripInfoContainer}>
+                              <CountUpText value={month.totalKm} formatter={formatKm} style={[styles.tripKm, { color: colors.textPrimary }]} />
+                              <Text style={[styles.tripFuel, { color: colors.textSecondary }]}>
+                                ({month.totalFuelUsed} L)
+                              </Text>
+                              <CountUpText value={month.totalKm * month.costPerKm} formatter={formatINR} style={[styles.tripCost, { color: colors.textPrimary }]} />
+                            </View>
                           </View>
 
                           <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Shared KM</Text>
-                            <CountUpText value={month.sharedKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Shared Trip</Text>
+                            <View style={styles.tripInfoContainer}>
+                              <CountUpText value={month.sharedKm} formatter={formatKm} style={[styles.tripKm, { color: colors.textPrimary }]} />
+                              <Text style={[styles.tripFuel, { color: colors.textSecondary }]}>
+                                ({month.sharedFuelUsed} L)
+                              </Text>
+                              <CountUpText value={month.sharedKm * month.costPerKm} formatter={formatINR} style={[styles.tripCost, { color: colors.textPrimary }]} />
+                            </View>
                           </View>
 
                           <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Sourav KM</Text>
-                            <CountUpText value={month.souravKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Ayan Trip</Text>
+                            <View style={styles.tripInfoContainer}>
+                              <CountUpText value={month.ayanKm} formatter={formatKm} style={[styles.tripKm, { color: colors.textPrimary }]} />
+                              <Text style={[styles.tripFuel, { color: colors.textSecondary }]}>
+                                ({month.ayanFuelUsed} L)
+                              </Text>
+                              <CountUpText value={month.ayanKm * month.costPerKm} formatter={formatINR} style={[styles.tripCost, { color: colors.textPrimary }]} />
+                            </View>
                           </View>
 
                           <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Ayan KM</Text>
-                            <CountUpText value={month.ayanKm} formatter={formatKm} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Sourav Trip</Text>
+                            <View style={styles.tripInfoContainer}>
+                              <CountUpText value={month.souravKm} formatter={formatKm} style={[styles.tripKm, { color: colors.textPrimary }]} />
+                              <Text style={[styles.tripFuel, { color: colors.textSecondary }]}>
+                                ({month.souravFuelUsed} L)
+                              </Text>
+                              <CountUpText value={month.souravKm * month.costPerKm} formatter={formatINR} style={[styles.tripCost, { color: colors.textPrimary }]} />
+                            </View>
                           </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </SectionCard>
+              </MotionCard>
 
-                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Left</Text>
-                            <CountUpText value={month.closingFuelLiters} formatter={formatLiters} style={[styles.flowValue, { color: colors.textPrimary }]} />
+              <MotionCard delay={320} style={styles.gridSpanFull}>
+                <SectionCard
+                  style={[
+                    styles.glassCard,
+                    {
+                      backgroundColor: surfaceColor,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.titleRow}>
+                      <MaterialIcons name="local-gas-station" size={16} color={colors.textPrimary} />
+                      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel Metrics</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.fuelMetricsGrid}>
+                    {report.audit.monthlySummaries.map((month) => (
+                      <View
+                        key={month.monthKey}
+                        style={[
+                          styles.fuelMetricCard,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: secondarySurfaceColor,
+                          },
+                        ]}
+                      >
+                        <View style={styles.fuelMetricHeader}>
+                          <MaterialIcons name="speed" size={20} color={colors.textPrimary} />
+                          <Text style={[styles.fuelMetricTitle, { color: colors.textPrimary }]}>
+                            {month.monthLabel}
+                          </Text>
+                        </View>
+                        <View style={styles.fuelMetricRow}>
+                          <View style={styles.fuelMetricItem}>
+                            <Text style={[styles.fuelMetricLabel, { color: colors.textSecondary }]}>Avg Cost per KM</Text>
+                            <Text style={[styles.fuelMetricValue, { color: colors.textPrimary }]}>
+                              {formatINR(month.costPerKm)}
+                            </Text>
                           </View>
-
-                          <View style={[styles.flowCard, styles.gridBlockHalf, { borderColor: colors.border }]}>
-                            <Text style={[styles.flowLabel, { color: colors.textSecondary }]}>Fuel Value</Text>
-                            <CountUpText value={month.closingFuelValue} formatter={formatINR} style={[styles.flowValue, { color: colors.textPrimary }]} />
+                          <View style={styles.fuelMetricItem}>
+                            <Text style={[styles.fuelMetricLabel, { color: colors.textSecondary }]}>Avg Cost per Liter</Text>
+                            <Text style={[styles.fuelMetricValue, { color: colors.textPrimary }]}>
+                              {formatINR(month.avgFuelRate)}
+                            </Text>
                           </View>
                         </View>
                       </View>
