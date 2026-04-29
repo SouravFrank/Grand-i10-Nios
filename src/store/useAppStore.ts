@@ -7,38 +7,38 @@ import { canUseBiometricAuth } from "@/services/auth/authService";
 import { removeEntryFromRealtimeDb } from "@/services/realtime/entriesRepository";
 import { sha256 } from "@/services/security/hash";
 import {
-  buildEntryIntegrityHash,
-  verifyEntryIntegrity,
+    buildEntryIntegrityHash,
+    verifyEntryIntegrity,
 } from "@/services/security/integrity";
 import {
-  deleteAuthToken,
-  deleteSecureUser,
-  getAuthToken,
-  getIntegritySecret,
-  getSecureUser,
-  setAuthToken,
-  setIntegritySecret,
-  setSecureUser,
+    deleteAuthToken,
+    deleteSecureUser,
+    getAuthToken,
+    getIntegritySecret,
+    getSecureUser,
+    setAuthToken,
+    setIntegritySecret,
+    setSecureUser,
 } from "@/services/storage/secureStore";
 import {
-  clearStoredSession,
-  getStoredSession,
-  setStoredSession,
+    clearStoredSession,
+    getStoredSession,
+    setStoredSession,
 } from "@/services/storage/sessionStorage";
 import type {
-  ActiveTrip,
-  AppUser,
-  AuthStatus,
-  CarSpec,
-  CarSpecEditableFields,
-  Entry,
-  EntryRecord,
-  ExpenseCategory,
-  PendingQueueItem,
-  RemoteEntryDocument,
-  SpecUpdateDetail,
-  SyncStatus,
-  TyreRecord,
+    ActiveTrip,
+    AppUser,
+    AuthStatus,
+    CarSpec,
+    CarSpecEditableFields,
+    Entry,
+    EntryRecord,
+    ExpenseCategory,
+    PendingQueueItem,
+    RemoteEntryDocument,
+    SpecUpdateDetail,
+    SyncStatus,
+    TyreRecord,
 } from "@/types/models";
 import { dayjs, normalizeIndianDate } from "@/utils/day";
 import { createId } from "@/utils/id";
@@ -194,7 +194,9 @@ function requiresCarSpecNormalization(
   const normalized = normalizeCarSpec(carSpec);
   const keys = Object.keys(DEFAULT_CAR_SPEC) as (keyof CarSpec)[];
   const serializeCarSpecValue = (value: unknown) =>
-    typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
+    typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value);
 
   return keys.some((key) => {
     const rawValue = carSpec[key];
@@ -577,12 +579,16 @@ export const useAppStore = create<AppState>()(
           throw new Error("Enter a valid odometer reading.");
         }
 
-        if (entryOdometer < lastOdometerValue) {
+        // Skip odometer validation for history entries (entries with custom createdAt timestamps)
+        const isHistoryEntry =
+          payload.createdAt && payload.createdAt !== Date.now();
+
+        if (!isHistoryEntry && entryOdometer < lastOdometerValue) {
           throw new Error(
             "New odometer entry cannot be less than the previous value.",
           );
         }
-        if (entryOdometer - lastOdometerValue > 500) {
+        if (!isHistoryEntry && entryOdometer - lastOdometerValue > 500) {
           throw new Error(
             "Single odometer entry cannot exceed 500 km from the previous reading.",
           );
@@ -675,14 +681,12 @@ export const useAppStore = create<AppState>()(
           (targetEntry.synced ? targetEntry.createdAt : undefined);
         const updatedEntry: Entry = {
           ...targetEntry,
-          userId:
-            isPayerEditableEntry
-              ? updates.userId ?? targetEntry.userId
-              : targetEntry.userId,
-          userName:
-            isPayerEditableEntry
-              ? updates.userName ?? targetEntry.userName
-              : targetEntry.userName,
+          userId: isPayerEditableEntry
+            ? (updates.userId ?? targetEntry.userId)
+            : targetEntry.userId,
+          userName: isPayerEditableEntry
+            ? (updates.userName ?? targetEntry.userName)
+            : targetEntry.userName,
           odometer: updates.odometer,
           createdAt: updates.createdAt ?? targetEntry.createdAt,
           fuelAmount:
@@ -704,18 +708,17 @@ export const useAppStore = create<AppState>()(
           // Fuel and expense entries reuse the existing sharedTripMarkedBy
           // fields to retain who entered the record, even when a different
           // user paid.
-          sharedTripMarkedById:
-            isPayerEditableEntry
-              ? updates.sharedTripMarkedById ?? targetEntry.sharedTripMarkedById
-              : updates.sharedTrip
-                ? targetEntry.userId
-                : undefined,
-          sharedTripMarkedByName:
-            isPayerEditableEntry
-              ? updates.sharedTripMarkedByName ?? targetEntry.sharedTripMarkedByName
-              : updates.sharedTrip
-                ? targetEntry.userName
-                : undefined,
+          sharedTripMarkedById: isPayerEditableEntry
+            ? (updates.sharedTripMarkedById ?? targetEntry.sharedTripMarkedById)
+            : updates.sharedTrip
+              ? targetEntry.userId
+              : undefined,
+          sharedTripMarkedByName: isPayerEditableEntry
+            ? (updates.sharedTripMarkedByName ??
+              targetEntry.sharedTripMarkedByName)
+            : updates.sharedTrip
+              ? targetEntry.userName
+              : undefined,
           synced: false,
         };
         const integrityHash = await buildEntryIntegrityHash(

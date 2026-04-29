@@ -1,4 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
@@ -207,6 +206,33 @@ export function HomeScreen({ navigation }: Props) {
                     onPress={() => navigation.navigate('ExpenseEntryModal')}
                   />
                 </View>
+
+                <View style={styles.ctaRow}>
+                  <SharpButton
+                    label="Timeline"
+                    variant="secondary"
+                    iconName="timeline"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('History')}
+                  />
+                  <SharpButton
+                    label="Report"
+                    variant="secondary"
+                    iconName="chart-line"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('Report')}
+                  />
+                  <SharpButton
+                    label="History"
+                    variant="secondary"
+                    iconName="store-plus"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('HistoryEntryModal')}
+                  />
+                </View>
               </>
             ) : (
               <>
@@ -234,21 +260,38 @@ export function HomeScreen({ navigation }: Props) {
                     onPress={() => navigation.navigate('ExpenseEntryModal')}
                   />
                 </View>
+
+                <View style={styles.ctaRow}>
+                  <SharpButton
+                    label="Timeline"
+                    variant="secondary"
+                    iconName="timeline"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('History')}
+                  />
+                  <SharpButton
+                    label="Report"
+                    variant="secondary"
+                    iconName="chart-line"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('Report')}
+                  />
+                  <SharpButton
+                    label="Forgot Entry?"
+                    variant="secondary"
+                    iconName="car-clock"
+                    textBelowIcon={true}
+                    style={styles.splitCtaButton}
+                    onPress={() => navigation.navigate('HistoryEntryModal')}
+                  />
+                </View>
               </>
             )}
           </Animated.View>
 
-          <Animated.View style={{ opacity: footerOpacity }}>
-          <Pressable onPress={() => navigation.navigate('History')} hitSlop={12} style={styles.historyWrap}>
-            <View style={styles.historyRow}>
-              <MaterialIcons name="history" size={16} color={colors.textPrimary} />
-              <Text style={[styles.historyLink, { color: colors.textPrimary, textDecorationColor: colors.textPrimary }]}>
-                VIEW CAR TIMELINE
-              </Text>
-            </View>
-          </Pressable>
-          </Animated.View>
-        </ScrollView>
+                  </ScrollView>
 
         <Pressable
           delayLongPress={250}
