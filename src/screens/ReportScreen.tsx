@@ -73,8 +73,6 @@ export function ReportScreen({ navigation }: Props) {
   const [isSettlementModalVisible, setIsSettlementModalVisible] = useState(false);
   const [isCalculationModalVisible, setIsCalculationModalVisible] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
-  
-  // ADDED: State for the fuel info bubble
   const [showFuelInfo, setShowFuelInfo] = useState(false);
 
   const monthOptions = useMemo(() => {
@@ -453,6 +451,7 @@ export function ReportScreen({ navigation }: Props) {
           </View>
         </MotionCard>
 
+        {/* UNIFIED EXPENSE & SETTLEMENT DASHBOARD */}
         <MotionCard delay={80}>
           <View style={styles.summaryGrid}>
             <View
@@ -565,118 +564,121 @@ export function ReportScreen({ navigation }: Props) {
                 <CountUpText value={souravSummary?.totalPaidAmount || 0} formatter={formatINR} style={[styles.summaryValue, { color: colors.textPrimary }]} />
               </View>
             </View>
+
+            {/* SETTLEMENT CARD (Merged fully into the top dashboard grid) */}
+            <Animated.View
+              style={[
+                styles.settlementCard,
+                styles.gridSpanFull,
+                {
+                  backgroundColor: surfaceColor,
+                  borderColor: colors.border,
+                  transform: [{ scale: statusScaleAnim }],
+                  marginTop: 4, 
+                },
+              ]}
+            >
+              <View style={styles.settlementHeader}>
+                <View style={styles.settlementCopy}>
+                  <View style={styles.labelRow}>
+                    <MaterialIcons name="swap-horiz" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Settlement</Text>
+                  </View>
+                  <Text style={[styles.settlementHeadline, { color: colors.textPrimary }]}>
+                    {report.settlement.title}
+                  </Text>
+                  {!report.isSettled && report.settlement.amount > 0 && (
+                    <View style={styles.settlementAmountRow}>
+                      <Text style={[styles.settlementAmount, { color: colors.textPrimary }]}>
+                        {formatINR(report.settlement.amount)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.labelRow}>
+                    <MaterialIcons
+                      name={report.isSettled ? 'task-alt' : 'arrow-forward'}
+                      size={13}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={[styles.settlementDirection, { color: colors.textSecondary }]}>
+                      {report.settlement.directionMessage}
+                    </Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => setIsSettlementModalVisible(true)}
+                  style={styles.settlementBadgePressable}
+                >
+                  <Animated.View
+                    style={[
+                      styles.settlementBadge,
+                      {
+                        backgroundColor: statusBackgroundColor,
+                        borderColor: statusBorderColor,
+                      },
+                    ]}
+                  >
+                    <Animated.Text style={[styles.settlementBadgeText, { color: statusTextColor }]}>
+                      {report.isSettled ? 'Closed' : report.settlement.currentUserMessage}
+                    </Animated.Text>
+                  </Animated.View>
+                </Pressable>
+              </View>
+
+              {!canConfirmSettlement && !report.isSettled ? (
+                <View style={styles.inlineInfoRow}>
+                  <MaterialIcons name="info-outline" size={13} color={colors.textSecondary} />
+                  <Text style={[styles.settlementLockHint, { color: colors.textSecondary }]}>Complete month required</Text>
+                </View>
+              ) : null}
+
+              {report.isSettled ? (
+                <View
+                  style={[
+                    styles.readOnlyBanner,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: secondarySurfaceColor,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="lock" size={16} color={colors.textPrimary} />
+                  <Text style={[styles.readOnlyText, { color: colors.textPrimary }]}>
+                    This month is settled. Mileage and editable controls are locked.
+                  </Text>
+                </View>
+              ) : null}
+            </Animated.View>
+            
+            {/* INLINE WARNINGS IF ANY */}
+            {report.warnings.length > 0 ? (
+              <View
+                style={[
+                  styles.warningCard,
+                  styles.gridSpanFull,
+                  {
+                    backgroundColor: surfaceColor,
+                    borderColor: colors.border,
+                    marginTop: 4,
+                  },
+                ]}
+              >
+                <MaterialIcons name="warning-amber" size={18} color={colors.textPrimary} />
+                <View style={styles.warningCopy}>
+                  {report.warnings.map((warning) => (
+                    <Text key={warning} style={[styles.warningText, { color: colors.textPrimary }]}>
+                      {warning}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            
           </View>
         </MotionCard>
 
         <MotionCard delay={140}>
-          <Animated.View
-            style={[
-              styles.settlementCard,
-              {
-                backgroundColor: surfaceColor,
-                borderColor: colors.border,
-                transform: [{ scale: statusScaleAnim }],
-              },
-            ]}
-          >
-            <View style={styles.settlementHeader}>
-              <View style={styles.settlementCopy}>
-                <View style={styles.labelRow}>
-                  <MaterialIcons name="swap-horiz" size={14} color={colors.textSecondary} />
-                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Settlement</Text>
-                </View>
-                <Text style={[styles.settlementHeadline, { color: colors.textPrimary }]}>
-                  {report.settlement.title}
-                </Text>
-                {!report.isSettled && report.settlement.amount > 0 && (
-                  <View style={styles.settlementAmountRow}>
-                    <Text style={[styles.settlementAmount, { color: colors.textPrimary }]}>
-                      {formatINR(report.settlement.amount)}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.labelRow}>
-                  <MaterialIcons
-                    name={report.isSettled ? 'task-alt' : 'arrow-forward'}
-                    size={13}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.settlementDirection, { color: colors.textSecondary }]}>
-                    {report.settlement.directionMessage}
-                  </Text>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={() => setIsSettlementModalVisible(true)}
-                style={styles.settlementBadgePressable}
-              >
-                <Animated.View
-                  style={[
-                    styles.settlementBadge,
-                    {
-                      backgroundColor: statusBackgroundColor,
-                      borderColor: statusBorderColor,
-                    },
-                  ]}
-                >
-                  <Animated.Text style={[styles.settlementBadgeText, { color: statusTextColor }]}>
-                    {report.isSettled ? 'Closed' : report.settlement.currentUserMessage}
-                  </Animated.Text>
-                </Animated.View>
-              </Pressable>
-            </View>
-
-            {!canConfirmSettlement && !report.isSettled ? (
-              <View style={styles.inlineInfoRow}>
-                <MaterialIcons name="info-outline" size={13} color={colors.textSecondary} />
-                <Text style={[styles.settlementLockHint, { color: colors.textSecondary }]}>Complete month required</Text>
-              </View>
-            ) : null}
-
-            {report.isSettled ? (
-              <View
-                style={[
-                  styles.readOnlyBanner,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: secondarySurfaceColor,
-                  },
-                ]}
-              >
-                <MaterialIcons name="lock" size={16} color={colors.textPrimary} />
-                <Text style={[styles.readOnlyText, { color: colors.textPrimary }]}>
-                  This month is settled. Mileage and editable controls are locked.
-                </Text>
-              </View>
-            ) : null}
-          </Animated.View>
-        </MotionCard>
-
-        {report.warnings.length > 0 ? (
-          <MotionCard delay={200}>
-            <View
-              style={[
-                styles.warningCard,
-                {
-                  backgroundColor: surfaceColor,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <MaterialIcons name="warning-amber" size={18} color={colors.textPrimary} />
-              <View style={styles.warningCopy}>
-                {report.warnings.map((warning) => (
-                  <Text key={warning} style={[styles.warningText, { color: colors.textPrimary }]}>
-                    {warning}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          </MotionCard>
-        ) : null}
-
-        <MotionCard delay={240}>
           <View
             style={[
               styles.tabShell,
@@ -757,7 +759,7 @@ export function ReportScreen({ navigation }: Props) {
         >
           {activeTab === 'trip' ? (
             <View style={styles.dashboardGrid}>
-              <MotionCard delay={280} style={styles.gridSpanFull}>
+              <MotionCard delay={180} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -787,7 +789,6 @@ export function ReportScreen({ navigation }: Props) {
                         </Pressable>
                       ) : null}
 
-                      {/* UNCOMMENTED: The Pressable that controls showFuelInfo state */}
                       <Pressable onPress={() => setShowFuelInfo((value) => !value)} style={styles.infoButton}>
                         <MaterialIcons name="info-outline" size={16} color={colors.textPrimary} />
                       </Pressable>
@@ -907,7 +908,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={310} style={styles.gridSpanFull}>
+              <MotionCard delay={200} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -991,7 +992,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={320} style={styles.gridSpanFull}>
+              <MotionCard delay={220} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1046,7 +1047,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={340} style={styles.gridSpanFull}>
+              <MotionCard delay={240} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1165,7 +1166,7 @@ export function ReportScreen({ navigation }: Props) {
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={400} style={styles.gridSpanFull}>
+              <MotionCard delay={260} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1280,9 +1281,8 @@ export function ReportScreen({ navigation }: Props) {
                     <View style={[styles.fastagSummaryCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
                       <View style={styles.fastagCardContent}>
                         <Text style={[styles.fastagAmount, { color: colors.textPrimary }]}>
-                          {formatINR(report.fastag.sharedTripTolls / 2)}
+                          {formatINR(report.fastag.sharedTripTolls)}
                         </Text>
-                        
                       </View>
                     </View>
                   </View>
@@ -1291,7 +1291,7 @@ export function ReportScreen({ navigation }: Props) {
 
            
               {report.trafficFine.totalAmount > 0 ? (
-                <MotionCard delay={520} style={styles.gridSpanFull}>
+                <MotionCard delay={280} style={styles.gridSpanFull}>
                   <SectionCard
                     style={[
                       styles.glassCard,
@@ -1368,7 +1368,7 @@ export function ReportScreen({ navigation }: Props) {
               ) : null}
 
               {report.parking.totalAmount > 0 ? (
-                <MotionCard delay={540} style={styles.gridSpanFull}>
+                <MotionCard delay={300} style={styles.gridSpanFull}>
                   <SectionCard
                     style={[
                       styles.glassCard,
@@ -1401,7 +1401,6 @@ export function ReportScreen({ navigation }: Props) {
                     </View>
 
                     <View style={styles.parkingSummaryGrid}>
-                      {/* Show individual parking cards only for non-shared parking expenses */}
                       {(report.parking.byUser.ayan > 0 || report.parking.byUser.sourav > 0) && (
                         <>
                           {report.parking.byUser.ayan > 0 && (
@@ -1434,7 +1433,6 @@ export function ReportScreen({ navigation }: Props) {
                         </>
                       )}
 
-                      {/* Show shared parking only if there are shared parking expenses */}
                       {report.parking.sharedTripParking > 0 && (
                         <View style={[styles.parkingSummaryCard, styles.highlightedParkingCard, { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }]}>
                           <View style={styles.parkingCardHeader}>
@@ -1489,7 +1487,7 @@ export function ReportScreen({ navigation }: Props) {
             </View>
           ) : (
             <View style={styles.dashboardGrid}>
-              <MotionCard delay={280} style={styles.gridSpanFull}>
+              <MotionCard delay={180} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,
@@ -1526,28 +1524,28 @@ export function ReportScreen({ navigation }: Props) {
                       icon="payments"
                     />
                     <MetricPair
-                      label="Individual Share"
-                      value={(ayanSummary.otherShareAmount + souravSummary.otherShareAmount) / 2}
+                      label="Ayan's Share"
+                      value={ayanSummary.otherShareAmount}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
                       textSecondary={colors.textSecondary}
-                      icon="account-balance-wallet"
+                      icon="person"
                     />
                     <MetricPair
-                      label="Difference"
-                      value={Math.abs(ayanSummary.otherPaidAmount - ayanSummary.otherShareAmount)}
+                      label="Sourav's Share"
+                      value={souravSummary.otherShareAmount}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
                       textSecondary={colors.textSecondary}
-                      icon="compare-arrows"
+                      icon="person"
                     />
                   </View>
                 </SectionCard>
               </MotionCard>
 
-              <MotionCard delay={340} style={styles.gridSpanFull}>
+              <MotionCard delay={200} style={styles.gridSpanFull}>
                 <SectionCard
                   style={[
                     styles.glassCard,

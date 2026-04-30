@@ -1,5 +1,5 @@
 import { ALLOWED_USERS } from "@/constants/users";
-import type { EntryRecord, EntryType } from "@/types/models";
+import type { EntryRecord } from "@/types/models";
 import { dayjs, INDIA_MONTH_FORMAT } from "@/utils/day";
 
 export const DEFAULT_MONTHLY_MILEAGE = 13.5;
@@ -120,6 +120,7 @@ export type ReportMonthlySummary = {
   fastagUsedAmount: number;
   otherExpenseAmount: number;
   trafficFineAmount: number;
+  parkingAmount: number;
   totalExpense: number;
 };
 
@@ -638,7 +639,7 @@ function buildCsvContent(params: {
   );
 
   const rows = Array.from({ length: rowCount }, () =>
-    Array<string | number | null>(17).fill(null),
+    Array<string | number | null>(18).fill(null),
   );
 
   rows[0][0] = "Month";
@@ -708,8 +709,10 @@ function buildCsvContent(params: {
   rows[monthlyStartIndex + 1][6] = "Fuel Value";
   rows[monthlyStartIndex + 1][7] = "Trip Fuel Cost";
   rows[monthlyStartIndex + 1][8] = "FASTag Used";
-  rows[monthlyStartIndex + 1][9] = "Other Expenses";
-  rows[monthlyStartIndex + 1][10] = "Total Expense";
+  rows[monthlyStartIndex + 1][9] = "Traffic Fine";
+  rows[monthlyStartIndex + 1][10] = "Parking";
+  rows[monthlyStartIndex + 1][11] = "Other Expenses";
+  rows[monthlyStartIndex + 1][12] = "Total Expense";
   monthlySummaries.forEach((row, index) => {
     const target = rows[monthlyStartIndex + 2 + index];
     target[0] = row.monthLabel;
@@ -721,8 +724,10 @@ function buildCsvContent(params: {
     target[6] = row.closingFuelValue;
     target[7] = row.tripFuelCost;
     target[8] = row.fastagUsedAmount;
-    target[9] = row.otherExpenseAmount;
-    target[10] = row.totalExpense;
+    target[9] = row.trafficFineAmount;
+    target[10] = row.parkingAmount;
+    target[11] = row.otherExpenseAmount;
+    target[12] = row.totalExpense;
   });
 
   rows[settlementStartIndex][0] = "Settlement";
@@ -916,7 +921,6 @@ export function buildExpenseReport(params: {
       createdAt: trip.end.createdAt,
     });
 
-    // Add trip costs to user's fuel consumption cost
     for (const [userId, cost] of Object.entries(tripCostShares)) {
       const user = usersById[userId];
       if (user) {
@@ -971,7 +975,6 @@ export function buildExpenseReport(params: {
       const amount = entry.cost ?? 0;
       totalFastagUsed += amount;
 
-      // Track shared trip tolls separately
       if (entry.sharedTrip) {
         totalSharedTripTolls += amount;
       }
@@ -980,13 +983,8 @@ export function buildExpenseReport(params: {
       let sharesByUser: Record<string, number>;
 
       if (entry.sharedTrip) {
-        // For shared trip tolls, split 50-50 between Ayan and Sourav
-        sharesByUser = {
-          ayan: amount / 2,
-          sourav: amount / 2,
-        };
+        sharesByUser = { ayan: amount / 2, sourav: amount / 2 };
       } else if (matchedTrip) {
-        // For trip-related tolls, assign to user who was tagged/associated with trip
         sharesByUser = Object.fromEntries(
           Object.entries(matchedTrip.sharesByUser).map(
             ([userId, distanceShare]) => [
@@ -998,7 +996,6 @@ export function buildExpenseReport(params: {
           ),
         );
       } else {
-        // If no trip found, assign to user who paid
         sharesByUser = { [entry.userId]: amount };
       }
 
@@ -1014,50 +1011,51 @@ export function buildExpenseReport(params: {
     if (isTrafficFine(entry) && typeof entry.cost === "number") {
       const amount = entry.cost;
       const payer = usersById[entry.userId];
-      if (payer) {
-        payer.trafficFinePaidAmount += amount;
-      }
+      if (payer) payer.trafficFinePaidAmount += amount;
 
-      // Track shared trip fines separately
       if (entry.sharedTrip) {
         totalSharedTripFines += amount;
-        // For shared fines, split 50-50 between Ayan and Sourav
-        const halfShare = amount / 2;
-        usersById.ayan.trafficFineShareAmount += halfShare;
-        usersById.sourav.trafficFineShareAmount += halfShare;
+        usersById.ayan.trafficFineShareAmount += amount / 2;
+        usersById.sourav.trafficFineShareAmount += amount / 2;
       } else {
-        // For individual fines, assign to tagged user (entry.userId)
         trafficFineByUser[entry.userId] =
           (trafficFineByUser[entry.userId] ?? 0) + amount;
-        // Only add to share amount for the responsible user
         const responsibleUser = usersById[entry.userId];
-        if (responsibleUser) {
-          responsibleUser.trafficFineShareAmount += amount;
-        }
+        if (responsibleUser) responsibleUser.trafficFineShareAmount += amount;
       }
 
       totalTrafficFineAmount += amount;
       trafficFineItems.push(buildExpenseItem(entry, "Traffic Fine"));
-    } // FIXED: Added closing brace for traffic fine processing block
-
-    if (
-      (entry.type as EntryType) === "fuel" ||
-      isParkingExpense(entry) ||
-      isFastagRecharge(entry) ||
-      isFastagToll(entry) ||
-      isTrafficFine(entry) ||
-      entry.tripId // Exclude any expense that's part of a trip
-    ) {
       continue;
     }
 
+    if (isParkingExpense(entry) && typeof entry.cost === "number") {
+      const amount = entry.cost;
+      const payer = usersById[entry.userId];
+      if (payer) payer.parkingPaidAmount += amount;
+
+      if (entry.sharedTrip) {
+        totalSharedTripParking += amount;
+        usersById.ayan.parkingShareAmount += amount / 2;
+        usersById.sourav.parkingShareAmount += amount / 2;
+      } else {
+        parkingByUser[entry.userId] =
+          (parkingByUser[entry.userId] ?? 0) + amount;
+        const responsibleUser = usersById[entry.userId];
+        if (responsibleUser) responsibleUser.parkingShareAmount += amount;
+      }
+
+      totalParkingAmount += amount;
+      parkingItems.push(buildExpenseItem(entry, "Parking"));
+      continue;
+    }
+
+    // --- Others Logic ---
     const sectionKey = getOtherSectionKey(entry);
     if (!sectionKey || typeof entry.cost !== "number") {
       continue;
     }
 
-    // Entry incorrectly categorized in Others: entry
-    // Section Key: sectionKey
     const section = otherSections.get(sectionKey);
     if (section) {
       section.totalAmount += entry.cost;
@@ -1069,12 +1067,21 @@ export function buildExpenseReport(params: {
       expensePayer.otherPaidAmount += entry.cost;
     }
 
-    // For others expenses, always split 50-50 between Ayan and Sourav
-    const halfShare = entry.cost / 2;
-    usersById.ayan.otherShareAmount += halfShare;
-    usersById.sourav.otherShareAmount += halfShare;
+    if (entry.tripId) {
+      if (entry.sharedTrip) {
+        usersById.ayan.otherShareAmount += entry.cost / 2;
+        usersById.sourav.otherShareAmount += entry.cost / 2;
+      } else {
+        if (expensePayer) expensePayer.otherShareAmount += entry.cost;
+      }
+    } else {
+      // General others expense, always 50-50
+      usersById.ayan.otherShareAmount += entry.cost / 2;
+      usersById.sourav.otherShareAmount += entry.cost / 2;
+    }
+
     totalOtherSharedAmount += entry.cost;
-  } // FIXED: Added closing brace for the `entriesInRange` for loop here
+  }
 
   const totalFuelFilledBefore = calculateFuelFilledLiters(entriesBeforeRange);
   const totalFuelUsedBefore = calculateFuelUsedLiters(
@@ -1156,18 +1163,23 @@ export function buildExpenseReport(params: {
     summary.trafficFineShareAmount = roundCurrency(
       summary.trafficFineShareAmount,
     );
+    summary.parkingPaidAmount = roundCurrency(summary.parkingPaidAmount);
+    summary.parkingShareAmount = roundCurrency(summary.parkingShareAmount);
     summary.otherPaidAmount = roundCurrency(summary.otherPaidAmount);
     summary.otherShareAmount = roundCurrency(summary.otherShareAmount);
+
     summary.totalPaidAmount = roundCurrency(
       summary.fuelPaidAmount +
         summary.fastagRechargeAmount +
         summary.trafficFinePaidAmount +
+        summary.parkingPaidAmount +
         summary.otherPaidAmount,
     );
     summary.fairShareAmount = roundCurrency(
       summary.fuelConsumptionCost +
         summary.fastagUsedAmount +
         summary.trafficFineShareAmount +
+        summary.parkingShareAmount +
         summary.otherShareAmount,
     );
     summary.netBalance = roundCurrency(
@@ -1220,7 +1232,6 @@ export function buildExpenseReport(params: {
       .filter((trip) => !trip.isShared && trip.end.userId === "ayan")
       .reduce((total, trip) => total + trip.distanceKm, 0);
 
-    // Calculate fuel used based on mileage values
     const monthMileage = resolveMonthMileage(monthKey, mileageByMonth);
     const costPerKm =
       Number.isFinite(avgFuelRate) && avgFuelRate > 0 && monthMileage > 0
@@ -1234,23 +1245,30 @@ export function buildExpenseReport(params: {
       monthMileage > 0 && costPerKm > 0 ? souravKm / monthMileage : 0;
     const ayanFuelUsed =
       monthMileage > 0 && costPerKm > 0 ? ayanKm / monthMileage : 0;
+
     const fastagUsedAmount = monthEntries
       .filter(isFastagToll)
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
+
     const otherExpenseAmount = monthEntries
       .filter((entry) => {
-        // Only include expenses that have an other section key and are not trip-related or fuel
         const hasOtherSectionKey = Boolean(getOtherSectionKey(entry));
         const isNotToll = !isFastagToll(entry);
-        const isNotFuel = entry.type !== "fuel"; // Explicitly exclude fuel expenses
-        const isNotTripRelated = !entry.tripId; // Exclude expenses that are part of trips
-        return hasOtherSectionKey && isNotToll && isNotFuel && isNotTripRelated;
+        const isNotFuel = entry.type !== "fuel";
+        return hasOtherSectionKey && isNotToll && isNotFuel;
       })
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
+
     const trafficFineAmount = monthEntries
       .filter((entry) => isTrafficFine(entry) && typeof entry.cost === "number")
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
-    // Calculate fuel cost using the same logic as totalFuelUsed calculation
+
+    const parkingAmount = monthEntries
+      .filter(
+        (entry) => isParkingExpense(entry) && typeof entry.cost === "number",
+      )
+      .reduce((total, entry) => total + (entry.cost ?? 0), 0);
+
     const tripFuelCost =
       monthMileage > 0 && totalKm > 0
         ? (totalKm / monthMileage) * fuelRateForValue
@@ -1284,11 +1302,13 @@ export function buildExpenseReport(params: {
       fastagUsedAmount: roundCurrency(fastagUsedAmount),
       otherExpenseAmount: roundCurrency(otherExpenseAmount),
       trafficFineAmount: roundCurrency(trafficFineAmount),
+      parkingAmount: roundCurrency(parkingAmount),
       totalExpense: roundCurrency(
         tripFuelCost +
           fastagUsedAmount +
           otherExpenseAmount +
-          trafficFineAmount,
+          trafficFineAmount +
+          parkingAmount,
       ),
     };
   });
@@ -1301,7 +1321,6 @@ export function buildExpenseReport(params: {
     .filter((trip) => trip.isShared)
     .reduce((total, trip) => total + trip.distanceKm, 0);
 
-  // Calculate total trip cost by summing monthly trip costs (same as Trip Summary calculation)
   const totalTripCost = monthlySummaries.reduce(
     (total, month) => total + month.totalKm * month.costPerKm,
     0,
