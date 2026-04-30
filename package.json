@@ -1,5 +1,6 @@
 {
   "name": "grand-i10-nios",
+  "type": "module",
   "main": "expo/AppEntry",
   "version": "1.1.0",
   "scripts": {
@@ -66,7 +67,17 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/js": "^10.0.1",
+    "@react-native/eslint-config": "^0.85.2",
     "@types/react": "~19.2.2",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^10.2.1",
+    "eslint-config-expo": "^55.0.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "~5.9.2"
   },
   "private": true

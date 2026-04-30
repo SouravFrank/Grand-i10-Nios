@@ -279,6 +279,15 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  settlementAmountRow: {
+    alignItems: "center",
+    marginVertical: 4,
+  },
+  settlementAmount: {
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+  },
   settlementLockHint: {
     fontSize: 12,
     lineHeight: 14,

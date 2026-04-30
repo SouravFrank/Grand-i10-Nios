@@ -509,6 +509,44 @@ export function ReportScreen({ navigation }: Props) {
                 <CountUpText value={report.summary.souravShare} formatter={formatINR} style={[styles.summaryValue, { color: colors.textPrimary }]} />
               </View>
             </View>
+
+            <View
+              style={[
+                styles.summaryCard,
+                styles.gridSpanHalf,
+                {
+                  backgroundColor: surfaceColor,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.labelRow}>
+                <MaterialIcons name="payments" size={14} color={colors.textSecondary} />
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Ayan Paid</Text>
+              </View>
+              <View style={styles.summaryFrame}>
+                <CountUpText value={ayanSummary?.totalPaidAmount || 0} formatter={formatINR} style={[styles.summaryValue, { color: colors.textPrimary }]} />
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.summaryCard,
+                styles.gridSpanHalf,
+                {
+                  backgroundColor: surfaceColor,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View style={styles.labelRow}>
+                <MaterialIcons name="payments" size={14} color={colors.textSecondary} />
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Sourav Paid</Text>
+              </View>
+              <View style={styles.summaryFrame}>
+                <CountUpText value={souravSummary?.totalPaidAmount || 0} formatter={formatINR} style={[styles.summaryValue, { color: colors.textPrimary }]} />
+              </View>
+            </View>
           </View>
         </MotionCard>
 
@@ -532,6 +570,13 @@ export function ReportScreen({ navigation }: Props) {
                 <Text style={[styles.settlementHeadline, { color: colors.textPrimary }]}>
                   {report.settlement.title}
                 </Text>
+                {!report.isSettled && report.settlement.amount > 0 && (
+                  <View style={styles.settlementAmountRow}>
+                    <Text style={[styles.settlementAmount, { color: colors.textPrimary }]}>
+                      {formatINR(report.settlement.amount)}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.labelRow}>
                   <MaterialIcons
                     name={report.isSettled ? 'task-alt' : 'arrow-forward'}
@@ -1445,7 +1490,7 @@ export function ReportScreen({ navigation }: Props) {
                   <View style={styles.doubleMetricRow}>
                     <MetricPair
                       label="Ayan Paid"
-                      value={ayanSummary.totalPaidAmount}
+                      value={ayanSummary.otherPaidAmount}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
@@ -1454,7 +1499,7 @@ export function ReportScreen({ navigation }: Props) {
                     />
                     <MetricPair
                       label="Sourav Paid"
-                      value={souravSummary.totalPaidAmount}
+                      value={souravSummary.otherPaidAmount}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
@@ -1463,7 +1508,7 @@ export function ReportScreen({ navigation }: Props) {
                     />
                     <MetricPair
                       label="Individual Share"
-                      value={(ayanSummary.totalPaidAmount + souravSummary.totalPaidAmount) / 2}
+                      value={(ayanSummary.otherShareAmount + souravSummary.otherShareAmount) / 2}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
@@ -1472,7 +1517,7 @@ export function ReportScreen({ navigation }: Props) {
                     />
                     <MetricPair
                       label="Difference"
-                      value={Math.abs(((ayanSummary.totalPaidAmount + souravSummary.totalPaidAmount) / 2) - ayanSummary.totalPaidAmount)}
+                      value={Math.abs(ayanSummary.otherPaidAmount - ayanSummary.otherShareAmount)}
                       formatter={formatINR}
                       backgroundColor={secondarySurfaceColor}
                       textPrimary={colors.textPrimary}
