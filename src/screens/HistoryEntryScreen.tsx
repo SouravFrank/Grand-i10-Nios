@@ -5,13 +5,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
+    Alert,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Switch,
+    Text,
+    View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -98,7 +98,6 @@ export function HistoryEntryScreen({ navigation }: Props) {
     },
   });
 
-  const isSharedTrip = watch('isSharedTrip');
   const selectedTripOwnerId = watch('tripOwnerId');
 
   useEffect(() => {

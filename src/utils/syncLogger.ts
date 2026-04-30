@@ -46,14 +46,8 @@ function write(
       const payloadString = JSON.stringify(payload);
       const fullLine = `${line} ${payloadString}`;
       pushSyncLogEntry(level, fullLine);
-      if (isSyncDebugEnabled) {
-        console[level](fullLine);
-      }
     } catch {
       pushSyncLogEntry(level, line);
-      if (isSyncDebugEnabled) {
-        console[level](line, payload);
-      }
     }
     return;
   }

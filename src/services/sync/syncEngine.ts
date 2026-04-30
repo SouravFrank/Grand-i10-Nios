@@ -138,9 +138,6 @@ async function runSyncCycleInternal(): Promise<void> {
       const existedOnServerEarlier = Boolean(
         entry.lastSyncedAt ?? entry.synced,
       );
-      const remoteEntry = alreadyExistsOnServer
-        ? remoteEntriesById.get(entry.id)
-        : null;
 
       // Check if local entry has been modified since last sync
       // For edited entries, check if they were updated after last sync

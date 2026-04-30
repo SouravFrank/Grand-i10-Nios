@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
+import appIcon from '@/assets/images/g-i10-App-icon.png';
+
 const SPLASH_DURATION_MS = 1050;
 
 export function AnimatedSplashOverlay() {
@@ -24,7 +26,7 @@ export function AnimatedSplashOverlay() {
     <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(220)} style={styles.overlay}>
       <Animated.View entering={ZoomIn.duration(340)} style={styles.brandPanel}>
         <View style={styles.iconFrame}>
-          <Image contentFit="contain" source={require('@/assets/images/g-i10-App-icon.png')} style={styles.image} />
+          <Image contentFit="contain" source={appIcon} style={styles.image} />
         </View>
         <Text style={styles.brandEyebrow}>HYUNDAI DRIVE LOG</Text>
         <Text style={styles.brandTitle}>Grand i10 Nios</Text>
@@ -36,7 +38,7 @@ export function AnimatedSplashOverlay() {
 export function AnimatedIcon() {
   return (
     <View style={styles.iconFrame}>
-      <Image contentFit="contain" source={require('@/assets/images/g-i10-App-icon.png')} style={styles.image} />
+      <Image contentFit="contain" source={appIcon} style={styles.image} />
     </View>
   );
 }

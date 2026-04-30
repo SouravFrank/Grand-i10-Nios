@@ -1,19 +1,18 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   SectionList,
   StyleSheet,
   Text,
-  View,
-  PanResponder,
+  View
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
-import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, EntryType } from '@/types/models';
@@ -126,8 +124,7 @@ export function HistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
-  const markEntrySharedTrip = useAppStore((state) => state.markEntrySharedTrip);
-
+  
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -455,32 +452,7 @@ export function HistoryScreen({ navigation }: Props) {
     return dayjs().toDate();
   }, [activeDateTarget, fromDate, toDate]);
 
-  const handleSharedTripToggle = (row: HistoryRow) => {
-    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer' || row.entry.userId === currentUser.id) {
-      return;
-    }
-
-    Alert.alert('Shared Trip', 'Mark this odometer entry as shared trip?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Confirm',
-        onPress: () => {
-          void (async () => {
-            try {
-              await markEntrySharedTrip(row.entry.id, {
-                userId: currentUser.id,
-                userName: currentUser.name,
-              });
-              void runSyncCycle();
-            } catch (error) {
-              Alert.alert('Could not update entry', error instanceof Error ? error.message : 'Unknown error');
-            }
-          })();
-        },
-      },
-    ]);
-  };
-
+  
   return (
     <ScreenContainer>
       <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }]} />

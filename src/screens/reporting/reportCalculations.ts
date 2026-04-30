@@ -889,7 +889,6 @@ export function buildExpenseReport(params: {
 
     const costPerKm =
       hasValidMileage && hasValidFuelRate ? avgFuelRate / mileage : 0;
-    const tripFuelUsedLiters = hasValidMileage ? trip.distanceKm / mileage : 0;
     const tripTotalCost = trip.distanceKm * costPerKm;
     const tripCostShares = Object.fromEntries(
       Object.entries(trip.sharesByUser).map(([userId, distanceShare]) => [
@@ -1039,6 +1038,8 @@ export function buildExpenseReport(params: {
 
       totalTrafficFineAmount += amount;
       trafficFineItems.push(buildExpenseItem(entry, "Traffic Fine"));
+    } // FIXED: Added closing brace for traffic fine processing block
+
     if (
       (entry.type as EntryType) === "fuel" ||
       isParkingExpense(entry) ||
@@ -1055,17 +1056,17 @@ export function buildExpenseReport(params: {
       continue;
     }
 
-    console.log("Entry incorrectly categorized in Others:", entry);
-    console.log("Section Key:", sectionKey);
+    // Entry incorrectly categorized in Others: entry
+    // Section Key: sectionKey
     const section = otherSections.get(sectionKey);
     if (section) {
       section.totalAmount += entry.cost;
       section.items.push(buildExpenseItem(entry, section.title));
     }
 
-    const payer = usersById[entry.userId];
-    if (payer) {
-      payer.otherPaidAmount += entry.cost;
+    const expensePayer = usersById[entry.userId];
+    if (expensePayer) {
+      expensePayer.otherPaidAmount += entry.cost;
     }
 
     // For others expenses, always split 50-50 between Ayan and Sourav
@@ -1073,7 +1074,7 @@ export function buildExpenseReport(params: {
     usersById.ayan.otherShareAmount += halfShare;
     usersById.sourav.otherShareAmount += halfShare;
     totalOtherSharedAmount += entry.cost;
-  }
+  } // FIXED: Added closing brace for the `entriesInRange` for loop here
 
   const totalFuelFilledBefore = calculateFuelFilledLiters(entriesBeforeRange);
   const totalFuelUsedBefore = calculateFuelUsedLiters(

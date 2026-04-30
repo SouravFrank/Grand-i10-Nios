@@ -4,15 +4,15 @@ import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'reac
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
+import carLeft from '../../assets/images/carL.png';
+import carRight from '../../assets/images/carR.png';
+
 type CarDisplayCardProps = {
   registrationText: string;
   subtitle: string;
   onPress: () => void;
   onLongPressRegistration?: () => void;
 };
-
-const carLeft = require('../../assets/images/carL.png');
-const carRight = require('../../assets/images/carR.png');
 
 export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPressRegistration }: CarDisplayCardProps) {
   const { colors } = useAppTheme();

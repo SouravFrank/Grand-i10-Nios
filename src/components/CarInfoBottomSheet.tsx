@@ -25,6 +25,11 @@ import type {
 } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
+import insurancePdf from '../../assets/pdf/insurence.pdf';
+import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
+import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
+import rcPdf from '../../assets/pdf/RC.pdf';
+
 type CarInfoBottomSheetProps = {
   visible: boolean;
   carSpec: CarSpec;
@@ -111,10 +116,10 @@ async function openFileByUri(localUri: string, mimeType: string, cacheFileName: 
 
 /** Bundled asset mapping — used as fallback when no user-uploaded document exists. */
 const BUNDLED_ASSETS: Partial<Record<CarDocumentKey, { module: number; cacheFileName: string; mimeType: string }>> = {
-  pdiReport: { module: require('../../assets/pdf/pdi_report.pdf'), cacheFileName: 'pdi_report.pdf', mimeType: 'application/pdf' },
-  insurance: { module: require('../../assets/pdf/insurence.pdf'), cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
-  rc: { module: require('../../assets/pdf/RC.pdf'), cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
-  numberPlate: { module: require('../../assets/pdf/number_plate.jpg'), cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
+  pdiReport: { module: pdiReportPdf, cacheFileName: 'pdi_report.pdf', mimeType: 'application/pdf' },
+  insurance: { module: insurancePdf, cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
+  rc: { module: rcPdf, cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
+  numberPlate: { module: numberPlateJpg, cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
 };
 
 /**
@@ -210,15 +215,10 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
     return null;
   }
 
-  let dueDate = parsed;
-  if (!isExpiryDate) {
-    const intervalDays = MAINTENANCE_INTERVALS_DAYS[fieldKey] ?? 365;
-    dueDate = parsed.add(intervalDays, 'day').startOf('day');
-  } else {
-    dueDate = parsed.startOf('day');
-  }
-
   const today = dayjs().startOf('day');
+  const dueDate = !isExpiryDate 
+    ? parsed.add(MAINTENANCE_INTERVALS_DAYS[fieldKey] ?? 365, 'day').startOf('day')
+    : parsed.startOf('day');
   const remainingDays = dueDate.diff(today, 'day');
 
   let color: TrafficLightColor = 'green';
@@ -239,19 +239,13 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
     rgba = 'rgba(234, 179, 8, 0.15)';
   }
 
-  let text = '';
-  if (remainingDays < 0) {
-    const absDays = Math.abs(remainingDays);
-    const { years, months, days } = convertDaysToYMD(absDays);
-    text = `Overdue by ${formatYMD(years, months, days)}`;
-  } else if (remainingDays === 0) {
-    text = 'Due today';
-  } else {
-    const { years, months, days } = convertDaysToYMD(remainingDays);
-    text = `${formatYMD(years, months, days)} left`;
-  }
+  const statusText = remainingDays < 0
+    ? `Overdue by ${formatYMD(convertDaysToYMD(Math.abs(remainingDays)))}`
+    : remainingDays === 0
+      ? 'Due today'
+      : `${formatYMD(convertDaysToYMD(remainingDays))} left`;
 
-  return { color, hex, rgba, text, remainingDays };
+  return { color, hex, rgba, text: statusText, remainingDays };
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {

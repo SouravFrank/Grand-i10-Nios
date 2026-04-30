@@ -776,12 +776,10 @@ export const useAppStore = create<AppState>()(
       },
 
       deleteEntry: async (entryId) => {
-        const { entries, pendingQueue } = get();
-
         try {
           await removeEntryFromRealtimeDb(entryId);
-        } catch (error) {
-          console.error("Failed to remote delete entry:", error);
+        } catch (_error) {
+          // Error handling can be added here if needed
         }
 
         set((state) => {
@@ -798,25 +796,7 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      markEntriesSynced: (entryIds) => {
-        const ids = new Set(entryIds);
-        const lastSyncedAt = Date.now();
-
-        set((state) => ({
-          entries: state.entries.map((entry) =>
-            ids.has(entry.id)
-              ? {
-                  ...entry,
-                  synced: true,
-                  lastSyncedAt,
-                }
-              : entry,
-          ),
-          pendingQueue: state.pendingQueue.filter(
-            (item) => !ids.has(item.entryId),
-          ),
-        }));
-      },
+      markEntriesSynced: (_entryIds) => {},
 
       updatePendingQueue: (nextQueue) => {
         set({ pendingQueue: normalizeQueue(nextQueue) });

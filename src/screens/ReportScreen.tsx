@@ -69,11 +69,13 @@ export function ReportScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<ReportTab>('trip');
   const [tabDirection, setTabDirection] = useState(1);
   const [mileageDraft, setMileageDraft] = useState('');
-  const [showFuelInfo, setShowFuelInfo] = useState(false);
   const [isMileageEditorVisible, setIsMileageEditorVisible] = useState(false);
   const [isSettlementModalVisible, setIsSettlementModalVisible] = useState(false);
   const [isCalculationModalVisible, setIsCalculationModalVisible] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  
+  // ADDED: State for the fuel info bubble
+  const [showFuelInfo, setShowFuelInfo] = useState(false);
 
   const monthOptions = useMemo(() => {
     const keys = new Set<string>([currentMonthKey]);
@@ -124,15 +126,17 @@ export function ReportScreen({ navigation }: Props) {
   );
 
   useEffect(() => {
-    setMileageDraft(report.mileageEditorValue.toFixed(1));
-  }, [report.mileageEditorValue, report.mileageEditorMonthKey]);
+    if (report && report?.mileageEditorValue !== undefined) {
+      setMileageDraft(report.mileageEditorValue.toFixed(1));
+    }
+  }, [report?.mileageEditorValue, report?.mileageEditorMonthKey]);
 
   useEffect(() => {
     setIsMileageEditorVisible(false);
-  }, [filterMode, report.mileageEditorMonthKey]);
+  }, [filterMode, report?.mileageEditorMonthKey]);
 
   const tabAnim = useRef(new Animated.Value(1)).current;
-  const statusToneAnim = useRef(new Animated.Value(report.settlement.toneIndex)).current;
+  const statusToneAnim = useRef(new Animated.Value(report?.settlement?.toneIndex ?? 0)).current;
   const statusScaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -146,13 +150,15 @@ export function ReportScreen({ navigation }: Props) {
   }, [activeTab, tabAnim]);
 
   useEffect(() => {
-    Animated.timing(statusToneAnim, {
-      toValue: report.settlement.toneIndex,
-      duration: 320,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: false,
-    }).start();
-  }, [report.settlement.toneIndex, statusToneAnim]);
+    if (report?.settlement?.toneIndex !== undefined) {
+      Animated.timing(statusToneAnim, {
+        toValue: report.settlement.toneIndex,
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [report?.settlement?.toneIndex, statusToneAnim]);
 
   const surfaceColor = isDark ? 'rgba(24,24,24,0.92)' : '#F6F6F6';
   const secondarySurfaceColor = isDark ? 'rgba(38,38,38,0.96)' : 'rgba(0,0,0,0.035)';
@@ -169,13 +175,13 @@ export function ReportScreen({ navigation }: Props) {
     outputRange: ['#EF4444', '#F59E0B', '#22C55E'],
   });
 
-  const ayanSummary = report.usersById.ayan;
-  const souravSummary = report.usersById.sourav;
+  const ayanSummary = report?.usersById?.ayan;
+  const souravSummary = report?.usersById?.sourav;
   const canConfirmSettlement =
     filterMode === 'month' &&
     Boolean(activeRange.monthKey) &&
     activeRange.isCompleteMonth &&
-    !report.isSettled;
+    !report?.isSettled;
 
   const openDatePicker = (target: DateTarget) => {
     setActiveDateTarget(target);
@@ -210,7 +216,7 @@ export function ReportScreen({ navigation }: Props) {
   };
 
   const handleSaveMileage = () => {
-    if (!report.mileageEditorMonthKey) return;
+    if (!report?.mileageEditorMonthKey) return;
 
     const parsedValue = Number(mileageDraft);
     if (!Number.isFinite(parsedValue) || parsedValue < 0) {
@@ -257,8 +263,8 @@ export function ReportScreen({ navigation }: Props) {
         return;
       }
 
-      const fileUri = `${targetDirectory}${report.csv.fileName}`;
-      await FileSystem.writeAsStringAsync(fileUri, report.csv.content, {
+      const fileUri = `${targetDirectory}${report?.csv?.fileName || 'report.csv'}`;
+      await FileSystem.writeAsStringAsync(fileUri, report?.csv?.content || '', {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
@@ -277,6 +283,18 @@ export function ReportScreen({ navigation }: Props) {
       setIsExportingCsv(false);
     }
   };
+
+  if (!report) {
+    return (
+      <ScreenContainer>
+        <View style={styles.contentContainer}>
+          <Text style={{ color: colors.textPrimary, textAlign: 'center', marginTop: 50 }}>
+            Loading report...
+          </Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -769,9 +787,10 @@ export function ReportScreen({ navigation }: Props) {
                         </Pressable>
                       ) : null}
 
-                      {/* <Pressable onPress={() => setShowFuelInfo((value) => !value)} style={styles.infoButton}>
+                      {/* UNCOMMENTED: The Pressable that controls showFuelInfo state */}
+                      <Pressable onPress={() => setShowFuelInfo((value) => !value)} style={styles.infoButton}>
                         <MaterialIcons name="info-outline" size={16} color={colors.textPrimary} />
-                      </Pressable> */}
+                      </Pressable>
                     </View>
                   </View>
 

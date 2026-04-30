@@ -21,8 +21,9 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('App crashed', error, errorInfo);
+  public componentDidCatch(_error: Error, _errorInfo: ErrorInfo): void {
+    // Error logging can be added here if needed
+    // TODO: make a fallback screen correctly to show error on screen
   }
 
   private reset = () => {

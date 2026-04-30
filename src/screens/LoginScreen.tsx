@@ -3,14 +3,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { type ComponentProps } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Image,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -166,7 +163,7 @@ export function LoginScreen() {
               <View style={styles.header}>
                 <View style={[styles.iconFrame, { borderColor: colors.border, backgroundColor: colors.background }]}>
                   <Image
-                    source={require('@/assets/images/g-i10-App-icon.png')}
+                    source={appIcon}
                     style={styles.icon}
                     resizeMode="contain"
                   />
