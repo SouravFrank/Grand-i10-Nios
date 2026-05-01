@@ -26,11 +26,13 @@ export type ReportUserSummary = {
   sharedDistanceKm: number;
   fuelFilledLiters: number;
   fuelPaidAmount: number;
+  fuelEffectivePaidAmount: number;
   fuelUsedLiters: number;
   fuelConsumptionCost: number;
   fuelInventoryShareAmount: number;
   fuelNetBalance: number;
   fastagRechargeAmount: number;
+  fastagEffectivePaidAmount: number;
   fastagUsedAmount: number;
   fastagBalanceShareAmount: number;
   fastagNetBalance: number;
@@ -240,11 +242,13 @@ function createEmptyUserSummary(user: ReportUser): ReportUserSummary {
     sharedDistanceKm: 0,
     fuelFilledLiters: 0,
     fuelPaidAmount: 0,
+    fuelEffectivePaidAmount: 0,
     fuelUsedLiters: 0,
     fuelConsumptionCost: 0,
     fuelInventoryShareAmount: 0,
     fuelNetBalance: 0,
     fastagRechargeAmount: 0,
+    fastagEffectivePaidAmount: 0,
     fastagUsedAmount: 0,
     fastagBalanceShareAmount: 0,
     fastagNetBalance: 0,
@@ -790,6 +794,32 @@ export function buildExpenseReport(params: {
   const sortedEntries = [...entries].sort(
     (left, right) => left.createdAt - right.createdAt,
   );
+
+  // LIFETIME FALLBACKS (in case current month has 0 fills/recharges)
+  const lifetimeFuelLiters: Record<string, number> = Object.fromEntries(
+    users.map((u) => [u.id, 0]),
+  );
+  const lifetimeFastagRecharge: Record<string, number> = Object.fromEntries(
+    users.map((u) => [u.id, 0]),
+  );
+
+  for (const entry of sortedEntries) {
+    if (entry.createdAt > range.endTs) continue;
+    if (entry.type === "fuel") {
+      const liters = getFuelLiters(entry);
+      if (typeof liters === "number" && liters > 0) {
+        lifetimeFuelLiters[entry.userId] =
+          (lifetimeFuelLiters[entry.userId] || 0) + liters;
+      }
+    } else if (isFastagRecharge(entry)) {
+      const amount = entry.cost;
+      if (typeof amount === "number" && amount > 0) {
+        lifetimeFastagRecharge[entry.userId] =
+          (lifetimeFastagRecharge[entry.userId] || 0) + amount;
+      }
+    }
+  }
+
   const entriesInRange = sortedEntries.filter((entry) =>
     isWithinRange(entry.createdAt, range.startTs, range.endTs),
   );
@@ -826,10 +856,44 @@ export function buildExpenseReport(params: {
     mileage: resolveMonthMileage(monthKey, mileageByMonth),
   }));
 
-  let totalFuelUsedLiters = 0;
+  // 1. OPENING STOCK & 2. CURRENT MONTH PRE-CALCULATIONS FOR WEIGHTED AVERAGE PRICE
+  const totalFuelFilledBefore = calculateFuelFilledLiters(entriesBeforeRange);
+  const totalFuelUsedBefore = calculateFuelUsedLiters(
+    tripsBeforeRange,
+    mileageByMonth,
+  );
+  const openingFuelLiters = clampNonNegative(
+    totalFuelFilledBefore - totalFuelUsedBefore,
+  );
+  const openingFuelRate = getLatestFuelRateAtOrBefore(
+    range.startTs - 1,
+    allFuelLogRows,
+  );
+  const openingFuelValue = openingFuelLiters * openingFuelRate;
+
+  let rangeFuelFilledLiters = 0;
+  let rangeFuelPaidAmount = 0;
+
+  for (const entry of entriesInRange) {
+    if (entry.type === "fuel") {
+      rangeFuelFilledLiters += getFuelLiters(entry) ?? 0;
+      rangeFuelPaidAmount += getFuelAmount(entry) ?? 0;
+    }
+  }
+
+  // 3. WEIGHTED AVERAGE PRICE
+  const totalAvailableLiters = openingFuelLiters + rangeFuelFilledLiters;
+  const totalAvailableValue = openingFuelValue + rangeFuelPaidAmount;
+  const wavgPrice =
+    totalAvailableLiters > 0 ? totalAvailableValue / totalAvailableLiters : 0;
+
+  if (wavgPrice === 0 && tripsInRange.length > 0) {
+    warnings.add(
+      "No fuel refill rate exists, so trip fuel cost for this period is 0.",
+    );
+  }
+
   let totalTripFuelCost = 0;
-  let totalFuelFilledLiters = 0;
-  let totalFuelPaidAmount = 0;
   let totalFastagRecharge = 0;
   let totalFastagRechargeBefore = 0;
   let totalFastagUsed = 0;
@@ -876,9 +940,7 @@ export function buildExpenseReport(params: {
   for (const trip of tripsInRange) {
     const monthKey = getMonthKey(trip.end.createdAt);
     const mileage = resolveMonthMileage(monthKey, mileageByMonth);
-    const avgFuelRate = getAverageFuelRate(monthKey, fuelStatsByMonth);
     const hasValidMileage = Number.isFinite(mileage) && mileage > 0;
-    const hasValidFuelRate = Number.isFinite(avgFuelRate) && avgFuelRate > 0;
 
     if (!hasValidMileage) {
       warnings.add(
@@ -886,14 +948,8 @@ export function buildExpenseReport(params: {
       );
     }
 
-    if (!hasValidFuelRate) {
-      warnings.add(
-        `No fuel refill rate exists for ${getMonthLabel(monthKey)}, so trip fuel cost for that month is shown as 0.`,
-      );
-    }
-
-    const costPerKm =
-      hasValidMileage && hasValidFuelRate ? avgFuelRate / mileage : 0;
+    // Apply the Weighted Average Price to determine the cost of this trip
+    const costPerKm = hasValidMileage ? wavgPrice / mileage : 0;
     const tripTotalCost = trip.distanceKm * costPerKm;
     const tripCostShares = Object.fromEntries(
       Object.entries(trip.sharesByUser).map(([userId, distanceShare]) => [
@@ -912,7 +968,7 @@ export function buildExpenseReport(params: {
       endOdometer: trip.end.odometer,
       distanceKm: roundMeasure(trip.distanceKm),
       drivenBy: trip.drivenBy,
-      avgFuelRate,
+      avgFuelRate: wavgPrice,
       mileage,
       costPerKm,
       totalCost: tripTotalCost,
@@ -951,13 +1007,6 @@ export function buildExpenseReport(params: {
       }
       if (target && typeof liters === "number") {
         target.fuelFilledLiters += liters;
-      }
-
-      if (typeof amount === "number") {
-        totalFuelPaidAmount += amount;
-      }
-      if (typeof liters === "number") {
-        totalFuelFilledLiters += liters;
       }
       continue;
     }
@@ -1050,7 +1099,6 @@ export function buildExpenseReport(params: {
       continue;
     }
 
-    // --- Others Logic ---
     const sectionKey = getOtherSectionKey(entry);
     if (!sectionKey || typeof entry.cost !== "number") {
       continue;
@@ -1075,7 +1123,6 @@ export function buildExpenseReport(params: {
         if (expensePayer) expensePayer.otherShareAmount += entry.cost;
       }
     } else {
-      // General others expense, always 50-50
       usersById.ayan.otherShareAmount += entry.cost / 2;
       usersById.sourav.otherShareAmount += entry.cost / 2;
     }
@@ -1083,55 +1130,68 @@ export function buildExpenseReport(params: {
     totalOtherSharedAmount += entry.cost;
   }
 
-  const totalFuelFilledBefore = calculateFuelFilledLiters(entriesBeforeRange);
-  const totalFuelUsedBefore = calculateFuelUsedLiters(
-    tripsBeforeRange,
+  const totalFuelUsedLiters = calculateFuelUsedLiters(
+    tripsInRange,
     mileageByMonth,
   );
-  const openingFuelLiters = clampNonNegative(
-    totalFuelFilledBefore - totalFuelUsedBefore,
-  );
+  totalTripFuelCost = tripRows.reduce((sum, row) => sum + row.totalCost, 0);
+
   const closingFuelLiters = clampNonNegative(
-    openingFuelLiters + totalFuelFilledLiters - totalFuelUsedLiters,
+    totalAvailableLiters - totalFuelUsedLiters,
   );
+  const closingFuelValue = closingFuelLiters * wavgPrice;
+
   const openingFastagBalance = clampNonNegative(
     totalFastagRechargeBefore - totalFastagUsedBefore,
   );
   const closingFastagBalance = clampNonNegative(
     openingFastagBalance + totalFastagRecharge - totalFastagUsed,
   );
-  const blendedCostPerLiter =
-    totalFuelUsedLiters > 0 ? totalTripFuelCost / totalFuelUsedLiters : 0;
-  const displayedFuelRates = monthKeysInRange
-    .map((monthKey) => getAverageFuelRate(monthKey, fuelStatsByMonth))
-    .filter((rate) => rate > 0);
-  const displayedCostPerLiter =
-    displayedFuelRates.length > 0
-      ? displayedFuelRates.reduce((total, rate) => total + rate, 0) /
-        displayedFuelRates.length
-      : blendedCostPerLiter;
-  const openingFuelRate = getLatestFuelRateAtOrBefore(
-    range.startTs - 1,
-    allFuelLogRows,
-  );
-  const closingMonthKey = getMonthKey(range.endTs);
-  const closingFuelRate =
-    getAverageFuelRate(closingMonthKey, fuelStatsByMonth) ||
-    getLatestFuelRateAtOrBefore(range.endTs, allFuelLogRows);
-  const openingFuelValue = openingFuelLiters * openingFuelRate;
-  const closingFuelValue = closingFuelLiters * closingFuelRate;
-  const fuelInventoryAdjustment = totalFuelPaidAmount - totalTripFuelCost;
-  const fastagBalanceAdjustment = totalFastagRecharge - totalFastagUsed;
 
-  for (const user of users) {
-    usersById[user.id].fuelInventoryShareAmount =
-      fuelInventoryAdjustment / users.length;
-    usersById[user.id].fastagBalanceShareAmount =
-      fastagBalanceAdjustment / users.length;
-  }
-
+  // 4. PER-PERSON ALLOCATION (Pro-Rata Current Period)
   for (const user of users) {
     const summary = usersById[user.id];
+
+    let fuelShare = 0;
+    if (rangeFuelFilledLiters > 0) {
+      fuelShare = summary.fuelFilledLiters / rangeFuelFilledLiters;
+    } else {
+      const totalLifetimeLiters = Object.values(lifetimeFuelLiters).reduce(
+        (a, b) => a + b,
+        0,
+      );
+      fuelShare =
+        totalLifetimeLiters > 0
+          ? (lifetimeFuelLiters[user.id] || 0) / totalLifetimeLiters
+          : 1 / users.length;
+    }
+
+    const userAllocatedLiters = totalFuelUsedLiters * fuelShare;
+    summary.fuelEffectivePaidAmount = roundCurrency(
+      userAllocatedLiters * wavgPrice,
+    );
+
+    let fastagShare = 0;
+    if (totalFastagRecharge > 0) {
+      fastagShare = summary.fastagRechargeAmount / totalFastagRecharge;
+    } else {
+      const totalLifetimeFastag = Object.values(lifetimeFastagRecharge).reduce(
+        (a, b) => a + b,
+        0,
+      );
+      fastagShare =
+        totalLifetimeFastag > 0
+          ? (lifetimeFastagRecharge[user.id] || 0) / totalLifetimeFastag
+          : 1 / users.length;
+    }
+    summary.fastagEffectivePaidAmount = roundCurrency(
+      totalFastagUsed * fastagShare,
+    );
+
+    // Reset inventory share to 0 because effective amounts isolate pure consumption
+    summary.fuelInventoryShareAmount = 0;
+    summary.fastagBalanceShareAmount = 0;
+
     summary.distanceKm = roundMeasure(summary.distanceKm);
     summary.personalDistanceKm = roundMeasure(summary.personalDistanceKm);
     summary.sharedDistanceKm = roundMeasure(summary.sharedDistanceKm);
@@ -1139,24 +1199,8 @@ export function buildExpenseReport(params: {
     summary.fuelUsedLiters = roundMeasure(summary.fuelUsedLiters);
     summary.fuelPaidAmount = roundCurrency(summary.fuelPaidAmount);
     summary.fuelConsumptionCost = roundCurrency(summary.fuelConsumptionCost);
-    summary.fuelInventoryShareAmount = roundCurrency(
-      summary.fuelInventoryShareAmount,
-    );
-    summary.fuelNetBalance = roundCurrency(
-      summary.fuelPaidAmount -
-        summary.fuelConsumptionCost -
-        summary.fuelInventoryShareAmount,
-    );
     summary.fastagRechargeAmount = roundCurrency(summary.fastagRechargeAmount);
     summary.fastagUsedAmount = roundCurrency(summary.fastagUsedAmount);
-    summary.fastagBalanceShareAmount = roundCurrency(
-      summary.fastagBalanceShareAmount,
-    );
-    summary.fastagNetBalance = roundCurrency(
-      summary.fastagRechargeAmount -
-        summary.fastagUsedAmount -
-        summary.fastagBalanceShareAmount,
-    );
     summary.trafficFinePaidAmount = roundCurrency(
       summary.trafficFinePaidAmount,
     );
@@ -1168,13 +1212,16 @@ export function buildExpenseReport(params: {
     summary.otherPaidAmount = roundCurrency(summary.otherPaidAmount);
     summary.otherShareAmount = roundCurrency(summary.otherShareAmount);
 
+    // Total Paid uses the Pro-Rata effective paid amounts for settlement accuracy
     summary.totalPaidAmount = roundCurrency(
-      summary.fuelPaidAmount +
-        summary.fastagRechargeAmount +
+      summary.fuelEffectivePaidAmount +
+        summary.fastagEffectivePaidAmount +
         summary.trafficFinePaidAmount +
         summary.parkingPaidAmount +
         summary.otherPaidAmount,
     );
+
+    // Fair Share is exactly what they consumed/were charged for
     summary.fairShareAmount = roundCurrency(
       summary.fuelConsumptionCost +
         summary.fastagUsedAmount +
@@ -1182,9 +1229,32 @@ export function buildExpenseReport(params: {
         summary.parkingShareAmount +
         summary.otherShareAmount,
     );
+
     summary.netBalance = roundCurrency(
       summary.totalPaidAmount - summary.fairShareAmount,
     );
+
+    // Console log calculation steps for each user
+    console.log(`[ReportCalc] User: ${user.name} (${user.id})`);
+    // console.log(
+    //   `[ReportCalc]   fuelRatio: ${fuelRatio.toFixed(4)}, fastagRatio: ${fastagRatio.toFixed(4)}`,
+    // );
+    // console.log(
+    //   `[ReportCalc]   lifetimeFuelPaid: ${lifetimeFuelPaid[user.id]}, totalLifetimeFuelPaid: ${totalLifetimeFuelPaid}`,
+    // );
+    // console.log(
+    //   `[ReportCalc]   lifetimeFastagRecharge: ${lifetimeFastagRecharge[user.id]}, totalLifetimeFastagRecharge: ${totalLifetimeFastagRecharge}`,
+    // );
+    // console.log(
+    //   `[ReportCalc]   totalTripCostForPeriod: ${totalTripCostForPeriod}, totalFastagUsed: ${totalFastagUsed}`,
+    // );
+    console.log(
+      `[ReportCalc]   Components -> fuelEffective: ${summary.fuelEffectivePaidAmount}, fastagEffective: ${summary.fastagEffectivePaidAmount}, trafficFine: ${summary.trafficFinePaidAmount}, parking: ${summary.parkingPaidAmount}, other: ${summary.otherPaidAmount}`,
+    );
+    console.log(
+      `[ReportCalc]   TOTAL PAID: ${summary.totalPaidAmount}, Fair Share: ${summary.fairShareAmount}, Net Balance: ${summary.netBalance}`,
+    );
+    console.log(`[ReportCalc]   ---`);
   }
 
   const monthlySummaries = monthKeysInRange.map((monthKey) => {
@@ -1215,9 +1285,7 @@ export function buildExpenseReport(params: {
     const closingLiters = clampNonNegative(
       filledUntilMonthEnd - usedUntilMonthEnd,
     );
-    const avgFuelRate = getAverageFuelRate(monthKey, fuelStatsByMonth);
-    const fuelRateForValue =
-      avgFuelRate || getLatestFuelRateAtOrBefore(monthEndTs, allFuelLogRows);
+
     const totalKm = monthTrips.reduce(
       (total, trip) => total + trip.distanceKm,
       0,
@@ -1234,8 +1302,8 @@ export function buildExpenseReport(params: {
 
     const monthMileage = resolveMonthMileage(monthKey, mileageByMonth);
     const costPerKm =
-      Number.isFinite(avgFuelRate) && avgFuelRate > 0 && monthMileage > 0
-        ? avgFuelRate / monthMileage
+      Number.isFinite(wavgPrice) && wavgPrice > 0 && monthMileage > 0
+        ? wavgPrice / monthMileage
         : 0;
     const totalFuelUsed =
       monthMileage > 0 && costPerKm > 0 ? totalKm / monthMileage : 0;
@@ -1249,7 +1317,6 @@ export function buildExpenseReport(params: {
     const fastagUsedAmount = monthEntries
       .filter(isFastagToll)
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
-
     const otherExpenseAmount = monthEntries
       .filter((entry) => {
         const hasOtherSectionKey = Boolean(getOtherSectionKey(entry));
@@ -1258,11 +1325,9 @@ export function buildExpenseReport(params: {
         return hasOtherSectionKey && isNotToll && isNotFuel;
       })
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
-
     const trafficFineAmount = monthEntries
       .filter((entry) => isTrafficFine(entry) && typeof entry.cost === "number")
       .reduce((total, entry) => total + (entry.cost ?? 0), 0);
-
     const parkingAmount = monthEntries
       .filter(
         (entry) => isParkingExpense(entry) && typeof entry.cost === "number",
@@ -1271,7 +1336,7 @@ export function buildExpenseReport(params: {
 
     const tripFuelCost =
       monthMileage > 0 && totalKm > 0
-        ? (totalKm / monthMileage) * fuelRateForValue
+        ? (totalKm / monthMileage) * wavgPrice
         : 0;
 
     return {
@@ -1281,7 +1346,7 @@ export function buildExpenseReport(params: {
       souravKm: roundMeasure(souravKm),
       ayanKm: roundMeasure(ayanKm),
       sharedKm: roundMeasure(sharedKm),
-      avgFuelRate: roundCurrency(avgFuelRate),
+      avgFuelRate: roundCurrency(wavgPrice),
       mileage: roundMeasure(resolveMonthMileage(monthKey, mileageByMonth)),
       tripFuelCost: roundCurrency(tripFuelCost),
       souravTripCost: roundCurrency(
@@ -1298,7 +1363,7 @@ export function buildExpenseReport(params: {
       ayanFuelUsed: roundMeasure(ayanFuelUsed),
       costPerKm: roundCurrency(costPerKm),
       closingFuelLiters: roundMeasure(closingLiters),
-      closingFuelValue: roundCurrency(closingLiters * fuelRateForValue),
+      closingFuelValue: roundCurrency(closingLiters * wavgPrice),
       fastagUsedAmount: roundCurrency(fastagUsedAmount),
       otherExpenseAmount: roundCurrency(otherExpenseAmount),
       trafficFineAmount: roundCurrency(trafficFineAmount),
@@ -1405,6 +1470,19 @@ export function buildExpenseReport(params: {
     (row) => row.amount > 0 && row.liters > 0,
   );
 
+  // Final summary log for usersById
+  // console.log("[ReportCalc] === FINAL usersById SUMMARY ===");
+  // console.log("[ReportCalc] usersById:", JSON.stringify(usersById, null, 2));
+  // console.log(
+  //   "[ReportCalc] Ayan totalPaidAmount:",
+  //   usersById.ayan?.totalPaidAmount,
+  // );
+  // console.log(
+  //   "[ReportCalc] Sourav totalPaidAmount:",
+  //   usersById.sourav?.totalPaidAmount,
+  // );
+  // console.log("[ReportCalc] ==================================");
+
   return {
     users,
     usersById,
@@ -1437,21 +1515,25 @@ export function buildExpenseReport(params: {
     fuel: {
       openingLiters: roundMeasure(openingFuelLiters),
       openingValue: roundCurrency(openingFuelValue),
-      filledLiters: roundMeasure(totalFuelFilledLiters),
-      filledAmount: roundCurrency(totalFuelPaidAmount),
+      filledLiters: roundMeasure(rangeFuelFilledLiters),
+      filledAmount: roundCurrency(rangeFuelPaidAmount),
       usedLiters: roundMeasure(totalFuelUsedLiters),
       closingLiters: roundMeasure(closingFuelLiters),
       closingValue: roundCurrency(closingFuelValue),
-      costPerLiter: roundCurrency(displayedCostPerLiter),
+      costPerLiter: roundCurrency(wavgPrice),
       totalFuelCost: roundCurrency(totalTripFuelCost),
-      inventoryAdjustmentAmount: roundCurrency(fuelInventoryAdjustment),
+      inventoryAdjustmentAmount: roundCurrency(
+        rangeFuelPaidAmount - totalTripFuelCost,
+      ),
     },
     fastag: {
       openingBalance: roundCurrency(openingFastagBalance),
       rechargeAmount: roundCurrency(totalFastagRecharge),
       usedAmount: roundCurrency(totalFastagUsed),
       closingBalance: roundCurrency(closingFastagBalance),
-      balanceAdjustmentAmount: roundCurrency(fastagBalanceAdjustment),
+      balanceAdjustmentAmount: roundCurrency(
+        totalFastagRecharge - totalFastagUsed,
+      ),
       sharedTripTolls: roundCurrency(totalSharedTripTolls),
     },
     trafficFine: {
@@ -1514,13 +1596,13 @@ export function buildExpenseReport(params: {
       monthlySummaries,
       settlementRows,
       formulaNotes: [
-        "Monthly fuel rate = average of each refill rate (amount / liters) in that month.",
-        "Cost per km = monthly fuel rate / monthly mileage.",
-        "Trip fuel cost = trip distance x cost per km.",
+        "1. OPENING STOCK: Brought forward from previous months' unconsumed liters and value.",
+        "2. WEIGHTED AVG PRICE: (Opening Value + Month Fills Value) / (Opening Liters + Month Liters).",
+        "3. PER-PERSON ALLOCATION: Consumed fuel cost is allocated pro-rata based on each person's share of fills in the current period.",
+        "4. This ensures you only pay each other for fuel and tolls actually used, leaving unused balance safely in the wallet/tank.",
+        "Cost per km = Weighted Avg Price / monthly mileage.",
         "Shared trips split trip fuel cost and FASTag tolls equally between Sourav and Ayan.",
-        "Trip row user columns mirror the workbook split; settlement rows are the final balanced payable view.",
         "Other running expenses are split 50-50. Traffic fines are charged to the payer unless marked shared.",
-        "Fuel and FASTag closing balances are treated as shared prepaid value so settlement stays balanced.",
       ],
     },
     csv,

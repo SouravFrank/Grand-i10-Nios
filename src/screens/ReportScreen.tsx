@@ -565,7 +565,6 @@ export function ReportScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {/* SETTLEMENT CARD (Merged fully into the top dashboard grid) */}
             <Animated.View
               style={[
                 styles.settlementCard,
@@ -651,7 +650,6 @@ export function ReportScreen({ navigation }: Props) {
               ) : null}
             </Animated.View>
             
-            {/* INLINE WARNINGS IF ANY */}
             {report.warnings.length > 0 ? (
               <View
                 style={[
