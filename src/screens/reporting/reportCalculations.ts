@@ -1428,8 +1428,8 @@ export function buildExpenseReport(params: {
     title = "Pending settlement";
     directionMessage = `${payUser.name} pays ${receiveUser.name}`;
     currentUserMessage = isActiveUserReceiver
-      ? `You receive ${formatSettlementAmount(settlementAmount)} from ${payUser.name}`
-      : `You pay ${formatSettlementAmount(settlementAmount)} to ${receiveUser.name}`;
+      ? `You will receive ${formatSettlementAmount(settlementAmount)} from ${payUser.name}`
+      : `You will pay ${formatSettlementAmount(settlementAmount)} to ${receiveUser.name}`;
     toneIndex = isActiveUserReceiver ? 1 : 0;
   }
 
@@ -1616,3 +1616,15 @@ export function buildExpenseReport(params: {
     },
   };
 }
+
+// Type aliases for component convenience
+export type ReportData = ExpenseReport;
+export type MonthlySummary = ReportMonthlySummary;
+export type FuelData = ExpenseReport["fuel"];
+export type FastagData = ExpenseReport["fastag"];
+export type TrafficFineData = ExpenseReport["trafficFine"];
+export type ParkingData = ExpenseReport["parking"];
+export type OthersReportData = ExpenseReport["others"];
+export type AuditData = ExpenseReport["audit"];
+export type SettlementData = ExpenseReport["settlement"];
+export type SummaryData = ExpenseReport["summary"];
