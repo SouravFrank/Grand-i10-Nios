@@ -5,9 +5,8 @@ import { FastagData, ReportUserSummary } from '../../reportCalculations';
 import { formatINR } from '../../reportUtils';
 import { styles } from '../common/TripTab.styles';
 
-// Define the signature colors
-const AYAN_COLOR = '#3B82F6'; // Modern Blue
-const SOURAV_COLOR = '#8B5CF6'; // Modern Purple
+const AYAN_COLOR = '#3B82F6';
+const SOURAV_COLOR = '#8B5CF6'; 
 
 interface FastagSummarySectionProps {
   fastag: FastagData;
@@ -26,12 +25,23 @@ export function FastagSummarySection({
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <MaterialIcons name="credit-card" size={20} color={colors.textPrimary} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fastag Summary</Text>
+          <View style={{
+            backgroundColor: colors.textPrimary,
+            padding: 6,
+            borderRadius: 8,
+            shadowColor: colors.textPrimary,
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            transform: [{ rotate: '-5deg' }],
+          }}>
+            <MaterialIcons name="toll" size={16} color={colors.background} />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Fastag Summary</Text>
         </View>
       </View>
 
-      {/* 3-Column Layout for Balances */}
       <View style={styles.threeColumnRow}>
         <View style={[styles.compactCard, { backgroundColor: secondarySurfaceColor }]}>
           <Text style={[styles.compactTitle, { color: colors.textSecondary }]}>Previous</Text>
@@ -55,8 +65,10 @@ export function FastagSummarySection({
         </View>
       </View>
 
-      {/* Closing Balance Highlight */}
-      <View style={[styles.highlightedCard, { backgroundColor: `${colors.primary}15` }]}>
+      <View style={[
+        styles.highlightedCard, 
+        { backgroundColor: `${colors.primary}10`, borderWidth: 2, borderColor: `${colors.primary}40`, borderStyle: 'dashed' }
+      ]}>
         <View style={styles.cardHeader}>
           <MaterialIcons name="account-balance-wallet" size={16} color={colors.primary} />
           <Text style={[styles.cardTitle, { color: colors.primary }]}>Closing Balance</Text>
@@ -67,44 +79,52 @@ export function FastagSummarySection({
       </View>
 
       <View style={styles.userSplitSection}>
-        <Text style={[styles.cardTitle, { color: colors.textSecondary, marginBottom: 4 }]}>User-wise Usage</Text>
+        {/* <Text style={[styles.cardTitle, { color: colors.textSecondary, marginBottom: 4 }]}>User-wise Usage</Text> */}
         <View style={styles.userCardsRow}>
           
-          {/* Ayan's Card - Blue Highlight */}
+          {/* Ayan's Compact Card */}
           <View style={[
             styles.userCard, 
-            { backgroundColor: `${AYAN_COLOR}0A`, borderWidth: 1, borderColor: `${AYAN_COLOR}40` }
+            { padding: 12, backgroundColor: `${AYAN_COLOR}0A`, borderWidth: 1, borderColor: `${AYAN_COLOR}40` }
           ]}>
-            <View style={styles.userHeader}>
+            <View style={[styles.userHeader, { marginBottom: 8 }]}>
               <MaterialIcons name="person" size={16} color={AYAN_COLOR} />
               <Text style={[styles.userName, { color: AYAN_COLOR }]}>Ayan</Text>
             </View>
-            <View style={styles.userStatBlock}>
-              <Text style={[styles.secondaryAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagUsedAmount)}</Text>
-              <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
-            </View>
-            <View style={styles.userStatBlock}>
-              <Text style={[styles.secondaryAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagRechargeAmount)}</Text>
-              <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.userStatBlock}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagUsedAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
+              </View>
+              {/* Subtle Divider */}
+              <View style={{ width: 1, height: 24, backgroundColor: `${AYAN_COLOR}30` }} />
+              <View style={[styles.userStatBlock, { alignItems: 'flex-end' }]}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagRechargeAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+              </View>
             </View>
           </View>
 
-          {/* Sourav's Card - Purple Highlight */}
+          {/* Sourav's Compact Card */}
           <View style={[
             styles.userCard, 
-            { backgroundColor: `${SOURAV_COLOR}0A`, borderWidth: 1, borderColor: `${SOURAV_COLOR}40` }
+            { padding: 12, backgroundColor: `${SOURAV_COLOR}0A`, borderWidth: 1, borderColor: `${SOURAV_COLOR}40` }
           ]}>
-            <View style={styles.userHeader}>
+            <View style={[styles.userHeader, { marginBottom: 8 }]}>
               <MaterialIcons name="person" size={16} color={SOURAV_COLOR} />
               <Text style={[styles.userName, { color: SOURAV_COLOR }]}>Sourav</Text>
             </View>
-            <View style={styles.userStatBlock}>
-              <Text style={[styles.secondaryAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagUsedAmount)}</Text>
-              <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
-            </View>
-            <View style={styles.userStatBlock}>
-              <Text style={[styles.secondaryAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagRechargeAmount)}</Text>
-              <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.userStatBlock}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagUsedAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
+              </View>
+              {/* Subtle Divider */}
+              <View style={{ width: 1, height: 24, backgroundColor: `${SOURAV_COLOR}30` }} />
+              <View style={[styles.userStatBlock, { alignItems: 'flex-end' }]}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagRechargeAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+              </View>
             </View>
           </View>
 

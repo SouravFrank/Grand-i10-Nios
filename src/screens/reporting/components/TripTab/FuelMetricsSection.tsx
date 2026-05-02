@@ -24,8 +24,19 @@ export function FuelMetricsSection({
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <MaterialIcons name="local-gas-station" size={16} color={colors.textPrimary} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel Metrics</Text>
+           <View style={{
+            backgroundColor: colors.textPrimary,
+            padding: 6,
+            borderRadius: 8,
+            shadowColor: colors.textPrimary,
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+          }}>
+            <MaterialIcons name="insights" size={16} color={colors.background} />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Telemetry & Efficiency</Text>
         </View>
       </View>
 
@@ -33,25 +44,36 @@ export function FuelMetricsSection({
         {monthlySummaries.map((month) => (
           <View
             key={month.monthKey}
-            style={[styles.fuelMetricCard, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}
+            style={[{ gap: 12 }]}
           >
-            <View style={styles.fuelMetricHeader}>
-              <MaterialIcons name="speed" size={20} color={colors.textPrimary} />
-              <Text style={[styles.fuelMetricTitle, { color: colors.textPrimary }]}>{month.monthLabel}</Text>
+            {/* Minimalist Month Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ height: 1, flex: 1, backgroundColor: colors.border }} />
+              <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>{month.monthLabel}</Text>
+              <View style={{ height: 1, flex: 1, backgroundColor: colors.border }} />
             </View>
-            <View style={styles.fuelMetricRow}>
-              <View style={styles.fuelMetricItem}>
-                <Text style={[styles.fuelMetricLabel, { color: colors.textSecondary }]}>Avg Cost per KM</Text>
-                <Text style={[styles.fuelMetricValue, { color: colors.textPrimary }]}>
+
+            {/* Split Digital Readouts */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              
+              {/* Cost per KM Block */}
+              <View style={[styles.innerSummaryCard, { backgroundColor: secondarySurfaceColor, alignItems: 'center' }]}>
+                <MaterialIcons name="timeline" size={20} color={colors.textSecondary} style={{ marginBottom: 4 }} />
+                <Text style={[styles.primaryAmount, { color: colors.textPrimary }]}>
                   {formatINR(month.costPerKm)}
                 </Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary, marginTop: 2 }]}>Avg Cost / KM</Text>
               </View>
-              <View style={styles.fuelMetricItem}>
-                <Text style={[styles.fuelMetricLabel, { color: colors.textSecondary }]}>Avg Cost per Liter</Text>
-                <Text style={[styles.fuelMetricValue, { color: colors.textPrimary }]}>
+
+              {/* Cost per Liter Block */}
+              <View style={[styles.innerSummaryCard, { backgroundColor: secondarySurfaceColor, alignItems: 'center' }]}>
+                 <MaterialIcons name="local-gas-station" size={20} color={colors.textSecondary} style={{ marginBottom: 4 }} />
+                <Text style={[styles.primaryAmount, { color: colors.textPrimary }]}>
                   {formatINR(month.avgFuelRate)}
                 </Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary, marginTop: 2 }]}>Avg Fuel Rate / L</Text>
               </View>
+
             </View>
           </View>
         ))}

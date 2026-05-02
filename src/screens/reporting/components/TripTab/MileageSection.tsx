@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/theme/useAppTheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Pressable, Text, TextInput, View } from 'react-native';
 import { ReportData } from '../../reportCalculations';
 import { formatMileage } from '../../reportUtils';
 import { styles } from '../common/TripTab.styles';
@@ -11,8 +12,6 @@ interface MileageSectionProps {
   setMileageDraft: (value: string) => void;
   isMileageEditorVisible: boolean;
   setIsMileageEditorVisible: (visible: boolean) => void;
-  showFuelInfo: boolean;
-  setShowFuelInfo: (show: boolean) => void;
   onSaveMileage: () => void;
   surfaceColor: string;
   secondarySurfaceColor: string;
@@ -20,16 +19,57 @@ interface MileageSectionProps {
 
 export function MileageSection({
   report, mileageDraft, setMileageDraft, isMileageEditorVisible, setIsMileageEditorVisible,
-  showFuelInfo, setShowFuelInfo, onSaveMileage, surfaceColor, secondarySurfaceColor,
+  onSaveMileage, surfaceColor, secondarySurfaceColor,
 }: MileageSectionProps) {
   const { colors } = useAppTheme();
+
+  // Animation values for a pulsing eco icon and moving car
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const driveAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Infinite driving animation across the card
+    Animated.loop(
+      Animated.timing(driveAnim, {
+        toValue: 1,
+        duration: 3500,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [pulseAnim, driveAnim]);
+
+  // Interpolate the car movement from left to right
+  const carTranslateX = driveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-20, 200] // Adjusts for the width of the card
+  });
 
   return (
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <MaterialIcons name="speed" size={20} color={colors.textPrimary} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Mileage</Text>
+          <View style={{
+            backgroundColor: colors.textPrimary,
+            padding: 6,
+            borderRadius: 8,
+            shadowColor: colors.textPrimary,
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            transform: [{ rotate: '-5deg' }],
+          }}>
+            <MaterialIcons name="speed" size={16} color={colors.background} />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Mileage</Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -38,26 +78,34 @@ export function MileageSection({
               <MaterialIcons name={isMileageEditorVisible ? 'close' : 'edit'} size={20} color={colors.textPrimary} />
             </Pressable>
           )}
-          <Pressable onPress={() => setShowFuelInfo(!showFuelInfo)} style={styles.infoButton}>
-            <MaterialIcons name="info-outline" size={20} color={colors.textSecondary} />
-          </Pressable>
         </View>
       </View>
 
-      {showFuelInfo && (
-        <View style={[styles.infoBubble, { backgroundColor: secondarySurfaceColor, borderLeftColor: colors.primary }]}>
-          <Text style={[styles.infoBubbleText, { color: colors.textPrimary }]}>Fuel used = distance / mileage</Text>
-        </View>
-      )}
-
       <View style={styles.mileageStack}>
-        <View style={[styles.innerSummaryCard, { backgroundColor: secondarySurfaceColor }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Current Active</Text>
+        {/* Animated Active Readout Card */}
+        <View style={[styles.innerSummaryCard, { backgroundColor: secondarySurfaceColor, alignItems: 'center', overflow: 'hidden' }]}>
+          
+          {/* Subtle Watermark Icon in background */}
+          <MaterialIcons name="eco" size={100} color={`${colors.primary}08`} style={{ position: 'absolute', right: -20, top: -10 }} />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <MaterialIcons name="ev-station" size={20} color={colors.primary} />
+            </Animated.View>
+            <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Active Efficiency</Text>
           </View>
-          <Text style={[styles.primaryAmount, { color: colors.textPrimary, marginTop: 4 }]}>
-            {formatMileage(report.mileageEditorValue)}
+          
+          <Text style={[styles.primaryAmount, { color: colors.textPrimary, marginTop: 4, fontSize: 32 }]}>
+            {formatMileage(report.mileageEditorValue).toUpperCase()}
           </Text>
+
+          {/* Animated Road & Car Element */}
+          <View style={{ width: '100%', height: 16, marginTop: 12, justifyContent: 'center' }}>
+            <View style={{ position: 'absolute', width: '100%', height: 1, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border }} />
+            <Animated.View style={{ transform: [{ translateX: carTranslateX }] }}>
+              <MaterialIcons name="directions-car" size={14} color={colors.textSecondary} />
+            </Animated.View>
+          </View>
         </View>
 
         {isMileageEditorVisible && report.canEditMileage && (

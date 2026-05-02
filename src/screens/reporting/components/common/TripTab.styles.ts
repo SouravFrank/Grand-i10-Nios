@@ -198,4 +198,10 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.5,
   },
+  fuelMetricsGrid: {
+    gap: 12,
+  },
+  monthSummaryStack: {
+    gap: 12,
+  },
 });

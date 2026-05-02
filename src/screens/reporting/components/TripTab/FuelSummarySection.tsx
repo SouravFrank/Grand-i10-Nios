@@ -5,9 +5,8 @@ import { FuelData, ReportUserSummary } from '../../reportCalculations';
 import { formatINR, formatLiters } from '../../reportUtils';
 import { styles } from '../common/TripTab.styles';
 
-// Define the signature colors
-const AYAN_COLOR = '#3B82F6'; // Modern Blue
-const SOURAV_COLOR = '#8B5CF6'; // Modern Purple
+const AYAN_COLOR = '#3B82F6';
+const SOURAV_COLOR = '#8B5CF6';
 
 interface FuelSummarySectionProps {
   fuel: FuelData;
@@ -25,12 +24,30 @@ export function FuelSummarySection({
 }: FuelSummarySectionProps) {
   const { colors } = useAppTheme();
 
+  // FIX: Range is Liters * Mileage. 
+  // We calculate current active mileage, falling back to 15 if no fuel has been spent yet.
+  const currentMileage = totalFuelUsed > 0 ? (totalKm / totalFuelUsed) : 15;
+  const estimatedRange = Math.max(0, Math.round(fuel.closingLiters * currentMileage));
+
   return (
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <MaterialIcons name="local-gas-station" size={20} color={colors.textPrimary} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Fuel Summary</Text>
+          {/* Creative Icon Badge */}
+          <View style={{
+            backgroundColor: colors.textPrimary,
+            padding: 6,
+            borderRadius: 8,
+            shadowColor: colors.textPrimary,
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            transform: [{ rotate: '-5deg' }],
+          }}>
+            <MaterialIcons name="local-gas-station" size={16} color={colors.background} />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Fuel Summary</Text>
         </View>
       </View>
 
@@ -63,8 +80,11 @@ export function FuelSummarySection({
         </View>
       </View>
 
-      {/* Closing Balance Highlight */}
-      <View style={[styles.highlightedCard, { backgroundColor: `${colors.primary}15` }]}>
+      {/* Closing Balance Highlight - Enhanced UI */}
+      <View style={[
+        styles.highlightedCard, 
+        { backgroundColor: `${colors.primary}10`, borderWidth: 2, borderColor: `${colors.primary}40`, borderStyle: 'dashed' }
+      ]}>
         <View style={styles.cardHeader}>
           <MaterialIcons name="invert-colors" size={16} color={colors.primary} />
           <Text style={[styles.cardTitle, { color: colors.primary }]}>Fuel Remaining</Text>
@@ -73,7 +93,10 @@ export function FuelSummarySection({
           <Text style={[styles.primaryAmount, { color: colors.primary }]}>{formatLiters(fuel.closingLiters)}</Text>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={[styles.secondaryAmount, { color: colors.primary }]}>{formatINR(fuel.closingValue)}</Text>
-            <Text style={[styles.tertiaryLabel, { color: colors.primary }]}>Range: {Math.round(fuel.closingLiters * (fuel.costPerLiter > 0 ? fuel.costPerLiter : 15))} km</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MaterialIcons name="multiple-stop" size={14} color={colors.primary} />
+              <Text style={[styles.tertiaryLabel, { color: colors.primary }]}>Range: ~{estimatedRange} KM</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -113,7 +136,6 @@ export function FuelSummarySection({
           </View>
         </View>
       </View>
-
 
     </View>
   );

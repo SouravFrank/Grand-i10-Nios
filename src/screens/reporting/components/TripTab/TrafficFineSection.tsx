@@ -56,7 +56,7 @@ export function TrafficFineSection({
         <View style={[styles.inlineStatPill, { borderColor: colors.border, backgroundColor: secondarySurfaceColor }]}>
           <MaterialIcons name="receipt-long" size={12} color={colors.textSecondary} />
           <Text style={[styles.inlineStatText, { color: colors.textPrimary }]}>
-            {trafficFine.totalCount} {trafficFine.totalCount === 1 ? 'item' : 'items'}
+            {trafficFine.totalCount} {trafficFine.totalCount === 1 ? 'violation' : 'violations'}
           </Text>
         </View>
       </View>
