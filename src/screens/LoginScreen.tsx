@@ -3,11 +3,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { type ComponentProps } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-    Image,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -19,6 +19,7 @@ import { authenticateWithPassword, canUseBiometricAuth } from '@/services/auth/a
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
+import appIcon from '../../assets/images/g-i10-App-icon.png';
 
 const loginSchema = z.object({
   userId: z.string().trim().min(1, 'User ID is required.'),
@@ -171,7 +172,7 @@ export function LoginScreen() {
 
                 <View style={styles.heroCopy}>
                   <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>WELCOME IN</Text>
-                  <Text style={[styles.title, { color: colors.textPrimary }]}>Grand i10 Nios</Text>
+                  <Text style={[styles.title, { color: colors.textPrimary }]}>Viraaj</Text>
                   <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                     Sign in to log trips, fuel, and expense activity with your assigned account.
                   </Text>

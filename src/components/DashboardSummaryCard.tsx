@@ -26,45 +26,63 @@ export function DashboardSummaryCard({
   onRetrySync,
 }: DashboardSummaryCardProps) {
   const { colors } = useAppTheme();
-  const syncButtonDisabled = syncStatus === 'syncing';
-  const syncIconName = syncStatus === 'syncing' ? 'sync' : 'refresh';
+  
+  const isSyncing = syncStatus === 'syncing';
   const recordedDate = latestEntry ? dayjs(latestEntry.createdAt).format(INDIA_DATE_FORMAT) : 'No records yet';
   const recordedBy = latestEntry ? getEntryOwnerName(latestEntry).toUpperCase() : 'N/A';
 
-  // Entrance animation
-  const slideY = useRef(new Animated.Value(30)).current;
+  // Animations
+  const slideY = useRef(new Animated.Value(20)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
-  const odometerScale = useRef(new Animated.Value(0.8)).current;
+  const spinValue = useRef(new Animated.Value(0)).current;
+  
+  // Creative Odometer Highlight Animation
+  const highlightScale = useRef(new Animated.Value(0.95)).current;
+  const highlightOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.stagger(100, [
-      Animated.parallel([
-        Animated.spring(slideY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 10,
-        }),
-        Animated.timing(fadeIn, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-          easing: Easing.out(Easing.ease),
-        }),
-      ]),
-      Animated.spring(odometerScale, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 60,
-        friction: 8,
-      }),
+    // Entrance animations
+    Animated.parallel([
+      Animated.spring(slideY, { toValue: 0, useNativeDriver: true, tension: 50, friction: 8 }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
     ]).start();
-  }, [slideY, fadeIn, odometerScale]);
+
+    // Creative "Scanner" border highlight around the odometer reading
+    Animated.sequence([
+      Animated.delay(300),
+      Animated.parallel([
+        Animated.spring(highlightScale, { toValue: 1.05, useNativeDriver: true, tension: 40, friction: 5 }),
+        Animated.timing(highlightOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]),
+      Animated.timing(highlightOpacity, { toValue: 0, duration: 600, useNativeDriver: true, delay: 200 }),
+    ]).start();
+  }, [slideY, fadeIn, highlightScale, highlightOpacity]);
+
+  // Sync icon spinning animation
+  useEffect(() => {
+    if (isSyncing) {
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      spinValue.setValue(0);
+    }
+  }, [isSyncing, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
     <Animated.View
       style={[
-        styles.card,
+        styles.heroCard,
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
@@ -73,205 +91,169 @@ export function DashboardSummaryCard({
         },
       ]}
     >
+      {/* Header: Title + Compact Sync Status */}
       <View style={styles.headerRow}>
-        <View
-          style={[
-            styles.sectionBadge,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-            },
-          ]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LAST ODOMETER</Text>
+        <View style={styles.titleWrap}>
+          <MaterialIcons name="speed" size={16} color={colors.textSecondary} />
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>ODOMETER READING</Text>
         </View>
-        <Pressable
-          onPress={onRetrySync}
-          disabled={syncButtonDisabled}
-          style={[
-            styles.syncButton,
-            {
-              borderColor: colors.border,
-              backgroundColor: colors.backgroundSecondary,
-              opacity: syncButtonDisabled ? 0.55 : 1,
-            },
-          ]}>
-          <MaterialIcons name={syncIconName} size={18} color={colors.textPrimary} />
-        </Pressable>
-      </View>
-
-      <View style={[styles.heroPanel]}>
-        <Animated.View style={[styles.heroRow, { transform: [{ scale: odometerScale }] }]}>
-          <View style={styles.odometerWrap}>
-            <Text style={[styles.odometer, { color: colors.textPrimary }]}>{latestEntry ? latestEntry.odometer : '--'}</Text>
+        
+        <View style={styles.syncWrap}>
+          {/* Scaled down Sync Indicator seamlessly integrated into header */}
+          <View style={{ transform: [{ scale: 0.85 }] }}>
+             <SyncStatusIndicator
+              status={syncStatus}
+              queuedCount={queuedCount}
+              isOnline={isOnline}
+              lastSyncError={lastSyncError}
+              onRetry={undefined} // Handled by the button next to it
+            />
           </View>
-          <View style={[styles.unitBadge, { backgroundColor: colors.invertedBackground }]}>
-            <Text style={[styles.unitLabel, { color: colors.invertedText }]}>KM</Text>
-          </View>
-        </Animated.View>
-      </View>
-
-      <View style={styles.metaRow}>
-        <View
-          style={[
-            styles.metaChip,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-            },
-          ]}>
-          <MaterialIcons name="calendar-today" size={16} color={colors.textSecondary} />
-          <View style={styles.metaContent}>
-            <Text style={[styles.metaChipLabel, { color: colors.textSecondary }]}>Recorded</Text>
-            <Text style={[styles.metaChipValue, { color: colors.textPrimary }]} numberOfLines={1}>
-              {recordedDate}
-            </Text>
-          </View>
-        </View>
-        <View
-          style={[
-            styles.metaChip,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-            },
-          ]}>
-          <MaterialIcons name="person-outline" size={18} color={colors.textSecondary} />
-          <View style={styles.metaContent}>
-            <Text style={[styles.metaChipLabel, { color: colors.textSecondary }]}>Last entry by</Text>
-            <Text style={[styles.metaChipValue, { color: colors.textPrimary }]} numberOfLines={1}>
-              {recordedBy}
-            </Text>
-          </View>
+          <Pressable
+            onPress={onRetrySync}
+            disabled={isSyncing}
+            style={styles.syncButton}
+            hitSlop={10}
+          >
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <MaterialIcons name="sync" size={18} color={colors.textSecondary} />
+            </Animated.View>
+          </Pressable>
         </View>
       </View>
 
-      <View
-        style={[
-          styles.statusStrip,
-        ]}>
-        <SyncStatusIndicator
-          status={syncStatus}
-          queuedCount={queuedCount}
-          isOnline={isOnline}
-          lastSyncError={lastSyncError}
-          onRetry={syncStatus === 'failed' ? onRetrySync : undefined}
+      {/* Main Odometer Display */}
+      <View style={styles.odometerContainer}>
+        {/* Animated Highlight Border */}
+        <Animated.View 
+          style={[
+            styles.odometerHighlight, 
+            { 
+              borderColor: colors.primary, 
+              opacity: highlightOpacity,
+              transform: [{ scale: highlightScale }] 
+            }
+          ]} 
         />
+        <Text style={[styles.odometerText, { color: colors.textPrimary }]}>
+          {latestEntry ? latestEntry.odometer : '--'}
+        </Text>
+        <Text style={[styles.unitLabel, { color: colors.textSecondary }]}>KM</Text>
       </View>
-      {/* {syncStatus === 'failed' && lastSyncError ? (
-        <Text style={[styles.errorText, { color: colors.textSecondary }]}>{lastSyncError}</Text>
-      ) : null} */}
+
+      {/* Compact Meta Information Row */}
+      <View style={[styles.metaContainer, { backgroundColor: colors.backgroundSecondary }]}>
+        <View style={styles.metaItem}>
+          <MaterialIcons name="calendar-today" size={14} color={colors.textSecondary} style={{ marginBottom: 2 }} />
+          <View>
+            <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>LAST UPDATE</Text>
+            <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1}>{recordedDate}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
+
+        <View style={styles.metaItem}>
+          <MaterialIcons name="person-outline" size={16} color={colors.textSecondary} style={{ marginBottom: 2 }} />
+          <View>
+            <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>LAST ENTRY</Text>
+            <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1}>{recordedBy}</Text>
+          </View>
+        </View>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  heroCard: {
     borderWidth: 1,
-    borderRadius: 28,
+    borderRadius: 20,
     padding: 16,
-    gap: 12,
+    gap: 16,
+    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
   },
-  sectionBadge: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sectionLabel: {
     fontSize: 11,
-    letterSpacing: 1,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
-  syncButton: {
-    width: 38,
-    height: 38,
-    borderWidth: 1,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroPanel: {
-    // borderWidth: 1,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-  },
-  heroRow: {
+  syncWrap: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  odometerWrap: {
-    flex: 1,
-    minWidth: 0,
+    alignItems: 'center',
     gap: 4,
   },
-  odometer: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    lineHeight: 38,
+  syncButton: {
+    padding: 4,
+    borderRadius: 12,
   },
-  heroCaption: {
-    fontSize: 12,
-    letterSpacing: 0.2,
+  odometerContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  unitBadge: {
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    minWidth: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
+  odometerHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 2,
+    borderRadius: 12,
+  },
+  odometerText: {
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    includeFontPadding: false,
   },
   unitLabel: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 1,
+    marginLeft: 8,
   },
-  metaRow: {
+  metaContainer: {
     flexDirection: 'row',
-    gap: 10,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  metaChip: {
+  metaItem: {
     flex: 1,
-    minWidth: 0,
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  metaContent: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
+  metaDivider: {
+    width: 1,
+    height: 24,
+    marginHorizontal: 12,
   },
-  metaChipLabel: {
-    fontSize: 10,
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
+  metaLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 2,
   },
-  metaChipValue: {
+  metaValue: {
     fontSize: 13,
     fontWeight: '700',
-  },
-  statusStrip: {
-    // borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  errorText: {
-    fontSize: 11,
-    lineHeight: 16,
   },
 });

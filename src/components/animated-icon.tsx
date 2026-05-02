@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
-import appIcon from '@/assets/images/g-i10-App-icon.png';
+import appIcon from '../../assets/images/g-i10-App-icon.png';
 
 const SPLASH_DURATION_MS = 1050;
 
