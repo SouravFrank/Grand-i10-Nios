@@ -35,7 +35,8 @@ type HistoryRow = {
   tripEndOdometer: number | null;
 };
 
-type CategoryFilter = 'all' | EntryType;
+type ExpenseSubcategory = 'fasttag' | 'car_maintenance' | 'parking' | 'traffic_violation' | 'others';
+type CategoryFilter = 'all' | EntryType | `expense_${ExpenseSubcategory}`;
 type DateTarget = 'from' | 'to';
 type DatePreset = 'all' | 'last7' | 'last30' | 'thisMonth' | 'custom';
 
@@ -244,7 +245,19 @@ export function HistoryScreen({ navigation }: Props) {
     const pills: string[] = [];
 
     if (category !== 'all') {
-      pills.push(category === 'spec_update' ? 'Specs Update' : category.charAt(0).toUpperCase() + category.slice(1));
+      const labelMap: Record<CategoryFilter, string> = {
+        all: 'All',
+        odometer: 'Odometer',
+        fuel: 'Fuel',
+        expense: 'Expense',
+        expense_fasttag: 'Fastag',
+        expense_car_maintenance: 'Car Maintenance',
+        expense_parking: 'Parking',
+        expense_traffic_violation: 'Traffic Violation',
+        expense_others: 'Others',
+        spec_update: 'Specs Update',
+      };
+      pills.push(labelMap[category]);
     }
 
     if (selectedUser !== 'all') {
@@ -292,8 +305,22 @@ export function HistoryScreen({ navigation }: Props) {
     return baseRows.filter((row) => {
       const entry = row.entry;
 
-      if (category !== 'all' && entry.type !== category) {
-        return false;
+      if (category !== 'all') {
+        if (category.startsWith('expense_')) {
+          if (entry.type !== 'expense') return false;
+          const subcategory = category.replace('expense_', '') as ExpenseSubcategory;
+          const expenseCategoryMap: Record<ExpenseSubcategory, string[]> = {
+            fasttag: ['fasttag_toll_paid'],
+            car_maintenance: ['maintenance_lab', 'shield_safety', 'care_comfort', 'utility_addon'],
+            parking: ['parking'],
+            traffic_violation: ['traffic_violation_fine'],
+            others: ['other', 'purchase'],
+          };
+          const allowedCategories = expenseCategoryMap[subcategory];
+          if (!allowedCategories?.includes(entry.expenseCategory || '')) return false;
+        } else if (entry.type !== category) {
+          return false;
+        }
       }
 
       if (selectedMonth !== 'all' && dayjs(entry.createdAt).format('YYYY-MM') !== selectedMonth) {
@@ -533,16 +560,29 @@ export function HistoryScreen({ navigation }: Props) {
               <ScrollView contentContainerStyle={styles.filterInner} showsVerticalScrollIndicator={false}>
                 <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {(['all', 'odometer', 'fuel', 'expense', 'spec_update'] as CategoryFilter[]).map((filter) => {
+              {([
+                'all',
+                'odometer',
+                'fuel',
+                'expense_fasttag',
+                'expense_car_maintenance',
+                'expense_parking',
+                'expense_traffic_violation',
+                'expense_others',
+                'spec_update',
+              ] as CategoryFilter[]).map((filter) => {
                 const active = filter === category;
-                const label =
-                  filter === 'all'
-                    ? 'All'
-                    : filter === 'spec_update'
-                      ? 'Specs Update'
-                      : filter === 'expense'
-                        ? 'Expense'
-                        : filter.toUpperCase();
+                const labelMap: Record<CategoryFilter, string> = {
+                  all: 'All',
+                  odometer: 'Odometer',
+                  fuel: 'Fuel',
+                  expense_fasttag: 'Fastag',
+                  expense_car_maintenance: 'Car Maintenance',
+                  expense_parking: 'Parking',
+                  expense_traffic_violation: 'Traffic Violation',
+                  expense_others: 'Others',
+                  spec_update: 'Specs Update',
+                };
 
                 return (
                   <Pressable
@@ -556,7 +596,9 @@ export function HistoryScreen({ navigation }: Props) {
                       },
                     ]}>
                     {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{label}</Text>
+                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
+                      {labelMap[filter]}
+                    </Text>
                   </Pressable>
                 );
               })}

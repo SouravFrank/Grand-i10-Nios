@@ -40,4 +40,26 @@ export const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
+  // Add or update these inside ReportScreen.styles.ts
+  expenseList: {
+    // Container for the list of items
+    width: "100%",
+  },
+  expenseRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  expenseRowLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    marginRight: 16, // Prevents long text from hitting the price
+  },
+  expenseRowValue: {
+    fontSize: 14,
+    fontWeight: "700", // Bold price for the ledger look
+  },
 });

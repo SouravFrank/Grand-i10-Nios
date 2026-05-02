@@ -29,128 +29,36 @@ import type { ExpenseCategory } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'HistoryEntryModal'>;
-
 type EntryCategory = 'trip' | 'fuel' | 'parking' | 'fasttag';
 
 const GRAND_I10_NIOS_TANK_CAPACITY_LITERS = 37;
+// ... (Zod Schemas remain unchanged) ...
 
+// Zod schemas hidden for brevity, keep your exact schemas from the original file!
 const baseSchema = z.object({
   entryDate: z.date(),
-  ownerId: z
-    .string()
-    .trim()
-    .min(1, 'Select owner.')
-    .refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
+  ownerId: z.string().trim().min(1, 'Select owner.').refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
 });
-
 const tripSchema = baseSchema.extend({
-  category: z.literal('trip'),
-  startOdometer: z
-    .string()
-    .trim()
-    .min(1, 'Start odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
-  endOdometer: z
-    .string()
-    .trim()
-    .min(1, 'End odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
-  isSharedTrip: z.boolean(),
+  category: z.literal('trip'), startOdometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), endOdometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), isSharedTrip: z.boolean(),
 }).superRefine((data, context) => {
-  const startOdo = Number(data.startOdometer);
-  const endOdo = Number(data.endOdometer);
-
-  if (startOdo >= endOdo) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'End odometer must be greater than start.',
-      path: ['endOdometer'],
-    });
-  }
-  if (endOdo - startOdo > 1000) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Distance seems too high (over 1000 km).',
-      path: ['endOdometer'],
-    });
-  }
+  if (Number(data.startOdometer) >= Number(data.endOdometer)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'End odometer must be greater than start.', path: ['endOdometer'] });
+  if (Number(data.endOdometer) - Number(data.startOdometer) > 1000) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Distance seems too high (over 1000 km).', path: ['endOdometer'] });
 });
-
 const fuelSchema = baseSchema.extend({
-  category: z.literal('fuel'),
-  odometer: z
-    .string()
-    .trim()
-    .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
-  fuelAmount: z
-    .string()
-    .trim()
-    .min(1, 'Fuel amount is required.')
-    .refine((value) => Number(value) > 0, 'Amount must be positive.'),
-  fuelLiters: z
-    .string()
-    .trim()
-    .min(1, 'Fuel liters is required.')
-    .refine((value) => Number(value) > 0, 'Liters must be positive.'),
-  fullTank: z.boolean(),
+  category: z.literal('fuel'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), fuelAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), fuelLiters: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Liters must be positive.'), fullTank: z.boolean(),
 }).superRefine((data, context) => {
   const liters = Number(data.fuelLiters);
-  if (Number.isFinite(liters) && liters > GRAND_I10_NIOS_TANK_CAPACITY_LITERS) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `Cannot exceed ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`,
-      path: ['fuelLiters'],
-    });
-  }
-  if (data.fullTank && Number.isFinite(liters) && liters !== GRAND_I10_NIOS_TANK_CAPACITY_LITERS) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `Full tank is ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`,
-      path: ['fuelLiters'],
-    });
-  }
+  if (Number.isFinite(liters) && liters > GRAND_I10_NIOS_TANK_CAPACITY_LITERS) context.addIssue({ code: z.ZodIssueCode.custom, message: `Cannot exceed ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`, path: ['fuelLiters'] });
+  if (data.fullTank && Number.isFinite(liters) && liters !== GRAND_I10_NIOS_TANK_CAPACITY_LITERS) context.addIssue({ code: z.ZodIssueCode.custom, message: `Full tank is ${GRAND_I10_NIOS_TANK_CAPACITY_LITERS} L.`, path: ['fuelLiters'] });
 });
-
 const parkingSchema = baseSchema.extend({
-  category: z.literal('parking'),
-  odometer: z
-    .string()
-    .trim()
-    .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
-  parkingAmount: z
-    .string()
-    .trim()
-    .min(1, 'Amount is required.')
-    .refine((value) => Number(value) > 0, 'Amount must be positive.'),
-  parkingLocation: z.string().trim().min(1, 'Location is required.'),
-  isSharedTrip: z.boolean(),
+  category: z.literal('parking'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), parkingAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), parkingLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(),
 });
-
 const fasttagSchema = baseSchema.extend({
-  category: z.literal('fasttag'),
-  odometer: z
-    .string()
-    .trim()
-    .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
-  tollAmount: z
-    .string()
-    .trim()
-    .min(1, 'Amount is required.')
-    .refine((value) => Number(value) > 0, 'Amount must be positive.'),
-  tollLocation: z.string().trim().min(1, 'Toll location is required.'),
-  isSharedTrip: z.boolean(),
+  category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(),
 });
-
-const historyFormSchema = z.discriminatedUnion('category', [
-  tripSchema,
-  fuelSchema,
-  parkingSchema,
-  fasttagSchema,
-]);
-
+const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema]);
 type HistoryForm = z.infer<typeof historyFormSchema>;
 
 const CATEGORY_CONFIG: Record<EntryCategory, { label: string; icon: keyof typeof MaterialIcons.glyphMap; color: string }> = {
@@ -165,38 +73,16 @@ export function HistoryEntryScreen({ navigation }: Props) {
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
-  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
   const defaultValues = useMemo(() => ({
-    category: 'trip' as const,
-    entryDate,
-    ownerId: currentUser?.id ?? '',
-    startOdometer: String(lastOdometer),
-    endOdometer: '',
-    isSharedTrip: false,
-    odometer: String(lastOdometer),
-    fuelAmount: '',
-    fuelLiters: '',
-    fullTank: false,
-    parkingAmount: '',
-    parkingLocation: '',
-    tollAmount: '',
-    tollLocation: '',
+    category: 'trip' as const, entryDate, ownerId: currentUser?.id ?? '', startOdometer: String(lastOdometer), endOdometer: '', isSharedTrip: false, odometer: String(lastOdometer), fuelAmount: '', fuelLiters: '', fullTank: false, parkingAmount: '', parkingLocation: '', tollAmount: '', tollLocation: '',
   }), [currentUser?.id, lastOdometer, entryDate]);
 
-  const {
-    control,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<HistoryForm>({
-    resolver: zodResolver(historyFormSchema),
-    defaultValues,
+  const { control, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<HistoryForm>({
+    resolver: zodResolver(historyFormSchema), defaultValues,
   });
 
   const category = watch('category');
@@ -204,18 +90,11 @@ export function HistoryEntryScreen({ navigation }: Props) {
   const fullTankSelected = watch('fullTank');
 
   useEffect(() => {
-    if (currentUser && !selectedOwnerId) {
-      setValue('ownerId', currentUser.id, { shouldDirty: false, shouldValidate: true });
-    }
+    if (currentUser && !selectedOwnerId) setValue('ownerId', currentUser.id, { shouldDirty: false, shouldValidate: true });
   }, [currentUser, selectedOwnerId, setValue]);
 
   useEffect(() => {
-    if (category === 'fuel' && fullTankSelected) {
-      setValue('fuelLiters', String(GRAND_I10_NIOS_TANK_CAPACITY_LITERS), {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    }
+    if (category === 'fuel' && fullTankSelected) setValue('fuelLiters', String(GRAND_I10_NIOS_TANK_CAPACITY_LITERS), { shouldDirty: true, shouldValidate: true });
   }, [fullTankSelected, category, setValue]);
 
   const handleCategoryChange = (newCategory: EntryCategory) => {
@@ -231,145 +110,55 @@ export function HistoryEntryScreen({ navigation }: Props) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!currentUser) {
-      Alert.alert('Session expired', 'Please login again.');
-      return;
-    }
-
+    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
     const selectedOwner = ALLOWED_USERS.find((user) => user.id === values.ownerId);
-    if (!selectedOwner) {
-      Alert.alert('Invalid owner', 'Select who owns this entry.');
-      return;
-    }
-
+    if (!selectedOwner) return Alert.alert('Invalid owner', 'Select who owns this entry.');
+    
     const entryTime = values.entryDate.getTime();
-
     try {
       if (values.category === 'trip') {
-        const startOdo = Number(values.startOdometer);
-        const endOdo = Number(values.endOdometer);
-        const distance = endOdo - startOdo;
-        const tripId = `history-${Date.now()}`;
-        const tripEndTime = entryTime + (60 * 60 * 1000);
-
-        await addEntryOfflineFirst({
-          type: 'odometer',
-          userId: selectedOwner.id,
-          userName: selectedOwner.name,
-          odometer: startOdo,
-          tripId,
-          tripStage: 'start',
-          cost: 0,
-          createdAt: entryTime,
-          sharedTrip: values.isSharedTrip,
-          sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined,
-          sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined,
-        });
-
-        await addEntryOfflineFirst({
-          type: 'odometer',
-          userId: selectedOwner.id,
-          userName: selectedOwner.name,
-          odometer: endOdo,
-          tripId,
-          tripStage: 'end',
-          tripDistanceKm: distance,
-          cost: 0,
-          createdAt: tripEndTime,
-          sharedTrip: values.isSharedTrip,
-          sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined,
-          sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined,
-        });
+        const startOdo = Number(values.startOdometer); const endOdo = Number(values.endOdometer); const distance = endOdo - startOdo; const tripId = `history-${Date.now()}`; const tripEndTime = entryTime + (60 * 60 * 1000);
+        await addEntryOfflineFirst({ type: 'odometer', userId: selectedOwner.id, userName: selectedOwner.name, odometer: startOdo, tripId, tripStage: 'start', cost: 0, createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
+        await addEntryOfflineFirst({ type: 'odometer', userId: selectedOwner.id, userName: selectedOwner.name, odometer: endOdo, tripId, tripStage: 'end', tripDistanceKm: distance, cost: 0, createdAt: tripEndTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       } else if (values.category === 'fuel') {
-        const amount = Number(values.fuelAmount);
-        await addEntryOfflineFirst({
-          type: 'fuel',
-          userId: selectedOwner.id,
-          userName: selectedOwner.name,
-          odometer: Number(values.odometer),
-          fuelAmount: amount,
-          fuelLiters: Number(values.fuelLiters),
-          cost: amount,
-          fullTank: values.fullTank,
-          createdAt: entryTime,
-        });
+        await addEntryOfflineFirst({ type: 'fuel', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), fuelAmount: Number(values.fuelAmount), fuelLiters: Number(values.fuelLiters), cost: Number(values.fuelAmount), fullTank: values.fullTank, createdAt: entryTime });
       } else if (values.category === 'parking') {
-        const amount = Number(values.parkingAmount);
-        await addEntryOfflineFirst({
-          type: 'expense',
-          userId: selectedOwner.id,
-          userName: selectedOwner.name,
-          odometer: Number(values.odometer),
-          expenseCategory: 'parking' as ExpenseCategory,
-          expenseTitle: values.parkingLocation,
-          cost: amount,
-          createdAt: entryTime,
-          sharedTrip: values.isSharedTrip,
-          sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined,
-          sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined,
-        });
+        await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'parking' as ExpenseCategory, expenseTitle: values.parkingLocation, cost: Number(values.parkingAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       } else if (values.category === 'fasttag') {
-        const amount = Number(values.tollAmount);
-        await addEntryOfflineFirst({
-          type: 'expense',
-          userId: selectedOwner.id,
-          userName: selectedOwner.name,
-          odometer: Number(values.odometer),
-          expenseCategory: 'fasttag_toll_paid' as ExpenseCategory,
-          expenseTitle: values.tollLocation,
-          cost: amount,
-          createdAt: entryTime,
-          sharedTrip: values.isSharedTrip,
-          sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined,
-          sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined,
-        });
+        await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: values.tollLocation, cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       }
-
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert(
-        'Could not save entry',
-        error instanceof Error ? error.message : 'Unknown error',
-      );
+      Alert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
     }
   });
 
   return (
     <ScreenContainer>
-      <KeyboardAwareScrollView
-        style={styles.keyboardContainer}
-        contentContainerStyle={styles.scrollContent}
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={120}
-      >
+      <KeyboardAwareScrollView style={styles.keyboardContainer} contentContainerStyle={styles.scrollContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} enableOnAndroid={true} enableAutomaticScroll={true} extraScrollHeight={120}>
         <View style={[styles.scrollContent, styles.container]}>
           <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
 
-          <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Clean, borderless Header Card */}
+          <View style={[styles.headerCard, { backgroundColor: colors.card }]}>
             <View style={styles.headerRow}>
-              <Pressable
-                onPress={() => navigation.goBack()}
-                style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <Pressable onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.backgroundSecondary }]}>
                 <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
               </Pressable>
 
               <View style={styles.headerCopy}>
                 <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>HISTORY ENTRY</Text>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Trip History</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add Record</Text>
               </View>
 
-              <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
-                <MaterialIcons name="history" size={20} color={colors.textPrimary} />
+              <View style={[styles.headerIcon, { backgroundColor: colors.textPrimary }]}>
+                <MaterialIcons name="history" size={20} color={colors.background} />
               </View>
             </View>
           </View>
 
-          <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.formCard, { backgroundColor: colors.card }]}>
             <View style={styles.fieldsGroup}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Category</Text>
               <View style={styles.categoryGrid}>
@@ -382,10 +171,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
                       onPress={() => handleCategoryChange(cat)}
                       style={[
                         styles.categoryOption,
-                        {
-                          borderColor: active ? config.color : colors.border,
-                          backgroundColor: active ? `${config.color}15` : colors.card,
-                        },
+                        { backgroundColor: active ? `${config.color}15` : colors.backgroundSecondary },
                       ]}>
                       <MaterialIcons name={config.icon} size={24} color={active ? config.color : colors.textSecondary} />
                       <Text style={[styles.categoryLabel, { color: active ? config.color : colors.textPrimary }]}>
@@ -402,8 +188,8 @@ export function HistoryEntryScreen({ navigation }: Props) {
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Date</Text>
               <Pressable
                 onPress={() => setIsDatePickerVisible(true)}
-                style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <MaterialIcons name="calendar-today" size={18} color={colors.textPrimary} />
+                style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary }]}>
+                <MaterialIcons name="event" size={20} color={colors.primary} />
                 <View style={styles.dateCopy}>
                   <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Recorded on</Text>
                   <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
@@ -411,43 +197,36 @@ export function HistoryEntryScreen({ navigation }: Props) {
                   </Text>
                 </View>
               </Pressable>
-              {isDatePickerVisible ? (
-                <DateTimePicker
-                  value={entryDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  maximumDate={new Date()}
-                  onChange={handleDatePickerChange}
-                />
-              ) : null}
+              {isDatePickerVisible && (
+                <DateTimePicker value={entryDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={handleDatePickerChange} />
+              )}
             </View>
 
             <View style={styles.fieldsGroup}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Owner</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Owner / Payer</Text>
               <View style={styles.payerGrid}>
                 {ALLOWED_USERS.map((user) => {
                   const active = selectedOwnerId === user.id;
                   const isCurrentUser = currentUser?.id === user.id;
+                  // Map brand colors to users logically
+                  const userColor = user.name.toLowerCase() === 'ayan' ? '#3B82F6' : (user.name.toLowerCase() === 'sourav' ? '#8B5CF6' : colors.primary);
                   return (
                     <Pressable
                       key={user.id}
                       onPress={() => setValue('ownerId', user.id, { shouldValidate: true, shouldDirty: true })}
                       style={[
                         styles.payerOption,
-                        {
-                          borderColor: active ? colors.textPrimary : colors.border,
-                          backgroundColor: active ? colors.backgroundSecondary : colors.card,
-                        },
+                        { backgroundColor: active ? `${userColor}15` : colors.backgroundSecondary },
                       ]}>
                       <View style={styles.payerOptionHead}>
-                        <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
+                        <Text style={[styles.payerName, { color: active ? userColor : colors.textPrimary }]}>{user.name}</Text>
                         <MaterialIcons
                           name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
                           size={20}
-                          color={active ? colors.textPrimary : colors.textSecondary}
+                          color={active ? userColor : colors.textSecondary}
                         />
                       </View>
-                      <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
+                      <Text style={[styles.payerMeta, { color: active ? userColor : colors.textSecondary }]}>
                         {isCurrentUser ? 'Logged in user' : 'Select owner'}
                       </Text>
                     </Pressable>
@@ -457,51 +236,13 @@ export function HistoryEntryScreen({ navigation }: Props) {
               {errors.ownerId && <Text style={styles.selectionError}>{errors.ownerId.message}</Text>}
             </View>
 
-            {category === 'trip' && (
-              <TripFormSection
-                control={control as never}
-                errors={errors}
-                lastOdometer={lastOdometer}
-                isDark={isDark}
-                colors={colors}
-              />
-            )}
-
-            {category === 'fuel' && (
-              <FuelFormSection
-                control={control as never}
-                errors={errors}
-                lastOdometer={lastOdometer}
-                fullTankSelected={fullTankSelected}
-                isDark={isDark}
-                colors={colors}
-              />
-            )}
-
-            {category === 'parking' && (
-              <ParkingFormSection
-                control={control as never}
-                errors={errors}
-                lastOdometer={lastOdometer}
-                isDark={isDark}
-                colors={colors}
-              />
-            )}
-
-            {category === 'fasttag' && (
-              <FastagFormSection
-                control={control as never}
-                errors={errors}
-                lastOdometer={lastOdometer}
-                isDark={isDark}
-                colors={colors}
-              />
-            )}
+            {category === 'trip' && <TripFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
+            {category === 'fuel' && <FuelFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} fullTankSelected={fullTankSelected} isDark={isDark} colors={colors} />}
+            {category === 'parking' && <ParkingFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
+            {category === 'fasttag' && <FastagFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
 
             <View style={styles.actionRow}>
-              <View style={{ flex: 1 }}>
-                <PrimaryButton label={`SAVE ${CATEGORY_CONFIG[category].label.toUpperCase()} ENTRY`} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
-              </View>
+              <PrimaryButton label={`SAVE ${CATEGORY_CONFIG[category].label.toUpperCase()} ENTRY`} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
             </View>
           </View>
         </View>
@@ -509,4 +250,3 @@ export function HistoryEntryScreen({ navigation }: Props) {
     </ScreenContainer>
   );
 }
-
