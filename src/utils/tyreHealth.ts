@@ -1,38 +1,38 @@
-import type { TyrePosition, TyreRecord } from '@/types/models';
-import { normalizeIndianDate } from '@/utils/day';
+import type { TyrePosition, TyreRecord } from "@/types/models";
+import { normalizeIndianDate } from "@/utils/day";
 
-export const TYRE_SIZE = '175/60R15';
+export const TYRE_SIZE = "175/60R15";
 export const NEW_TREAD_DEPTH_MM = 8.0;
 export const MIN_SAFE_TREAD_MM = 1.6;
 export const USABLE_TREAD_MM = NEW_TREAD_DEPTH_MM - MIN_SAFE_TREAD_MM;
 export const AVERAGE_TOTAL_TYRE_LIFE_KM = 50000;
 
-export const POSITION_ORDER: TyrePosition[] = ['pf', 'df', 'pb', 'db', 's'];
-export const ACTIVE_TYRE_POSITIONS: TyrePosition[] = ['pf', 'df', 'pb', 'db'];
+export const POSITION_ORDER: TyrePosition[] = ["pf", "df", "pb", "db", "s"];
+export const ACTIVE_TYRE_POSITIONS: TyrePosition[] = ["pf", "df", "pb", "db"];
 
 export const POSITION_LABELS: Record<TyrePosition, string> = {
-  pf: 'Passenger Front',
-  df: 'Driver Front',
-  pb: 'Passenger Back',
-  db: 'Driver Back',
-  s: 'Stepney (Spare)',
+  pf: "Passenger Front",
+  df: "Driver Front",
+  pb: "Passenger Back",
+  db: "Driver Back",
+  s: "Stepney (Spare)",
 };
 
 export const POSITION_SHORT: Record<TyrePosition, string> = {
-  pf: 'PF',
-  df: 'DF',
-  pb: 'PB',
-  db: 'DB',
-  s: 'SP',
+  pf: "PF",
+  df: "DF",
+  pb: "PB",
+  db: "DB",
+  s: "SP",
 };
 
-const INITIAL_INSPECTION_DATE = '2026-02-21';
+const INITIAL_INSPECTION_DATE = "2026-02-21";
 const INITIAL_INSPECTION_ODOMETER = 29703;
 
 const DEFAULT_TYRE_SETUP: TyreRecord[] = [
   {
-    id: 'pf',
-    currentPosition: 'pf',
+    id: "pf",
+    currentPosition: "pf",
     treadDepthAtInspection: 6.1,
     inspectionOdometer: INITIAL_INSPECTION_ODOMETER,
     inspectionDate: INITIAL_INSPECTION_DATE,
@@ -41,8 +41,8 @@ const DEFAULT_TYRE_SETUP: TyreRecord[] = [
     isNew: false,
   },
   {
-    id: 'df',
-    currentPosition: 'df',
+    id: "df",
+    currentPosition: "df",
     treadDepthAtInspection: 4.8,
     inspectionOdometer: INITIAL_INSPECTION_ODOMETER,
     inspectionDate: INITIAL_INSPECTION_DATE,
@@ -51,8 +51,8 @@ const DEFAULT_TYRE_SETUP: TyreRecord[] = [
     isNew: false,
   },
   {
-    id: 'pb',
-    currentPosition: 'pb',
+    id: "pb",
+    currentPosition: "pb",
     treadDepthAtInspection: 4.7,
     inspectionOdometer: INITIAL_INSPECTION_ODOMETER,
     inspectionDate: INITIAL_INSPECTION_DATE,
@@ -61,8 +61,8 @@ const DEFAULT_TYRE_SETUP: TyreRecord[] = [
     isNew: false,
   },
   {
-    id: 'db',
-    currentPosition: 'db',
+    id: "db",
+    currentPosition: "db",
     treadDepthAtInspection: 6.0,
     inspectionOdometer: INITIAL_INSPECTION_ODOMETER,
     inspectionDate: INITIAL_INSPECTION_DATE,
@@ -71,8 +71,8 @@ const DEFAULT_TYRE_SETUP: TyreRecord[] = [
     isNew: false,
   },
   {
-    id: 's',
-    currentPosition: 's',
+    id: "s",
+    currentPosition: "s",
     treadDepthAtInspection: 5.2,
     inspectionOdometer: INITIAL_INSPECTION_ODOMETER,
     inspectionDate: INITIAL_INSPECTION_DATE,
@@ -83,19 +83,21 @@ const DEFAULT_TYRE_SETUP: TyreRecord[] = [
 ];
 
 function isFinitePositiveNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function isFiniteNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function isTyrePosition(value: unknown): value is TyrePosition {
-  return typeof value === 'string' && POSITION_ORDER.includes(value as TyrePosition);
+  return (
+    typeof value === "string" && POSITION_ORDER.includes(value as TyrePosition)
+  );
 }
 
 function clampTreadDepth(value: unknown, fallback: number) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }
 
@@ -137,7 +139,9 @@ export function buildTyrePositionAssignments(tyres: TyreRecord[]) {
   return assignments;
 }
 
-export function normalizeTyreSetup(tyreSetup?: TyreRecord[] | null): TyreRecord[] {
+export function normalizeTyreSetup(
+  tyreSetup?: TyreRecord[] | null,
+): TyreRecord[] {
   if (!Array.isArray(tyreSetup) || tyreSetup.length !== POSITION_ORDER.length) {
     return buildDefaultTyreSetup();
   }
@@ -158,13 +162,19 @@ export function normalizeTyreSetup(tyreSetup?: TyreRecord[] | null): TyreRecord[
       return fallback;
     }
 
-    const inspectionOdometer = isFinitePositiveNumber(rawTyre.inspectionOdometer)
+    const inspectionOdometer = isFinitePositiveNumber(
+      rawTyre.inspectionOdometer,
+    )
       ? rawTyre.inspectionOdometer
       : fallback.inspectionOdometer;
-    const accumulatedActiveKm = isFiniteNonNegativeNumber(rawTyre.accumulatedActiveKm)
+    const accumulatedActiveKm = isFiniteNonNegativeNumber(
+      rawTyre.accumulatedActiveKm,
+    )
       ? rawTyre.accumulatedActiveKm
       : 0;
-    const positionAssignedAtOdometer = isFinitePositiveNumber(rawTyre.positionAssignedAtOdometer)
+    const positionAssignedAtOdometer = isFinitePositiveNumber(
+      rawTyre.positionAssignedAtOdometer,
+    )
       ? rawTyre.positionAssignedAtOdometer
       : inspectionOdometer;
 
@@ -221,7 +231,9 @@ export function calcCurrentHealth(tyre: TyreRecord, currentOdometer: number) {
   const kmDriven = getTyreDrivenKmSinceInspection(tyre, currentOdometer);
   const wearRateKmPerMm = AVERAGE_TOTAL_TYRE_LIFE_KM / USABLE_TREAD_MM;
   const treadWorn = kmDriven / wearRateKmPerMm;
-  const startingTread = tyre.isNew ? NEW_TREAD_DEPTH_MM : tyre.treadDepthAtInspection;
+  const startingTread = tyre.isNew
+    ? NEW_TREAD_DEPTH_MM
+    : tyre.treadDepthAtInspection;
   const currentTread = Math.max(MIN_SAFE_TREAD_MM, startingTread - treadWorn);
   const healthPercent = calcHealthFromTread(currentTread);
 
@@ -232,7 +244,10 @@ export function calcCurrentHealth(tyre: TyreRecord, currentOdometer: number) {
   };
 }
 
-function finalizeTyreWearAtOdometer(tyre: TyreRecord, odometer: number): TyreRecord {
+function finalizeTyreWearAtOdometer(
+  tyre: TyreRecord,
+  odometer: number,
+): TyreRecord {
   const liveActiveKm = isActiveTyrePosition(tyre.currentPosition)
     ? Math.max(0, odometer - tyre.positionAssignedAtOdometer)
     : 0;
@@ -254,27 +269,69 @@ export function applyTyrePositionUpdate(
     finalizeTyreWearAtOdometer(tyre, odometer),
   );
 
-  return sortTyresByCurrentPosition(
+  console.log("[DEBUG] applyTyrePositionUpdate:", {
+    nextAssignments,
+    tyresBefore: finalizedTyres.map((t) => ({
+      id: t.id,
+      current: t.currentPosition,
+      from: t.movedFromPosition,
+    })),
+  });
+
+  const result = sortTyresByCurrentPosition(
     finalizedTyres.map((tyre) => {
       const nextPosition = POSITION_ORDER.find(
         (position) => nextAssignments[position] === tyre.id,
       );
 
       if (!nextPosition) {
+        console.log(`[DEBUG] Tyre ${tyre.id}: no nextPosition found`);
         return tyre;
       }
+
+      const hasMoved = tyre.currentPosition !== nextPosition;
+
+      // Determine movedFromPosition:
+      // - If tyre moved: track the old position (unless returning to original home)
+      // - If tyre didn't move: preserve existing history
+      let movedFromPosition: TyrePosition | undefined;
+      if (hasMoved) {
+        // If moving back to original home position, clear history
+        if (tyre.movedFromPosition === nextPosition) {
+          movedFromPosition = undefined;
+        } else {
+          movedFromPosition = tyre.currentPosition;
+        }
+      } else {
+        // No movement - preserve history but ensure it differs from current
+        movedFromPosition =
+          tyre.movedFromPosition !== nextPosition
+            ? tyre.movedFromPosition
+            : undefined;
+      }
+
+      console.log(
+        `[DEBUG] Tyre ${tyre.id}: ${tyre.currentPosition} -> ${nextPosition}, hasMoved=${hasMoved}, movedFrom=${movedFromPosition}`,
+      );
 
       return {
         ...tyre,
         currentPosition: nextPosition,
         positionAssignedAtOdometer: odometer,
-        movedFromPosition:
-          tyre.currentPosition !== nextPosition
-            ? tyre.currentPosition
-            : tyre.movedFromPosition,
+        movedFromPosition,
       };
     }),
   );
+
+  console.log(
+    "[DEBUG] Result:",
+    result.map((t) => ({
+      id: t.id,
+      current: t.currentPosition,
+      from: t.movedFromPosition,
+    })),
+  );
+  return result;
 }
 
 export function applyTyreInspectionUpdate(
@@ -289,7 +346,9 @@ export function applyTyreInspectionUpdate(
 ) {
   const currentSetup = normalizeTyreSetup(tyreSetup);
   const finalizedTyres = currentSetup.map((tyre) =>
-    tyre.id === tyreId ? finalizeTyreWearAtOdometer(tyre, params.odometer) : tyre,
+    tyre.id === tyreId
+      ? finalizeTyreWearAtOdometer(tyre, params.odometer)
+      : tyre,
   );
 
   return sortTyresByCurrentPosition(
@@ -306,7 +365,9 @@ export function applyTyreInspectionUpdate(
             accumulatedActiveKm: 0,
             positionAssignedAtOdometer: params.odometer,
             isNew: params.isNew,
-            movedFromPosition: params.isNew ? undefined : tyre.movedFromPosition,
+            movedFromPosition: params.isNew
+              ? undefined
+              : tyre.movedFromPosition,
           }
         : tyre,
     ),
