@@ -1,10 +1,13 @@
-import * as LocalAuthentication from 'expo-local-authentication';
+import * as LocalAuthentication from "expo-local-authentication";
 
-import { ALLOWED_USERS, AUTH_HASH_PEPPER } from '@/constants/users';
-import { sha256 } from '@/services/security/hash';
-import type { AllowedUser } from '@/constants/users';
+import type { AllowedUser } from "@/constants/users";
+import { ALLOWED_USERS, AUTH_HASH_PEPPER } from "@/constants/users";
+import { sha256 } from "@/services/security/hash";
 
-export async function hashCredential(userId: string, password: string): Promise<string> {
+export async function hashCredential(
+  userId: string,
+  password: string,
+): Promise<string> {
   return sha256(`${userId}:${password}:${AUTH_HASH_PEPPER}`);
 }
 
@@ -33,7 +36,7 @@ export async function canUseBiometricAuth(): Promise<boolean> {
 
 export async function authenticateWithBiometric(): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: 'Authenticate to unlock Grand i10 Nios',
+    promptMessage: "Authenticate to unlock Viraaj i10",
     disableDeviceFallback: false,
   });
 
