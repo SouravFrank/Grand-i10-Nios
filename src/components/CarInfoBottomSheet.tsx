@@ -1,22 +1,23 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, PanResponder } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Asset } from 'expo-asset';
+import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { TyreHealthSection } from '@/components/TyreHealthSection';
 import { pushDocumentToRealtimeDb } from '@/services/realtime/documentsRepository';
 import { getLocalDocument, saveDocumentFromUri } from '@/services/storage/localDocuments';
-import { useAppTheme } from '@/theme/useAppTheme';
 import { useAppStore } from '@/store/useAppStore';
+import { useAppTheme } from '@/theme/useAppTheme';
 import type {
   CarDocumentKey,
   CarSpec,
@@ -24,6 +25,11 @@ import type {
   CarSpecFieldUpdateSubmission,
 } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
+
+import insurancePdf from '../../assets/pdf/insurence.pdf';
+import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
+import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
+import rcPdf from '../../assets/pdf/RC.pdf';
 
 type CarInfoBottomSheetProps = {
   visible: boolean;
@@ -56,11 +62,11 @@ const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] 
   { key: 'lastMaintenanceDate', label: 'Last Maintenance' },
   { key: 'lastCoolantRefillOn', label: 'Coolant' },
   { key: 'lastEngineOilChangedOn', label: 'Engine Oil' },
-  { key: 'lastBrakeFluidChangedOn', label: 'Brake Oil (Brake Fluid)' },
+  { key: 'lastBrakeFluidChangedOn', label: 'Brake Fluid' },
   { key: 'lastGearboxOilChangedOn', label: 'Gearbox Oil' },
-  { key: 'lastAirFilterChangedOn', label: 'Air Filter (Engine)' },
+  { key: 'lastAirFilterChangedOn', label: 'Air Filter' },
   { key: 'lastOilFilterChangedOn', label: 'Oil Filter' },
-  { key: 'lastAcFilterChangedOn', label: 'AC Filter (Cabin Filter)' },
+  { key: 'lastAcFilterChangedOn', label: 'AC Filter' },
   { key: 'lastSparkPlugsChangedOn', label: 'Spark Plugs' },
   { key: 'lastBatteryChangedOn', label: 'Battery' },
   { key: 'lastBrakePadsChangedOn', label: 'Brake Pads' },
@@ -83,11 +89,6 @@ const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'pdiReport', title: 'PDI Report', subtitle: 'Pre-delivery inspection report', icon: 'fact-check', accent: '#B71C1C' },
 ];
 
-/**
- * Open a file given its local URI and MIME type.
- * On Android, uses an intent to open in an external viewer.
- * On iOS, uses the sharing sheet.
- */
 async function openFileByUri(localUri: string, mimeType: string, cacheFileName: string): Promise<void> {
   if (Platform.OS === 'android') {
     const cacheUri = (FileSystem.cacheDirectory ?? '') + cacheFileName;
@@ -95,7 +96,7 @@ async function openFileByUri(localUri: string, mimeType: string, cacheFileName: 
     const contentUri = await FileSystem.getContentUriAsync(cacheUri);
     await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
       data: contentUri,
-      flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+      flags: 1, 
       type: mimeType,
     });
   } else {
@@ -109,21 +110,15 @@ async function openFileByUri(localUri: string, mimeType: string, cacheFileName: 
   }
 }
 
-/** Bundled asset mapping — used as fallback when no user-uploaded document exists. */
 const BUNDLED_ASSETS: Partial<Record<CarDocumentKey, { module: number; cacheFileName: string; mimeType: string }>> = {
-  pdiReport: { module: require('../../assets/pdf/pdi_report.pdf'), cacheFileName: 'pdi_report.pdf', mimeType: 'application/pdf' },
-  insurance: { module: require('../../assets/pdf/insurence.pdf'), cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
-  rc: { module: require('../../assets/pdf/RC.pdf'), cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
-  numberPlate: { module: require('../../assets/pdf/number_plate.jpg'), cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
+  pdiReport: { module: pdiReportPdf, cacheFileName: 'pdi_report.pdf', mimeType: 'application/pdf' },
+  insurance: { module: insurancePdf, cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
+  rc: { module: rcPdf, cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
+  numberPlate: { module: numberPlateJpg, cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
 };
 
-/**
- * Open a car document by its key.
- * Priority: user-uploaded local file → bundled asset → error.
- */
 async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<void> {
   try {
-    // 1. Check for user-uploaded / synced local document
     const localDoc = await getLocalDocument(docKey);
     if (localDoc) {
       const ext = localDoc.fileName.split('.').pop() ?? 'pdf';
@@ -131,7 +126,6 @@ async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<v
       return;
     }
 
-    // 2. Fall back to bundled asset
     const bundled = BUNDLED_ASSETS[docKey];
     if (bundled) {
       const asset = Asset.fromModule(bundled.module);
@@ -144,13 +138,11 @@ async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<v
       return;
     }
 
-    // 3. No file available
     Alert.alert('No document', `No ${docTitle} document is available yet. Attach one using the upload button in the gallery.`);
   } catch {
     Alert.alert('Error', `Failed to open ${docTitle}.`);
   }
 }
-
 
 function getGalleryKeyForSpecField(field: CarSpecEditableFieldKey): LegalGalleryKey | null {
   if (field === 'puccExpireDate') return 'pucc';
@@ -169,20 +161,37 @@ function parseExistingDate(value: string): Date {
 }
 
 const MAINTENANCE_INTERVALS_DAYS: Partial<Record<CarSpecEditableFieldKey, number>> = {
-  lastMaintenanceDate: 180,
-  lastEngineOilChangedOn: 180,
-  lastCoolantRefillOn: 180,
-  lastBrakeFluidChangedOn: 180,
-  lastGearboxOilChangedOn: 180,
-  lastAirFilterChangedOn: 180,
-  lastOilFilterChangedOn: 180,
-  lastAcFilterChangedOn: 180,
-  lastSparkPlugsChangedOn: 180,
-  lastBatteryChangedOn: 180,
-  lastBrakePadsChangedOn: 180,
+  lastMaintenanceDate: 180,       
+  lastCoolantRefillOn: 730,       
+  lastEngineOilChangedOn: 365,    
+  lastBrakeFluidChangedOn: 730,   
+  lastGearboxOilChangedOn: 1825,  
+  lastAirFilterChangedOn: 365,    
+  lastOilFilterChangedOn: 365,    
+  lastAcFilterChangedOn: 365,     
+  lastSparkPlugsChangedOn: 1095,  
+  lastBatteryChangedOn: 1095,     
+  lastBrakePadsChangedOn: 730,    
 };
 
 type TrafficLightColor = 'green' | 'yellow' | 'orange' | 'red';
+
+function convertDaysToYMD(days: number): { years: number; months: number; days: number } {
+  const years = Math.floor(days / 365);
+  const remainingDaysAfterYears = days % 365;
+  const months = Math.floor(remainingDaysAfterYears / 30);
+  const remainingDays = remainingDaysAfterYears % 30;
+  
+  return { years, months, days: remainingDays };
+}
+
+function formatYMD({ years, months, days }: { years: number; months: number; days: number }): string {
+  const parts = [];
+  if (years > 0) parts.push(`${years}Y`);
+  if (months > 0) parts.push(`${months}M`);
+  if (days > 0) parts.push(`${days}D`);
+  return parts.length > 0 ? parts.join(' ') : '0D';
+}
 
 function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey, isExpiryDate: boolean): { color: TrafficLightColor, hex: string, rgba: string, text: string, remainingDays: number } | null {
   if (value === 'Not set' || !value) {
@@ -193,19 +202,14 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
     return null;
   }
 
-  let dueDate = parsed;
-  if (!isExpiryDate) {
-    const intervalDays = MAINTENANCE_INTERVALS_DAYS[fieldKey] ?? 365;
-    dueDate = parsed.add(intervalDays, 'day').startOf('day');
-  } else {
-    dueDate = parsed.startOf('day');
-  }
-
   const today = dayjs().startOf('day');
+  const dueDate = !isExpiryDate 
+    ? parsed.add(MAINTENANCE_INTERVALS_DAYS[fieldKey] ?? 365, 'day').startOf('day')
+    : parsed.startOf('day');
   const remainingDays = dueDate.diff(today, 'day');
 
   let color: TrafficLightColor = 'green';
-  let hex = '#10B981'; // Green
+  let hex = '#10B981'; 
   let rgba = 'rgba(16, 185, 129, 0.15)';
 
   if (remainingDays <= 0) {
@@ -222,20 +226,20 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
     rgba = 'rgba(234, 179, 8, 0.15)';
   }
 
-  let text = '';
-  if (remainingDays < 0) {
-    text = `Overdue by ${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? '' : 's'}`;
-  } else if (remainingDays === 0) {
-    text = 'Due today';
-  } else {
-    text = `${remainingDays} day${remainingDays === 1 ? '' : 's'} left`;
-  }
+  const statusText = remainingDays < 0
+    ? `Overdue by ${formatYMD(convertDaysToYMD(Math.abs(remainingDays)))}`
+    : remainingDays === 0
+      ? 'Due today'
+      : `${formatYMD(convertDaysToYMD(remainingDays))} left`;
 
-  return { color, hex, rgba, text, remainingDays };
+  return { color, hex, rgba, text: statusText, remainingDays };
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
   const { colors, isDark } = useAppTheme();
+  const secondarySurfaceColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+  const shellSurfaceColor = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
   const [rendered, setRendered] = useState(visible);
@@ -255,9 +259,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
         copyToCacheDirectory: true,
       });
 
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
-      }
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
 
       const pickedFile = result.assets[0];
       if (!pickedFile.uri || !pickedFile.name) {
@@ -265,7 +267,6 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
         return;
       }
 
-      // Size guard: warn if file is larger than 5 MB (base64 will be ~33% larger)
       if (pickedFile.size && pickedFile.size > 5 * 1024 * 1024) {
         Alert.alert(
           'File too large',
@@ -275,18 +276,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       }
 
       setIsUploading(true);
-
       const mimeType = pickedFile.mimeType ?? 'application/pdf';
 
-      // Save locally and get base64
-      const { localDoc, base64Data } = await saveDocumentFromUri(
-        docKey,
-        pickedFile.uri,
-        pickedFile.name,
-        mimeType,
-      );
+      const { localDoc, base64Data } = await saveDocumentFromUri(docKey, pickedFile.uri, pickedFile.name, mimeType);
 
-      // Upload to Firebase RTDB for cross-device sync
       try {
         await pushDocumentToRealtimeDb(docKey, {
           data: base64Data,
@@ -298,11 +291,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
         });
         Alert.alert('Uploaded', `${docTitle} has been saved and will sync to other devices.`);
       } catch {
-        // Local save succeeded but remote upload failed — still usable locally
-        Alert.alert(
-          'Saved locally',
-          `${docTitle} was saved on this device but could not be synced. It will retry on next sync.`,
-        );
+        Alert.alert('Saved locally', `${docTitle} was saved on this device but could not be synced. It will retry on next sync.`);
       }
     } catch {
       Alert.alert('Error', `Failed to upload ${docTitle}.`);
@@ -317,37 +306,18 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5;
-      },
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 5,
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
-        }
+        if (gestureState.dy > 0) translateY.setValue(gestureState.dy);
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 120 || gestureState.vy > 1.5) {
           Animated.parallel([
-            Animated.timing(translateY, {
-              toValue: 420,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.timing(overlayOpacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            onClose();
-          });
+            Animated.timing(translateY, { toValue: 420, duration: 200, useNativeDriver: true }),
+            Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+          ]).start(() => onClose());
         } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 120,
-            friction: 14,
-          }).start();
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 120, friction: 14 }).start();
         }
       },
     })
@@ -359,32 +329,15 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       translateY.setValue(420);
       overlayOpacity.setValue(0);
       Animated.parallel([
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 65,
-          friction: 11,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 280,
-          useNativeDriver: true,
-        }),
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
       ]).start();
       return;
     }
 
     Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 420,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
+      Animated.timing(translateY, { toValue: 420, duration: 200, useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start(() => {
       setRendered(false);
       setActiveField(null);
@@ -396,29 +349,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     });
   }, [overlayOpacity, translateY, visible]);
 
-  const healthRows = useMemo<SpecRow[]>(() => {
-    const editableRows: SpecRow[] = HEALTH_EDITABLE_CONFIG.map((item) => ({
-      key: item.key,
-      label: item.label,
-      value: carSpec[item.key],
-      editable: true,
-    }));
-
-    return editableRows;
-  }, [carSpec]);
-
-  const onRoadRows = useMemo<SpecRow[]>(() => {
-    const editableRows: SpecRow[] = ON_ROAD_EDITABLE_CONFIG.map((item) => ({
-      key: item.key,
-      label: item.label,
-      value: carSpec[item.key],
-      editable: true,
-    }));
-    return editableRows;
-  }, [carSpec]);
-
-  const identityRows = useMemo<SpecRow[]>(
-    () => [
+  const healthRows = useMemo<SpecRow[]>(() => HEALTH_EDITABLE_CONFIG.map((item) => ({ key: item.key, label: item.label, value: carSpec[item.key], editable: true })), [carSpec]);
+  const onRoadRows = useMemo<SpecRow[]>(() => ON_ROAD_EDITABLE_CONFIG.map((item) => ({ key: item.key, label: item.label, value: carSpec[item.key], editable: true })), [carSpec]);
+  const identityRows = useMemo<SpecRow[]>(() => [
       { key: 'purchasedOn', label: 'We Purchased on', value: carSpec.purchasedOn, editable: false },
       { key: 'registrationNumber', label: 'Registration No', value: carSpec.registrationNumber, editable: false, canCopy: true },
       { key: 'chassisNumber', label: 'Chassis No', value: carSpec.chassisNumber, editable: false, canCopy: true },
@@ -431,85 +364,39 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       { key: 'fuelType', label: 'Fuel Type', value: carSpec.fuelType, editable: false },
       { key: 'registrationYear', label: 'Registration Yr', value: carSpec.registrationYear, editable: false },
       { key: 'initialOdometer', label: 'Initial Odometer', value: `${carSpec.initialOdometer} km`, editable: false },
-    ],
-    [carSpec],
-  );
+  ], [carSpec]);
 
-  const activeRows =
-    activeTab === 'health' ? healthRows : activeTab === 'on_road' ? onRoadRows : identityRows;
-  const selectedGalleryCard = useMemo(
-    () => LEGAL_GALLERY_ITEMS.find((item) => item.key === selectedGalleryItem) ?? null,
-    [selectedGalleryItem],
-  );
+  const activeRows = activeTab === 'health' ? healthRows : activeTab === 'on_road' ? onRoadRows : identityRows;
+  const selectedGalleryCard = useMemo(() => LEGAL_GALLERY_ITEMS.find((item) => item.key === selectedGalleryItem) ?? null, [selectedGalleryItem]);
   const editableRows = useMemo(() => activeRows.filter((row) => row.editable), [activeRows]);
   const nonEditableRows = useMemo(() => activeRows.filter((row) => !row.editable), [activeRows]);
   const nonEditableGridRows = useMemo(() => {
     const pairs: SpecRow[][] = [];
-    for (let index = 0; index < nonEditableRows.length; index += 2) {
-      pairs.push(nonEditableRows.slice(index, index + 2));
-    }
+    for (let index = 0; index < nonEditableRows.length; index += 2) pairs.push(nonEditableRows.slice(index, index + 2));
     return pairs;
   }, [nonEditableRows]);
 
-  // ── FASTag Balance Calculation ──────────────────────────────────────────────
   const fastagData = useMemo(() => {
     let totalRecharges = 0;
     let totalTolls = 0;
-    let lastRechargeDate: number | null = null;
-    let lastTollDate: number | null = null;
-    let lastRechargeAmount = 0;
-    let lastTollAmount = 0;
-    let tollCount = 0;
 
     for (const entry of entries) {
       if (entry.type !== 'expense' || typeof entry.cost !== 'number') continue;
-
-      // FASTag Recharge: category is utility_addon and exp title contains 'fastag' + 'recharge'
       const titleLower = (entry.expenseTitle ?? '').toLowerCase();
-      const isFastagRecharge =
-        (titleLower.includes('fastag') || titleLower.includes('fast tag')) &&
-        titleLower.includes('recharge');
+      const isFastagRecharge = (titleLower.includes('fastag') || titleLower.includes('fast tag')) && titleLower.includes('recharge');
 
       if (isFastagRecharge) {
         totalRecharges += entry.cost;
-        if (!lastRechargeDate || entry.createdAt > lastRechargeDate) {
-          lastRechargeDate = entry.createdAt;
-          lastRechargeAmount = entry.cost;
-        }
       }
-
-      // FASTag Toll Paid
       if (entry.expenseCategory === 'fasttag_toll_paid') {
         totalTolls += entry.cost;
-        tollCount++;
-        if (!lastTollDate || entry.createdAt > lastTollDate) {
-          lastTollDate = entry.createdAt;
-          lastTollAmount = entry.cost;
-        }
       }
     }
-
-    const balance = totalRecharges - totalTolls;
-    const avgToll = tollCount > 0 ? totalTolls / tollCount : 0;
-    return {
-      balance,
-      totalRecharges,
-      totalTolls,
-      tollCount,
-      avgToll: Math.round(avgToll),
-      lastRechargeDate,
-      lastRechargeAmount,
-      lastTollDate,
-      lastTollAmount,
-    };
+    return { balance: totalRecharges - totalTolls };
   }, [entries]);
 
   const beginEdit = (field: CarSpecEditableFieldKey) => {
-    if (activeField === field) {
-      cancelEdit();
-      return;
-    }
-
+    if (activeField === field) { cancelEdit(); return; }
     setActiveField(field);
     setDraftDate(parseExistingDate(carSpec[field]));
     setDraftCost('');
@@ -525,70 +412,29 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   };
 
   const saveEdit = () => {
-    if (!activeField) {
-      return;
-    }
-
+    if (!activeField) return;
     const nextValue = dayjs(draftDate).format(INDIA_DATE_FORMAT);
     const config = [...HEALTH_EDITABLE_CONFIG, ...ON_ROAD_EDITABLE_CONFIG].find((item) => item.key === activeField);
-    if (!config) {
-      return;
-    }
+    if (!config) return;
 
-    if (carSpec[activeField] === nextValue) {
-      cancelEdit();
-      return;
-    }
+    if (carSpec[activeField] === nextValue) { cancelEdit(); return; }
 
     const parsedCost = draftCost.trim() ? Number(draftCost) : NaN;
     const parsedOdometer = Number(draftOdometer);
 
-    if (Number.isNaN(parsedCost) || parsedCost < 0) {
-      Alert.alert('Invalid cost', 'Cost must be provided for spec update entries.');
-      return;
-    }
+    if (Number.isNaN(parsedCost) || parsedCost < 0) { Alert.alert('Invalid cost', 'Cost must be provided for spec update entries.'); return; }
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
+    if (parsedOdometer < lastOdometer) { Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
+    if (parsedOdometer - lastOdometer > 500) { Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
 
-    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) {
-      Alert.alert('Invalid odometer', 'Enter a valid odometer reading.');
-      return;
-    }
-    if (parsedOdometer < lastOdometer) {
-      Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
-      return;
-    }
-    if (parsedOdometer - lastOdometer > 500) {
-      Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
-      return;
-    }
-
-    onSaveFieldEdit({
-      field: activeField,
-      label: config.label,
-      previousValue: carSpec[activeField],
-      value: nextValue,
-      odometer: parsedOdometer,
-      cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
-    });
-
-    setActiveField(null);
-    setDraftCost('');
-    setDraftOdometer('');
-    setShowDatePicker(false);
+    onSaveFieldEdit({ field: activeField, label: config.label, previousValue: carSpec[activeField], value: nextValue, odometer: parsedOdometer, cost: Number.isFinite(parsedCost) ? parsedCost : undefined });
+    cancelEdit();
   };
 
   const handleDatePickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (event.type === 'dismissed') {
-      setShowDatePicker(false);
-      return;
-    }
-
-    if (selectedDate) {
-      setDraftDate(selectedDate);
-    }
-
-    if (Platform.OS !== 'ios') {
-      setShowDatePicker(false);
-    }
+    if (event.type === 'dismissed') { setShowDatePicker(false); return; }
+    if (selectedDate) setDraftDate(selectedDate);
+    if (Platform.OS !== 'ios') setShowDatePicker(false);
   };
 
   const copyValue = async (label: string, value: string) => {
@@ -600,9 +446,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     }
   };
 
-  if (!rendered) {
-    return null;
-  }
+  if (!rendered) return null;
+
+  const isGridTab = activeTab === 'health' || activeTab === 'on_road';
 
   return (
     <Modal transparent statusBarTranslucent animationType="none" visible={rendered} onRequestClose={onClose}>
@@ -614,52 +460,35 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
         <Animated.View
           style={[
             styles.sheet,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-              transform: [{ translateY }],
-            },
+            { backgroundColor: colors.backgroundSecondary, transform: [{ translateY }] },
           ]}>
           <View {...panResponder.panHandlers}>
             <View style={styles.handleWrap}>
-              <View style={[styles.handle, { backgroundColor: colors.border }]} />
+              <View style={[styles.handle, { backgroundColor: isDark ? '#404040' : '#D4D4D8' }]} />
             </View>
 
             <View style={styles.headerRow}>
               <Text style={[styles.title, { color: colors.textPrimary }]}>CAR SPECS</Text>
-              <Pressable onPress={onClose} style={styles.iconBtn}>
-                <MaterialIcons name="close" size={22} color={colors.textPrimary} />
+              <Pressable onPress={onClose} style={[styles.iconBtn, { backgroundColor: secondarySurfaceColor }]}>
+                <MaterialIcons name="close" size={20} color={colors.textPrimary} />
               </Pressable>
             </View>
           </View>
 
-          <KeyboardAwareScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.contentWrap}
-            keyboardShouldPersistTaps="handled"
-            enableOnAndroid={true}
-          >
-            <View style={[styles.tabRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              {([
-                { key: 'health', label: 'Car Health' },
-                { key: 'on_road', label: 'On Road' },
-                { key: 'identity', label: 'Car Identity' },
-              ] as { key: CarSpecTab; label: string }[]).map((tab) => {
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentWrap} keyboardShouldPersistTaps="handled" enableOnAndroid={true}>
+            
+            {/* Segmented Control Tabs */}
+            <View style={[styles.tabRow, { backgroundColor: shellSurfaceColor }]}>
+              {([{ key: 'health', label: 'Car Health' }, { key: 'on_road', label: 'On Road' }, { key: 'identity', label: 'Car Identity' }] as const).map((tab) => {
                 const active = activeTab === tab.key;
                 return (
                   <Pressable
                     key={tab.key}
-                    onPress={() => {
-                      setActiveTab(tab.key);
-                      setActiveField(null);
-                      setShowDatePicker(false);
-                    }}
+                    onPress={() => { setActiveTab(tab.key); setActiveField(null); setShowDatePicker(false); }}
                     style={[
                       styles.tabButton,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
+                      active && styles.tabButtonActive,
+                      { backgroundColor: active ? colors.textPrimary : 'transparent' }
                     ]}>
                     <Text style={[styles.tabButtonText, { color: active ? colors.invertedText : colors.textPrimary }]}>
                       {tab.label}
@@ -669,208 +498,131 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
               })}
             </View>
 
-            {editableRows.map((row) => {
-              const isActive = row.editable && row.key === activeField;
-              const status = row.editable ? getTrafficLightStatus(row.value, row.key as CarSpecEditableFieldKey, activeTab === 'on_road') : null;
-              const viewKey =
-                row.editable && activeTab === 'on_road'
-                  ? getGalleryKeyForSpecField(row.key as CarSpecEditableFieldKey)
-                  : null;
+            {/* Editable Fields rendered via dynamic Grid container */}
+            <View style={isGridTab ? styles.gridContainer : styles.listContainer}>
+              {editableRows.map((row) => {
+                const isActive = row.editable && row.key === activeField;
+                const status = row.editable ? getTrafficLightStatus(row.value, row.key as CarSpecEditableFieldKey, activeTab === 'on_road') : null;
+                const viewKey = row.editable && activeTab === 'on_road' ? getGalleryKeyForSpecField(row.key as CarSpecEditableFieldKey) : null;
+                const isCompact = isGridTab && !isActive;
 
-              return (
-                <View
-                  key={row.key}
-                  style={[
-                    styles.rowCard,
-                    styles.rowShell,
-                    {
-                      borderColor: isActive ? colors.textPrimary : colors.border,
-                      backgroundColor: isActive ? colors.background : colors.card,
-                    },
-                  ]}>
-                  <View
-                    style={styles.rowTop}>
-                    <View style={styles.rowTitleWrap}>
-                      <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
-                      <View style={styles.valueRow}>
-                          <Text style={[styles.rowValue, { color: colors.textPrimary }]}>{row.value}</Text>
-                      </View>
-                      {status ? (
-                        <View style={[styles.statusPill, { backgroundColor: status.rgba }]}>
-                           <Text style={[styles.statusPillText, { color: status.hex }]}>{status.text}</Text>
+                return (
+                  <View 
+                    key={row.key} 
+                    style={[
+                      styles.rowCard, 
+                      { backgroundColor: colors.card, borderColor: isActive ? colors.textPrimary : 'transparent', borderWidth: isActive ? 1 : 0 },
+                      isGridTab ? (isActive ? styles.gridCardFull : styles.gridCardHalf) : styles.gridCardFull
+                    ]}
+                  >
+                    {/* The new structured compact header */}
+                    <View style={isCompact ? styles.compactHeaderRow : styles.rowTop}>
+                      <Text style={[styles.rowLabel, { color: colors.textSecondary }, isCompact && { flex: 1, marginRight: 8 }]} numberOfLines={1}>
+                        {row.label}
+                      </Text>
+
+                      {row.editable ? (
+                        <View style={styles.compactActionsRow}>
+                          {viewKey ? (
+                            <Pressable
+                              onPress={() => {
+                                const galleryItem = LEGAL_GALLERY_ITEMS.find((g) => g.key === viewKey);
+                                void openDocument(viewKey as CarDocumentKey, galleryItem?.title ?? viewKey);
+                              }}
+                              style={[styles.actionIconBtn, isCompact && { width: 32, height: 32 }, { backgroundColor: secondarySurfaceColor }]}>
+                              <MaterialIcons name="image" size={isCompact ? 16 : 18} color={colors.textPrimary} />
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)}
+                            style={[styles.actionIconBtn, isCompact && { width: 32, height: 32 }, { backgroundColor: isActive ? colors.textPrimary : secondarySurfaceColor }]}>
+                            <MaterialIcons name={isActive ? 'expand-less' : 'edit'} size={isCompact ? 16 : 18} color={isActive ? colors.invertedText : colors.textPrimary} />
+                          </Pressable>
                         </View>
                       ) : null}
                     </View>
-                    {row.editable ? (
-                      <View style={styles.rowActions}>
-                        {viewKey ? (
-                          <Pressable
-                            onPress={() => {
-                              const galleryItem = LEGAL_GALLERY_ITEMS.find((g) => g.key === viewKey);
-                              void openDocument(viewKey as CarDocumentKey, galleryItem?.title ?? viewKey);
-                            }}
-                            style={[
-                              styles.editIconBtn,
-                              {
-                                borderColor: colors.border,
-                                backgroundColor: colors.backgroundSecondary,
-                              },
-                            ]}>
-                            <MaterialIcons name="image" size={18} color={colors.textPrimary} />
+
+                    {/* Data Display */}
+                    <View style={isCompact ? styles.compactDataRow : styles.valueRow}>
+                      <Text style={[styles.rowValue, isCompact && { fontSize: 16 }, { color: colors.textPrimary }]}>{row.value}</Text>
+                      {status ? (
+                        <View style={[styles.statusPill, isCompact && { paddingHorizontal: 8, paddingVertical: 4 }, { backgroundColor: status.rgba }]}>
+                           <Text style={[styles.statusPillText, isCompact && { fontSize: 10 }, { color: status.hex }]} numberOfLines={1}>
+                             {status.text}
+                           </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Form expansion */}
+                    {isActive ? (
+                      <View style={styles.inlineEditor}>
+                        <View style={[styles.editCard, { backgroundColor: secondarySurfaceColor }]}>
+                          <View style={[styles.editorBadgeRow, { backgroundColor: colors.background }]}>
+                            <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
+                            <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>Previous odometer {lastOdometer} km</Text>
+                          </View>
+
+                          <Pressable style={[styles.dateSelect, { backgroundColor: colors.background }]} onPress={() => setShowDatePicker((prev) => !prev)}>
+                            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
+                            <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(draftDate).format(INDIA_DATE_FORMAT)}</Text>
                           </Pressable>
-                        ) : null}
-                        <Pressable
-                          onPress={() => beginEdit(row.key as CarSpecEditableFieldKey)}
-                          style={[
-                            styles.editIconBtn,
-                            {
-                              borderColor: isActive ? colors.textPrimary : colors.border,
-                              backgroundColor: isActive ? colors.textPrimary : colors.backgroundSecondary,
-                            },
-                          ]}>
-                          <MaterialIcons
-                            name={isActive ? 'expand-less' : 'edit'}
-                            size={18}
-                            color={isActive ? colors.invertedText : colors.textPrimary}
-                          />
-                        </Pressable>
+
+                          {showDatePicker ? (
+                            <View style={[styles.customDatePicker, { backgroundColor: colors.background }]}>
+                              <DateTimePicker mode="date" value={draftDate} accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} display={Platform.OS === 'ios' ? 'inline' : undefined} onChange={handleDatePickerChange} positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined} negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined} textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined} />
+                              {Platform.OS === 'ios' ? (
+                                <Pressable onPress={() => setShowDatePicker(false)} style={[styles.datePickerDoneBtn, { backgroundColor: secondarySurfaceColor }]}>
+                                  <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
+                          ) : null}
+
+                          <View style={{ marginTop: 6 }}>
+                            <OdometerDigitInput label="Odometer Snapshot (km)" value={draftOdometer} onChangeText={setDraftOdometer} error={draftOdometer && Number(draftOdometer) < lastOdometer ? `Must be >= ${lastOdometer}` : undefined} />
+                          </View>
+
+                          <AppTextField label="Cost (₹)" value={draftCost} onChangeText={setDraftCost} keyboardType="decimal-pad" placeholder="e.g. 1200" />
+
+                          {viewKey ? (
+                            <Pressable
+                              onPress={() => void pickAndUploadDocument(viewKey as CarDocumentKey, row.label)}
+                              disabled={isUploading}
+                              style={({ pressed }) => [styles.attachDocBtn, { backgroundColor: colors.background, opacity: pressed || isUploading ? 0.6 : 1 }]}>
+                              {isUploading ? <ActivityIndicator size={16} color={colors.textPrimary} /> : <MaterialIcons name="cloud-upload" size={18} color={colors.textPrimary} />}
+                              <Text style={[styles.attachDocBtnText, { color: colors.textPrimary }]}>{isUploading ? 'UPLOADING…' : `ATTACH ${row.label.toUpperCase()} DOCUMENT`}</Text>
+                            </Pressable>
+                          ) : null}
+
+                          <View style={styles.editorActions}>
+                            <Pressable onPress={cancelEdit} style={({ pressed }) => [styles.pillActionBtn, { backgroundColor: colors.background, opacity: pressed ? 0.7 : 1 }]}>
+                              <MaterialIcons name="close" size={18} color={colors.textSecondary} />
+                              <Text style={[styles.pillActionBtnText, { color: colors.textSecondary }]}>CANCEL</Text>
+                            </Pressable>
+                            
+                            <Pressable onPress={saveEdit} style={({ pressed }) => [styles.pillActionBtn, { backgroundColor: colors.textPrimary, opacity: pressed ? 0.8 : 1 }]}>
+                              <MaterialIcons name="check" size={18} color={colors.invertedText} />
+                              <Text style={[styles.pillActionBtnText, { color: colors.invertedText }]}>SAVE</Text>
+                            </Pressable>
+                          </View>
+                        </View>
                       </View>
                     ) : null}
                   </View>
-
-                  {isActive ? (
-                    <View style={[styles.inlineEditor, { borderTopColor: colors.border }]}>
-                      <View style={[styles.editCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                        <View style={[styles.editorBadgeRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                          <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
-                          <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>
-                            Previous odometer {lastOdometer} km
-                          </Text>
-                        </View>
-
-                        <Pressable
-                          style={[styles.dateSelect, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
-                          onPress={() => setShowDatePicker((prev) => !prev)}>
-                          <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date</Text>
-                          <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
-                            {dayjs(draftDate).format(INDIA_DATE_FORMAT)}
-                          </Text>
-                        </Pressable>
-
-                        {showDatePicker ? (
-                          <View style={[styles.customDatePicker, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                            <DateTimePicker
-                              mode="date"
-                              value={draftDate}
-                              accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                              display={Platform.OS === 'ios' ? 'inline' : undefined}
-                              onChange={handleDatePickerChange}
-                              positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined}
-                              negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
-                              textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                              themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
-                            />
-                            {Platform.OS === 'ios' ? (
-                              <Pressable
-                                onPress={() => setShowDatePicker(false)}
-                                style={[styles.datePickerDoneBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                                <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>
-                              </Pressable>
-                            ) : null}
-                          </View>
-                        ) : null}
-
-                        <View style={{ marginTop: 6 }}>
-                          <OdometerDigitInput
-                            label="Odometer Snapshot (km)"
-                            value={draftOdometer}
-                            onChangeText={setDraftOdometer}
-                            error={draftOdometer && Number(draftOdometer) < lastOdometer ? `Must be >= ${lastOdometer}` : undefined}
-                          />
-                        </View>
-
-                        <AppTextField
-                          label="Cost (₹)"
-                          value={draftCost}
-                          onChangeText={setDraftCost}
-                          keyboardType="decimal-pad"
-                          placeholder="e.g. 1200"
-                        />
-
-                        {viewKey ? (
-                          <Pressable
-                            onPress={() => void pickAndUploadDocument(viewKey as CarDocumentKey, row.label)}
-                            disabled={isUploading}
-                            style={({ pressed }) => [
-                              styles.attachDocBtn,
-                              {
-                                borderColor: colors.border,
-                                backgroundColor: colors.backgroundSecondary,
-                                opacity: pressed || isUploading ? 0.6 : 1,
-                              },
-                            ]}>
-                            {isUploading ? (
-                              <ActivityIndicator size={16} color={colors.textPrimary} />
-                            ) : (
-                              <MaterialIcons name="cloud-upload" size={18} color={colors.textPrimary} />
-                            )}
-                            <Text style={[styles.attachDocBtnText, { color: colors.textPrimary }]}>
-                              {isUploading ? 'UPLOADING…' : `ATTACH ${row.label.toUpperCase()} DOCUMENT`}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-
-                        <View style={styles.editorActions}>
-                          <Pressable
-                            onPress={cancelEdit}
-                            style={({ pressed }) => [
-                              styles.coolActionBtn,
-                              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                            ]}>
-                            <MaterialIcons name="close" size={18} color={colors.textSecondary} />
-                            <Text style={[styles.coolActionBtnText, { color: colors.textSecondary }]}>CANCEL</Text>
-                          </Pressable>
-                          
-                          <Pressable
-                            onPress={saveEdit}
-                            style={({ pressed }) => [
-                              styles.coolActionBtn,
-                              { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary, opacity: pressed ? 0.8 : 1 },
-                            ]}>
-                            <MaterialIcons name="check" size={18} color={colors.invertedText} />
-                            <Text style={[styles.coolActionBtnText, { color: colors.invertedText }]}>SAVE</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
 
             {nonEditableRows.length > 0 ? (
-              <View style={[styles.nonEditablePanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              <View style={[styles.nonEditablePanel, { backgroundColor: colors.card }]}>
                 <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>
-                  {activeTab === 'health'
-                    ? 'Health Snapshot'
-                    : activeTab === 'on_road'
-                      ? 'On Road Snapshot'
-                      : 'Car Identity Snapshot'}
+                  {activeTab === 'health' ? 'Health Snapshot' : activeTab === 'on_road' ? 'On Road Snapshot' : 'Car Identity Snapshot'}
                 </Text>
                 {nonEditableGridRows.map((pair, rowIndex) => (
                   <View key={`grid-${rowIndex}`} style={styles.nonEditableGridRow}>
                     {pair.map((row, cellIndex) => (
-                      <View
-                        key={row.key}
-                        style={[
-                          styles.nonEditableCell,
-                          {
-                            borderColor: colors.border,
-                            borderWidth: 1,
-                            backgroundColor: colors.backgroundSecondary,
-                          },
-                          cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 },
-                        ]}>
+                      <View key={row.key} style={[styles.nonEditableCell, { backgroundColor: secondarySurfaceColor }, cellIndex === 0 ? { marginRight: 4 } : { marginLeft: 4 }]}>
                         <View style={styles.staticCellHead}>
                           <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                           {row.canCopy ? (
@@ -892,91 +644,46 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
             {activeTab === 'on_road' ? (
               <>
-                {/* FASTag Balance Card */}
-                <View style={[styles.fastagCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                  <View style={styles.fastagHeader}>
-                    <View style={[styles.fastagIconWrap, { backgroundColor: isDark ? 'rgba(14,165,233,0.15)' : 'rgba(14,165,233,0.1)' }]}>
-                      <MaterialIcons name="toll" size={20} color="#0EA5E9" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.fastagTitle, { color: colors.textPrimary }]}>FASTag Balance</Text>
-                      <Text style={[styles.fastagSubtitle, { color: colors.textSecondary }]}>Calculated from recharges & toll deductions</Text>
-                    </View>
+                {/* ── NEW SMART CARD FASTag UI ── */}
+                <View style={styles.fastagSmartCard}>
+                  <View style={styles.fastagCardTop}>
+                     <View style={styles.fastagLogoBlock}>
+                        <Text style={styles.fastagTextOrange}>FAST</Text>
+                        <Text style={styles.fastagTextGreen}>ag</Text>
+                     </View>
+                     <MaterialCommunityIcons name="contactless-payment" size={26} color="#FFFFFF" style={{ opacity: 0.9 }} />
                   </View>
 
-                  <View style={[styles.fastagBalanceRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                    <Text style={[styles.fastagBalanceLabel, { color: colors.textSecondary }]}>ESTIMATED BALANCE</Text>
-                    <Text style={[
-                      styles.fastagBalanceValue,
-                      {
-                        color: fastagData.balance > 500
-                          ? '#10B981'
-                          : fastagData.balance > 100
-                            ? '#F59E0B'
-                            : '#EF4444',
-                      },
-                    ]}>
-                      ₹{fastagData.balance.toLocaleString('en-IN')}
-                    </Text>
-                  </View>
-
-                  <View style={styles.fastagStatsRow}>
-                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>RECHARGED</Text>
-                      <Text style={[styles.fastagStatValue, { color: '#10B981' }]}>₹{fastagData.totalRecharges.toLocaleString('en-IN')}</Text>
-                      {fastagData.lastRechargeDate ? (
-                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>Last: ₹{fastagData.lastRechargeAmount}</Text>
-                      ) : null}
-                    </View>
-                    <View style={[styles.fastagStatBox, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                      <Text style={[styles.fastagStatLabel, { color: colors.textSecondary }]}>TOLL SPENT</Text>
-                      <Text style={[styles.fastagStatValue, { color: '#EF4444' }]}>₹{fastagData.totalTolls.toLocaleString('en-IN')}</Text>
-                      {fastagData.tollCount > 0 ? (
-                        <Text style={[styles.fastagStatHint, { color: colors.textSecondary }]}>{fastagData.tollCount} tolls • Avg ₹{fastagData.avgToll}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  {fastagData.balance <= 200 && fastagData.totalRecharges > 0 ? (
-                    <View style={[styles.fastagLowBanner, { backgroundColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)', borderColor: fastagData.balance <= 0 ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)' }]}>
-                      <MaterialIcons name="warning" size={14} color={fastagData.balance <= 0 ? '#EF4444' : '#F59E0B'} />
-                      <Text style={[styles.fastagLowText, { color: fastagData.balance <= 0 ? '#EF4444' : '#F59E0B' }]}>
-                        {fastagData.balance <= 0 ? 'FASTag balance exhausted — recharge needed!' : 'Low FASTag balance — consider recharging soon.'}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              <View style={[styles.galleryPanel, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                <View style={styles.galleryHeader}>
-                  <View style={styles.galleryCopy}>
-                    <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Document Gallery</Text>
-                    <Text style={[styles.galleryHint, { color: colors.textSecondary }]}>
-                      Tap to open documents. Upload new files from the edit form above.
-                    </Text>
+                  <View style={styles.fastagCardBottom}>
+                     <View>
+                        <Text style={styles.fastagLabel}>CURRENT BALANCE</Text>
+                        <Text style={[styles.fastagAmount, { color: fastagData.balance > 100 ? '#FFFFFF' : '#FCA5A5' }]}>
+                           ₹ {fastagData.balance.toLocaleString('en-IN')}
+                        </Text>
+                     </View>
+                     <MaterialCommunityIcons name="car-connected" size={56} color="#FFFFFF" style={styles.fastagWatermark} />
                   </View>
                 </View>
 
-                <View style={styles.galleryGrid}>
-                  {LEGAL_GALLERY_ITEMS.map((item) => (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => void openDocument(item.key as CarDocumentKey, item.title)}
-                      style={[
-                        styles.galleryCard,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: colors.backgroundSecondary,
-                        },
-                      ]}>
-                      <View style={[styles.galleryIconWrap, { backgroundColor: item.accent }]}>
-                        <MaterialIcons name={item.icon} size={18} color="#FFFFFF" />
-                      </View>
-                      <Text style={[styles.galleryTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                      <Text style={[styles.gallerySubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
-                    </Pressable>
-                  ))}
+                <View style={[styles.galleryPanel, { backgroundColor: colors.card }]}>
+                  <View style={styles.galleryHeader}>
+                    <View style={styles.galleryCopy}>
+                      <Text style={[styles.nonEditableTitle, { color: colors.textPrimary }]}>Document Gallery</Text>
+                      <Text style={[styles.galleryHint, { color: colors.textSecondary }]}>Tap to view stored legal documents.</Text>
+                    </View>
+                  </View>
+                  <View style={styles.galleryGrid}>
+                    {LEGAL_GALLERY_ITEMS.map((item) => (
+                      <Pressable key={item.key} onPress={() => void openDocument(item.key as CarDocumentKey, item.title)} style={[styles.galleryCard, { backgroundColor: secondarySurfaceColor }]}>
+                        <View style={[styles.galleryIconWrap, { backgroundColor: item.accent }]}>
+                          <MaterialIcons name={item.icon} size={18} color="#FFFFFF" />
+                        </View>
+                        <Text style={[styles.galleryTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                        <Text style={[styles.gallerySubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
-              </View>
               </>
             ) : null}
           </KeyboardAwareScrollView>
@@ -986,34 +693,22 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       {selectedGalleryCard ? (
         <View style={styles.viewerOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedGalleryItem(null)} />
-          <View style={[styles.viewerCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.viewerCard, { backgroundColor: colors.background }]}>
             <View style={styles.viewerHeader}>
               <View>
                 <Text style={[styles.viewerTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
                 <Text style={[styles.viewerSubtitle, { color: colors.textSecondary }]}>{selectedGalleryCard.subtitle}</Text>
               </View>
-              <Pressable
-                onPress={() => setSelectedGalleryItem(null)}
-                style={[styles.viewerCloseBtn, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <Pressable onPress={() => setSelectedGalleryItem(null)} style={[styles.actionIconBtn, { backgroundColor: secondarySurfaceColor }]}>
                 <MaterialIcons name="close" size={18} color={colors.textPrimary} />
               </Pressable>
             </View>
-
-            <View style={[styles.viewerPreview, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={[styles.viewerPreview, { backgroundColor: colors.card }]}>
               <View style={[styles.viewerBadge, { backgroundColor: selectedGalleryCard.accent }]}>
-                <MaterialIcons name={selectedGalleryCard.icon} size={28} color="#FFFFFF" />
+                <MaterialIcons name={selectedGalleryCard.icon} size={32} color="#FFFFFF" />
               </View>
               <Text style={[styles.viewerDocTitle, { color: colors.textPrimary }]}>{selectedGalleryCard.title}</Text>
-              <Text style={[styles.viewerDocMeta, { color: colors.textSecondary }]}>
-                Tap the button below to open. To upload a new version, use the edit form for the corresponding field.
-              </Text>
-              <Pressable
-                onPress={() => void openDocument(selectedGalleryCard.key as CarDocumentKey, selectedGalleryCard.title)}
-                style={({ pressed }) => [
-                  styles.openPdfBtn,
-                  { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
+              <Pressable onPress={() => void openDocument(selectedGalleryCard.key as CarDocumentKey, selectedGalleryCard.title)} style={({ pressed }) => [styles.openPdfBtn, { backgroundColor: selectedGalleryCard.accent, opacity: pressed ? 0.8 : 1 }]}>
                 <MaterialIcons name="open-in-new" size={18} color="#FFFFFF" />
                 <Text style={styles.openPdfBtnText}>OPEN DOCUMENT</Text>
               </Pressable>
@@ -1026,478 +721,107 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  sheetAnchor: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    maxHeight: '88%',
-    paddingHorizontal: 16,
-    paddingBottom: 18,
-    paddingTop: 8,
-  },
-  handleWrap: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  handle: {
-    width: 56,
-    height: 5,
-    borderRadius: 3,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 17,
-    letterSpacing: 0.8,
-    fontWeight: '700',
-  },
-  iconBtn: {
-    padding: 2,
-  },
-  contentWrap: {
-    gap: 10,
-    paddingBottom: 10,
-  },
-  tabRow: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 6,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  tabButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabButtonText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-  nonEditablePanel: {
-    borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
-    gap: 8,
-  },
-  galleryPanel: {
-    borderWidth: 1,
-    borderRadius: 2,
-    padding: 10,
-    gap: 10,
-  },
-  galleryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  galleryCopy: {
-    flex: 1,
-    gap: 3,
-  },
-  galleryHint: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  galleryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  galleryCard: {
-    width: '48%',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    gap: 6,
-  },
-  galleryIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  galleryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  gallerySubtitle: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  nonEditableTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  nonEditableGridRow: {
-    flexDirection: 'row',
-  },
-  nonEditableCell: {
-    flex: 1,
-    borderRadius: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  staticCellHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  nonEditableCellSpacer: {
-    flex: 1,
-    marginLeft: 4,
-  },
-  rowCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  rowShell: {
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 1,
-  },
-  rowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-  },
-  rowActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
-  },
-  rowTitleWrap: {
-    flex: 1,
-    gap: 5,
-  },
-  rowLabel: {
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  rowValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheetAnchor: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '88%', paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 },
+  handleWrap: { alignItems: 'center', paddingVertical: 10 },
+  handle: { width: 48, height: 5, borderRadius: 3 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  title: { fontSize: 20, letterSpacing: -0.5, fontWeight: '800' },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  contentWrap: { gap: 14, paddingBottom: 20 },
+  
+  tabRow: { borderRadius: 20, padding: 6, flexDirection: 'row', gap: 4 },
+  tabButton: { flex: 1, borderRadius: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  tabButtonActive: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  tabButtonText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  listContainer: { flexDirection: 'column', gap: 12 },
+  gridCardHalf: { width: '48.2%' },
+  gridCardFull: { width: '100%' },
 
-  editIconBtn: {
-    width: 34,
-    height: 34,
-    borderWidth: 1,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  copyIconBtn: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editCard: {
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 14,
-  },
-  inlineEditor: {
-    borderTopWidth: 1,
-    paddingTop: 14,
-  },
-  editorBadgeRow: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
-  },
-  editorBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  editorHintText: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  dateSelect: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    gap: 4,
-  },
-  dateLabel: {
-    fontSize: 11,
-    letterSpacing: 0.4,
-  },
-  dateValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  editorActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  coolActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    gap: 6,
-  },
-  coolActionBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  attachDocBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    borderStyle: 'dashed',
-    marginTop: 4,
-  },
-  attachDocBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  customDatePicker: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    gap: 8,
-  },
-  viewerOverlay: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  viewerCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    gap: 14,
-  },
-  viewerHeader: {
-    flexDirection: 'row',
+  nonEditablePanel: { borderRadius: 24, padding: 20, gap: 12 },
+  galleryPanel: { borderRadius: 24, padding: 20, gap: 16 },
+  galleryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  galleryCopy: { flex: 1, gap: 4 },
+  galleryHint: { fontSize: 12, lineHeight: 18 },
+  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  galleryCard: { width: '48%', borderRadius: 20, padding: 16, gap: 8 },
+  galleryIconWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  galleryTitle: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  gallerySubtitle: { fontSize: 11, lineHeight: 16 },
+  nonEditableTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+  nonEditableGridRow: { flexDirection: 'row' },
+  nonEditableCell: { flex: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, gap: 6 },
+  staticCellHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  nonEditableCellSpacer: { flex: 1, marginLeft: 4 },
+  
+  rowCard: { borderRadius: 24, paddingHorizontal: 16, paddingVertical: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 1 },
+  
+  // Refined Compact Layout to stop overlaps
+  compactHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  compactActionsRow: { flexDirection: 'row', gap: 6 },
+  compactDataRow: { marginTop: 4, gap: 6, alignItems: 'flex-start' },
+
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  
+  rowTitleWrap: { flex: 1, gap: 6 },
+  rowLabel: { fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '800' },
+  valueRow: { flexDirection: 'row', alignItems: 'center' },
+  
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  statusPillText: { fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  
+  rowValue: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
+  actionIconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  copyIconBtn: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  
+  inlineEditor: { paddingTop: 16 },
+  editCard: { padding: 16, borderRadius: 20, gap: 14 },
+  editorBadgeRow: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
+  editorBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  editorHintText: { fontSize: 12 },
+  dateSelect: { borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
+  dateLabel: { fontSize: 11, letterSpacing: 0.4 },
+  dateValue: { fontSize: 15, fontWeight: '800' },
+  editorActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  pillActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 52, borderRadius: 999, gap: 6 },
+  pillActionBtnText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
+  attachDocBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 16, marginTop: 4 },
+  attachDocBtnText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  customDatePicker: { borderRadius: 16, padding: 12, gap: 8 },
+  
+  viewerOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.6)' },
+  viewerCard: { borderRadius: 28, padding: 24, gap: 20 },
+  viewerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  viewerTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+  viewerSubtitle: { fontSize: 13, marginTop: 4 },
+  viewerPreview: { borderRadius: 24, padding: 30, minHeight: 280, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  viewerBadge: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  viewerDocTitle: { fontSize: 20, fontWeight: '900' },
+  datePickerDoneBtn: { borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  datePickerDoneText: { fontSize: 14, fontWeight: '800' },
+  openPdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 999, marginTop: 12 },
+  openPdfBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  
+  // ── FASTAG SMART CARD STYLES ──
+  fastagSmartCard: { 
+    backgroundColor: '#0F172A', // Deep slate/navy
+    borderRadius: 24, 
+    padding: 24, 
+    minHeight: 160,
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 6,
+    overflow: 'hidden'
   },
-  viewerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  viewerSubtitle: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  viewerCloseBtn: {
-    width: 36,
-    height: 36,
-    borderWidth: 1,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  viewerPreview: {
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 20,
-    minHeight: 260,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  viewerBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  viewerDocTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  viewerDocMeta: {
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  datePickerDoneBtn: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  datePickerDoneText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  openPdfBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    marginTop: 8,
-  },
-  openPdfBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  // ── FASTag Balance Card ──
-  fastagCard: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 16,
-    gap: 12,
-  },
-  fastagHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  fastagIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fastagTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  fastagSubtitle: {
-    fontSize: 11,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  fastagBalanceRow: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    gap: 4,
-  },
-  fastagBalanceLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  fastagBalanceValue: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  fastagStatsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  fastagStatBox: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 3,
-  },
-  fastagStatLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  fastagStatValue: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  fastagStatHint: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  fastagLowBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  fastagLowText: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '700',
-    lineHeight: 16,
-  },
+  fastagCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  fastagLogoBlock: { flexDirection: 'row', alignItems: 'center' },
+  fastagTextOrange: { color: '#F97316', fontSize: 20, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
+  fastagTextGreen: { color: '#10B981', fontSize: 20, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
+  fastagCardBottom: { marginTop: 32, position: 'relative' },
+  fastagLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+  fastagAmount: { fontSize: 40, fontWeight: '900', letterSpacing: -1 },
+  fastagWatermark: { position: 'absolute', right: -10, bottom: -10, opacity: 0.05, transform: [{ scale: 1.5 }] },
 });

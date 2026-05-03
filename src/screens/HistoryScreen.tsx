@@ -1,31 +1,23 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Modal,
-  Platform,
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
-  View,
-  PanResponder,
+  View
 } from 'react-native';
-
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { SmartFilterSheet, type CategoryFilter, type DatePreset, type DateTarget } from '@/components/SmartFilterSheet';
 import type { AppStackParamList } from '@/navigation/types';
-import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { EntryRecord, EntryType } from '@/types/models';
+import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT, INDIA_MONTH_FORMAT } from '@/utils/day';
+import { getEntryOwnerId } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'History'>;
 
@@ -34,14 +26,21 @@ type HistoryRow = {
   distanceKm: number | null;
   tripStartOdometer: number | null;
   tripEndOdometer: number | null;
+  tripTotalCost: number;
+  tripTotalFuelLiters: number;
 };
 
-type CategoryFilter = 'all' | EntryType;
-type DateTarget = 'from' | 'to';
-type DatePreset = 'all' | 'last7' | 'last30' | 'thisMonth' | 'custom';
+type ExpenseSubcategory = 'fasttag' | 'car_maintenance' | 'parking' | 'traffic_violation' | 'others';
 
 const MIN_FILTER_DATE = dayjs('2026-02-01').startOf('day');
 const MAX_FILTER_DATE = dayjs().endOf('day');
+
+function canEditEntry(entry: EntryRecord, currentUserId?: string | null) {
+  if (!currentUserId) {
+    return false;
+  }
+  return getEntryOwnerId(entry) === currentUserId;
+}
 
 function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
@@ -55,6 +54,26 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
     if (entry.tripStage === 'start') bucket.start = entry;
     if (entry.tripStage === 'end') bucket.end = entry;
     trips.set(entry.tripId, bucket);
+  }
+
+  // Calculate trip totals by aggregating fuel and expense entries within each trip
+  function getTripTotals(tripId: string, startTime: number, endTime: number): { totalCost: number; totalFuelLiters: number } {
+    let totalCost = 0;
+    let totalFuelLiters = 0;
+
+    for (const entry of entries) {
+      // Only count entries within the trip time range (excluding the odometer entries themselves)
+      if (entry.createdAt >= startTime && entry.createdAt <= endTime && entry.tripId !== tripId) {
+        if (entry.type === 'fuel' && typeof entry.fuelLiters === 'number') {
+          totalFuelLiters += entry.fuelLiters;
+        }
+        if (typeof entry.cost === 'number') {
+          totalCost += entry.cost;
+        }
+      }
+    }
+
+    return { totalCost, totalFuelLiters };
   }
 
   const visited = new Set<string>();
@@ -75,11 +94,14 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
         visited.add(entry.id);
         visited.add(start.id);
         const distanceKm = entry.odometer - start.odometer;
+        const { totalCost, totalFuelLiters } = getTripTotals(entry.tripId, start.createdAt, entry.createdAt);
         rows.push({
           entry,
           distanceKm: distanceKm > 0 ? distanceKm : null,
           tripStartOdometer: start.odometer,
           tripEndOdometer: entry.odometer,
+          tripTotalCost: totalCost,
+          tripTotalFuelLiters: totalFuelLiters,
         });
         continue;
       }
@@ -97,6 +119,8 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
         distanceKm: null,
         tripStartOdometer: entry.tripStage === 'start' ? entry.odometer : null,
         tripEndOdometer: entry.tripStage === 'end' ? entry.odometer : null,
+        tripTotalCost: 0,
+        tripTotalFuelLiters: 0,
       });
       continue;
     }
@@ -107,6 +131,8 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
       distanceKm: null,
       tripStartOdometer: null,
       tripEndOdometer: null,
+      tripTotalCost: 0,
+      tripTotalFuelLiters: 0,
     });
   }
 
@@ -115,11 +141,9 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
 
 export function HistoryScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
-  const insets = useSafeAreaInsets();
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
-  const markEntrySharedTrip = useAppStore((state) => state.markEntrySharedTrip);
-
+  
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -129,71 +153,10 @@ export function HistoryScreen({ navigation }: Props) {
   const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isFilterRendered, setIsFilterRendered] = useState(false);
-
-  const translateY = useRef(new Animated.Value(600)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 120 || gestureState.vy > 1.5) {
-          closeFilterModal();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 0,
-          }).start();
-        }
-      },
-    })
-  ).current;
 
   const closeFilterModal = () => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsFilterOpen(false);
-      setIsFilterRendered(false);
-    });
+    setIsFilterOpen(false);
   };
-
-  useEffect(() => {
-    if (isFilterOpen) {
-      setIsFilterRendered(true);
-      Animated.parallel([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [isFilterOpen, translateY, overlayOpacity]);
 
   const userOptions = useMemo(() => {
     const userMap = new Map<string, string>();
@@ -239,7 +202,19 @@ export function HistoryScreen({ navigation }: Props) {
     const pills: string[] = [];
 
     if (category !== 'all') {
-      pills.push(category === 'spec_update' ? 'Specs Update' : category.charAt(0).toUpperCase() + category.slice(1));
+      const labelMap: Record<CategoryFilter, string> = {
+        all: 'All',
+        odometer: 'Odometer',
+        fuel: 'Fuel',
+        expense: 'Expense',
+        expense_fasttag: 'Fastag',
+        expense_car_maintenance: 'Car Maintenance',
+        expense_parking: 'Parking',
+        expense_traffic_violation: 'Traffic Violation',
+        expense_others: 'Others',
+        spec_update: 'Specs Update',
+      };
+      pills.push(labelMap[category]);
     }
 
     if (selectedUser !== 'all') {
@@ -287,8 +262,32 @@ export function HistoryScreen({ navigation }: Props) {
     return baseRows.filter((row) => {
       const entry = row.entry;
 
-      if (category !== 'all' && entry.type !== category) {
-        return false;
+      if (category !== 'all') {
+        if (category.startsWith('expense_')) {
+          if (entry.type !== 'expense') return false;
+          const subcategory = category.replace('expense_', '') as ExpenseSubcategory;
+
+          // Special handling for fasttag - includes toll paid and recharges
+          if (subcategory === 'fasttag') {
+            const isTollPaid = entry.expenseCategory === 'fasttag_toll_paid';
+            const isFastagRecharge = entry.expenseCategory === 'utility_addon' &&
+              entry.expenseTitle &&
+              (entry.expenseTitle.toLowerCase().includes('fastag') || entry.expenseTitle.toLowerCase().includes('fast tag')) &&
+              entry.expenseTitle.toLowerCase().includes('recharge');
+            if (!isTollPaid && !isFastagRecharge) return false;
+          } else {
+            const expenseCategoryMap: Record<Exclude<ExpenseSubcategory, 'fasttag'>, string[]> = {
+              car_maintenance: ['maintenance_lab', 'shield_safety', 'care_comfort', 'utility_addon'],
+              parking: ['parking'],
+              traffic_violation: ['traffic_violation_fine'],
+              others: ['other', 'purchase'],
+            };
+            const allowedCategories = expenseCategoryMap[subcategory];
+            if (!allowedCategories?.includes(entry.expenseCategory || '')) return false;
+          }
+        } else if (entry.type !== category) {
+          return false;
+        }
       }
 
       if (selectedMonth !== 'all' && dayjs(entry.createdAt).format('YYYY-MM') !== selectedMonth) {
@@ -411,68 +410,6 @@ export function HistoryScreen({ navigation }: Props) {
     }
   };
 
-  const openDatePicker = (target: DateTarget) => {
-    setActiveDateTarget(target);
-    setIsDatePickerVisible(true);
-    setDatePreset('custom');
-  };
-
-  const handleDatePickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (event.type === 'dismissed') {
-      if (Platform.OS === 'android') {
-        setIsDatePickerVisible(false);
-      }
-      return;
-    }
-
-    if (!selectedDate || !activeDateTarget) {
-      return;
-    }
-
-    setDateForTarget(activeDateTarget, selectedDate);
-    setDatePreset('custom');
-
-    if (Platform.OS === 'android') {
-      setIsDatePickerVisible(false);
-    }
-  };
-
-  const pickerDate = useMemo(() => {
-    if (activeDateTarget === 'from') {
-      return fromDate ?? MIN_FILTER_DATE.toDate();
-    }
-    if (activeDateTarget === 'to') {
-      return toDate ?? fromDate ?? dayjs().toDate();
-    }
-    return dayjs().toDate();
-  }, [activeDateTarget, fromDate, toDate]);
-
-  const handleSharedTripToggle = (row: HistoryRow) => {
-    if (!currentUser || row.entry.sharedTrip || row.entry.type !== 'odometer' || row.entry.userId === currentUser.id) {
-      return;
-    }
-
-    Alert.alert('Shared Trip', 'Mark this odometer entry as shared trip?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Confirm',
-        onPress: () => {
-          void (async () => {
-            try {
-              await markEntrySharedTrip(row.entry.id, {
-                userId: currentUser.id,
-                userName: currentUser.name,
-              });
-              void runSyncCycle();
-            } catch (error) {
-              Alert.alert('Could not update entry', error instanceof Error ? error.message : 'Unknown error');
-            }
-          })();
-        },
-      },
-    ]);
-  };
-
   return (
     <ScreenContainer>
       <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }]} />
@@ -512,217 +449,33 @@ export function HistoryScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <Modal transparent statusBarTranslucent animationType="none" visible={isFilterRendered} onRequestClose={closeFilterModal}>
-        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeFilterModal} />
-        </Animated.View>
-        <View style={styles.sheetAnchor}>
-          <Animated.View style={[styles.sheet, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, paddingBottom: insets.bottom + 16, transform: [{ translateY }] }]}>
-            <View {...panResponder.panHandlers}>
-              <View style={styles.handleWrap}>
-                <View style={[styles.handle, { backgroundColor: colors.border }]} />
-              </View>
-              <View style={styles.filterHeadRow}>
-                <View>
-                  <Text style={[styles.filterHeadTitle, { color: colors.textPrimary }]}>Smart Filters</Text>
-                  <Text style={[styles.filterHeadMeta, { color: colors.textSecondary }]}>{rows.length} entries matched</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Pressable onPress={resetFilters} hitSlop={12} style={[styles.clearBtn, { borderColor: colors.border }]}>
-                    <Text style={[styles.clearBtnText, { color: colors.textPrimary }]}>Clear</Text>
-                  </Pressable>
-                  <Pressable onPress={closeFilterModal} hitSlop={12} style={{ padding: 4 }}>
-                    <MaterialIcons name="close" size={24} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-
-              {activeFilterPills.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activePillsRow}>
-              {activeFilterPills.map((pill) => (
-                <View key={pill} style={[styles.activePill, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                  <Text style={[styles.activePillText, { color: colors.textPrimary }]}>{pill}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <Text style={[styles.noFilterText, { color: colors.textSecondary }]}>No active filters</Text>
-          )}
-
-              <ScrollView contentContainerStyle={styles.filterInner} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Entry type</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {(['all', 'odometer', 'fuel', 'expense', 'spec_update'] as CategoryFilter[]).map((filter) => {
-                const active = filter === category;
-                const label =
-                  filter === 'all'
-                    ? 'All'
-                    : filter === 'spec_update'
-                      ? 'Specs Update'
-                      : filter === 'expense'
-                        ? 'Expense'
-                        : filter.toUpperCase();
-
-                return (
-                  <Pressable
-                    key={filter}
-                    onPress={() => setCategory(filter)}
-                    style={[
-                      styles.filterChip,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
-                    ]}>
-                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Visibility Context</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {viewContextOptions.map((ctx) => {
-                const active = selectedUser === ctx.id;
-                return (
-                  <Pressable
-                    key={ctx.id}
-                    onPress={() => setSelectedUser(ctx.id)}
-                    style={[
-                      styles.filterChip,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
-                    ]}>
-                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                      {ctx.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Month</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {monthOptions.map((month) => {
-                const active = month === selectedMonth;
-                const label = month === 'all' ? 'All months' : dayjs(`${month}-01`).format(INDIA_MONTH_FORMAT);
-
-                return (
-                  <Pressable
-                    key={month}
-                    onPress={() => setSelectedMonth(month)}
-                    style={[
-                      styles.filterChip,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
-                    ]}>
-                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Date range</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {(
-                [
-                  { id: 'all', label: 'All time' },
-                  { id: 'last7', label: 'Last 7 days' },
-                  { id: 'last30', label: 'Last 30 days' },
-                  { id: 'thisMonth', label: 'This month' },
-                ] as { id: DatePreset; label: string }[]
-              ).map((option) => {
-                const active = datePreset === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => applyDatePreset(option.id)}
-                    style={[
-                      styles.filterChip,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
-                    ]}>
-                    {active ? <MaterialIcons name="check" size={14} color={colors.invertedText} /> : null}
-                    <Text style={[styles.filterChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.datePickerRow}>
-              {(['from', 'to'] as DateTarget[]).map((target) => {
-                const selected = target === 'from' ? fromDate : toDate;
-                return (
-                  <Pressable
-                    key={target}
-                    onPress={() => openDatePicker(target)}
-                    style={[styles.datePickCard, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                    <Text style={[styles.datePickLabel, { color: colors.textSecondary }]}>
-                      {target === 'from' ? 'From' : 'To'}
-                    </Text>
-                    <View style={styles.datePickValueRow}>
-                      <MaterialIcons name="calendar-month" size={16} color={colors.textPrimary} />
-                      <Text style={[styles.datePickValue, { color: colors.textPrimary }]}>
-                        {selected ? dayjs(selected).format(INDIA_DATE_FORMAT) : 'Select date'}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {isDatePickerVisible && activeDateTarget ? (
-              <View style={[styles.nativePickerWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                <View style={styles.nativePickerTop}>
-                  <Text style={[styles.nativePickerTitle, { color: colors.textPrimary }]}>
-                    Choose {activeDateTarget === 'from' ? 'From Date' : 'To Date'}
-                  </Text>
-                  {Platform.OS === 'ios' ? (
-                    <Pressable onPress={() => setIsDatePickerVisible(false)}>
-                      <Text style={[styles.nativePickerDone, { color: colors.textPrimary }]}>Done</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                <DateTimePicker
-                  mode="date"
-                  value={pickerDate}
-                  accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                  display={Platform.OS === 'ios' ? 'spinner' : undefined}
-                  minimumDate={activeDateTarget === 'from' ? MIN_FILTER_DATE.toDate() : fromDate ?? MIN_FILTER_DATE.toDate()}
-                  maximumDate={
-                    activeDateTarget === 'from'
-                      ? toDate && dayjs(toDate).isBefore(MAX_FILTER_DATE, 'day')
-                        ? toDate
-                        : MAX_FILTER_DATE.toDate()
-                      : MAX_FILTER_DATE.toDate()
-                  }
-                  onChange={handleDatePickerChange}
-                  positiveButton={Platform.OS === 'android' ? { label: 'Apply', textColor: colors.textPrimary } : undefined}
-                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
-                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
-                  themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined}
-                />
-                <Text style={[styles.nativePickerHint, { color: colors.textSecondary }]}>
-                  Range starts from {MIN_FILTER_DATE.format(INDIA_DATE_FORMAT)}
-                </Text>
-                </View>
-              ) : null}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
+      <SmartFilterSheet
+        isOpen={isFilterOpen}
+        isRendered={isFilterOpen}
+        onClose={closeFilterModal}
+        category={category}
+        onCategoryChange={setCategory}
+        selectedUser={selectedUser}
+        onUserChange={setSelectedUser}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+        datePreset={datePreset}
+        onDatePresetChange={applyDatePreset}
+        fromDate={fromDate}
+        toDate={toDate}
+        onDateChange={setDateForTarget}
+        viewContextOptions={viewContextOptions}
+        monthOptions={monthOptions}
+        matchedCount={rows.length}
+        activeFilterPills={activeFilterPills}
+        isDatePickerVisible={isDatePickerVisible}
+        onDatePickerVisibilityChange={setIsDatePickerVisible}
+        activeDateTarget={activeDateTarget}
+        onActiveDateTargetChange={setActiveDateTarget}
+        onReset={resetFilters}
+        minDate={MIN_FILTER_DATE.toDate()}
+        maxDate={MAX_FILTER_DATE.toDate()}
+      />
 
       <SectionList
         sections={sectionedRows}
@@ -743,8 +496,10 @@ export function HistoryScreen({ navigation }: Props) {
             distanceKm={item.distanceKm}
             tripStartOdometer={item.tripStartOdometer}
             tripEndOdometer={item.tripEndOdometer}
+            tripTotalCost={item.tripTotalCost}
+            tripTotalFuelLiters={item.tripTotalFuelLiters}
             index={index}
-            canEdit={Boolean(currentUser && item.entry.userId === currentUser.id)}
+            canEdit={canEditEntry(item.entry, currentUser?.id)}
             onPressEdit={() => {
               if (item.entry.type === 'fuel') {
                 navigation.navigate('FuelEntryModal', { entryId: item.entry.id });
@@ -833,155 +588,6 @@ const styles = StyleSheet.create({
   filterCountText: {
     fontSize: 10,
     fontWeight: '800',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  sheetAnchor: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    maxHeight: '88%',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  handleWrap: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  handle: {
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-  },
-  filterHeadRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
-  filterHeadTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  filterHeadMeta: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  clearBtn: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  clearBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  activePillsRow: {
-    gap: 7,
-    paddingRight: 10,
-  },
-  activePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  activePillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  noFilterText: {
-    fontSize: 12,
-  },
-  filterInner: {
-    gap: 10,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  filterRow: {
-    gap: 8,
-    paddingRight: 10,
-  },
-  filterChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  datePickerRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  datePickCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 5,
-  },
-  datePickLabel: {
-    fontSize: 11,
-    letterSpacing: 0.4,
-  },
-  datePickValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  datePickValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  nativePickerWrap: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  nativePickerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  nativePickerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  nativePickerDone: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  nativePickerHint: {
-    fontSize: 11,
-    letterSpacing: 0.2,
-    marginTop: 2,
   },
   list: {
     gap: 10,

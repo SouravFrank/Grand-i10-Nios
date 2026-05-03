@@ -80,4 +80,16 @@ export function normalizeIndianDate(value: string | Date | number): string {
   return parsed.format(INDIA_DATE_FORMAT);
 }
 
+export function mergeDateWithExistingTime(selectedDate: Date, baseTimestamp: number): number {
+  const nextDate = dayjs(selectedDate);
+  const baseDateTime = dayjs(baseTimestamp);
+
+  return nextDate
+    .hour(baseDateTime.hour())
+    .minute(baseDateTime.minute())
+    .second(baseDateTime.second())
+    .millisecond(baseDateTime.millisecond())
+    .valueOf();
+}
+
 export { dayjs };

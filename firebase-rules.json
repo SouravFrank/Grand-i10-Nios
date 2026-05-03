@@ -1,0 +1,107 @@
+{
+  "rules": {
+    "carEntries": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["createdAt"],
+      "$entryId": {
+        ".validate": "
+          newData.hasChildren(['id','type','userId','userName','odometer','createdAt']) &&
+          newData.child('id').isString() &&
+          newData.child('type').isString() &&
+          (
+            newData.child('type').val() === 'odometer' ||
+            newData.child('type').val() === 'fuel' ||
+            newData.child('type').val() === 'expense' ||
+            newData.child('type').val() === 'spec_update'
+          ) &&
+          newData.child('userId').isString() &&
+          newData.child('userName').isString() &&
+          newData.child('odometer').isNumber() &&
+          newData.child('createdAt').isNumber() &&
+          (!newData.child('fuelAmount').exists() || newData.child('fuelAmount').isNumber()) &&
+          (!newData.child('fuelLiters').exists() || newData.child('fuelLiters').isNumber()) &&
+          (!newData.child('fullTank').exists() || newData.child('fullTank').isBoolean()) &&
+          (!newData.child('sharedTrip').exists() || newData.child('sharedTrip').isBoolean()) &&
+          (!newData.child('sharedTripMarkedById').exists() || newData.child('sharedTripMarkedById').isString()) &&
+          (!newData.child('sharedTripMarkedByName').exists() || newData.child('sharedTripMarkedByName').isString()) &&
+          (!newData.child('expenseCategory').exists() || newData.child('expenseCategory').isString()) &&
+          (!newData.child('expenseTitle').exists() || newData.child('expenseTitle').isString()) &&
+          (!newData.child('cost').exists() || newData.child('cost').isNumber())
+        "
+      }
+    },
+    "carMeta": {
+      "carSpec": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "
+          newData.hasChildren([
+            'registrationNumber',
+            'engineNumber',
+            'chassisNumber',
+            'registrationDate',
+            'registrationYear',
+            'manufacturingYear',
+            'initialOdometer',
+            'fuelType',
+            'model',
+            'variant',
+            'carColor',
+            'lastMaintenanceDate',
+            'lastEngineOilChangedOn',
+            'lastCoolantRefillOn',
+            'puccExpireDate',
+            'insuranceValidUpTo',
+            'fitnessValidUpTo',
+            'taxValidUpTo'
+          ]) &&
+          newData.child('registrationNumber').isString() &&
+          newData.child('engineNumber').isString() &&
+          newData.child('chassisNumber').isString() &&
+          newData.child('registrationDate').isString() &&
+          newData.child('registrationYear').isString() &&
+          newData.child('manufacturingYear').isString() &&
+          newData.child('initialOdometer').isNumber() &&
+          newData.child('fuelType').isString() &&
+          newData.child('model').isString() &&
+          newData.child('variant').isString() &&
+          newData.child('carColor').isString() &&
+          newData.child('lastMaintenanceDate').isString() &&
+          newData.child('lastEngineOilChangedOn').isString() &&
+          newData.child('lastCoolantRefillOn').isString() &&
+          newData.child('puccExpireDate').isString() &&
+          newData.child('insuranceValidUpTo').isString() &&
+          newData.child('fitnessValidUpTo').isString() &&
+          newData.child('taxValidUpTo').isString()
+        "
+      }
+    },
+    "reportMileage": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "
+        newData.hasChildren(['reportMileageByMonth', 'lastUpdatedAt']) &&
+        newData.child('lastUpdatedAt').isNumber()
+      ",
+      "reportMileageByMonth": {
+        "$monthKey": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    },
+    "reportSettlements": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "
+        newData.hasChildren(['settledReportMonths', 'lastUpdatedAt']) &&
+        newData.child('lastUpdatedAt').isNumber()
+      ",
+      "settledReportMonths": {
+        "$monthKey": {
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    }
+  }
+}

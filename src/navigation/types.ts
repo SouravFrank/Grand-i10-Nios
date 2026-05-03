@@ -3,9 +3,12 @@ export type AppStackParamList = {
   History: undefined;
   Report: undefined;
   SyncLogs: undefined;
-  StartingCarModal: { mode?: 'start' | 'end' | 'restart' | 'edit'; entryId?: string } | undefined;
+  StartingCarModal:
+    | { mode?: "start" | "end" | "restart" | "edit"; entryId?: string }
+    | undefined;
   FuelEntryModal: { entryId?: string } | undefined;
   ExpenseEntryModal: { entryId?: string } | undefined;
+  HistoryEntryModal: undefined;
 };
 
 export type AuthStackParamList = {

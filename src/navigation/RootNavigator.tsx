@@ -1,24 +1,25 @@
 import {
-  DarkTheme as NavigationDarkTheme,
-  DefaultTheme as NavigationLightTheme,
-  NavigationContainer,
-  type Theme as NavigationTheme,
+    NavigationContainer,
+    DarkTheme as NavigationDarkTheme,
+    DefaultTheme as NavigationLightTheme,
+    type Theme as NavigationTheme,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
 
+import type { AppStackParamList, AuthStackParamList } from '@/navigation/types';
 import { BiometricScreen } from '@/screens/BiometricScreen';
 import { ExpenseEntryScreen } from '@/screens/ExpenseEntryScreen';
 import { FuelEntryScreen } from '@/screens/FuelEntryScreen';
+import { HistoryEntryScreen } from '@/screens/HistoryEntryScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
-import { ReportScreen } from '@/screens/ReportScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
+import { ReportScreen } from '@/screens/ReportScreen';
 import { StartingCarScreen } from '@/screens/StartingCarScreen';
 import { SyncLogsScreen } from '@/screens/SyncLogsScreen';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { AppStackParamList, AuthStackParamList } from '@/navigation/types';
 
 const AppStack = createNativeStackNavigator<AppStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -71,6 +72,11 @@ function MainNavigator() {
       <AppStack.Screen
         name="ExpenseEntryModal"
         component={ExpenseEntryScreen}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
+      <AppStack.Screen
+        name="HistoryEntryModal"
+        component={HistoryEntryScreen}
         options={{ presentation: 'card', animation: 'slide_from_right' }}
       />
     </AppStack.Navigator>

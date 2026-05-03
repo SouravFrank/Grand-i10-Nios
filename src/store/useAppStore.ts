@@ -7,41 +7,43 @@ import { canUseBiometricAuth } from "@/services/auth/authService";
 import { removeEntryFromRealtimeDb } from "@/services/realtime/entriesRepository";
 import { sha256 } from "@/services/security/hash";
 import {
-  buildEntryIntegrityHash,
-  verifyEntryIntegrity,
+    buildEntryIntegrityHash,
+    verifyEntryIntegrity,
 } from "@/services/security/integrity";
 import {
-  deleteAuthToken,
-  deleteSecureUser,
-  getAuthToken,
-  getIntegritySecret,
-  getSecureUser,
-  setAuthToken,
-  setIntegritySecret,
-  setSecureUser,
+    deleteAuthToken,
+    deleteSecureUser,
+    getAuthToken,
+    getIntegritySecret,
+    getSecureUser,
+    setAuthToken,
+    setIntegritySecret,
+    setSecureUser,
 } from "@/services/storage/secureStore";
 import {
-  clearStoredSession,
-  getStoredSession,
-  setStoredSession,
+    clearStoredSession,
+    getStoredSession,
+    setStoredSession,
 } from "@/services/storage/sessionStorage";
 import type {
-  ActiveTrip,
-  AppUser,
-  AuthStatus,
-  CarSpec,
-  CarSpecEditableFields,
-  Entry,
-  EntryRecord,
-  ExpenseCategory,
-  PendingQueueItem,
-  RemoteEntryDocument,
-  SpecUpdateDetail,
-  SyncStatus,
+    ActiveTrip,
+    AppUser,
+    AuthStatus,
+    CarSpec,
+    CarSpecEditableFields,
+    Entry,
+    EntryRecord,
+    ExpenseCategory,
+    PendingQueueItem,
+    RemoteEntryDocument,
+    SpecUpdateDetail,
+    SyncStatus,
+    TyreRecord,
 } from "@/types/models";
 import { dayjs, normalizeIndianDate } from "@/utils/day";
 import { createId } from "@/utils/id";
 import { syncLog } from "@/utils/syncLogger";
+import { buildDefaultTyreSetup, normalizeTyreSetup } from "@/utils/tyreHealth";
 
 type PersistedAppData = {
   entries: EntryRecord[];
@@ -53,6 +55,8 @@ type PersistedAppData = {
   biometricEnabled: boolean;
   carSpec: CarSpec;
   carSpecDirty: boolean;
+  reportMileageByMonth: Record<string, number>;
+  settledReportMonths: Record<string, boolean>;
 };
 
 type AddEntryInput = {
@@ -87,17 +91,22 @@ type UpdateEntryInput = {
   fuelAmount?: number;
   fuelLiters?: number;
   fullTank?: boolean;
+  userId?: string;
+  userName?: string;
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
   sharedTrip?: boolean;
+  sharedTripMarkedById?: string;
+  sharedTripMarkedByName?: string;
+  createdAt?: number;
 };
 
 const DEFAULT_CAR_SPEC: CarSpec = {
   purchasedOn: "27 Feb 2026",
   registrationNumber: "WB12BP0584",
   engineNumber: "G4LAPM522487",
-  chassisNumber: "MALB351 CLPM464714",
+  chassisNumber: "MALB351CLPM464714",
   registrationDate: "09 Aug 2023",
   registrationYear: "Aug 2023",
   manufacturingYear: "July 2023",
@@ -118,6 +127,7 @@ const DEFAULT_CAR_SPEC: CarSpec = {
   lastBatteryChangedOn: "Not set",
   lastBrakePadsChangedOn: "05 Sep 2025",
   lastTyresChangedOn: "Not set",
+  tyreSetup: buildDefaultTyreSetup(),
   puccExpireDate: "20 Sep 2026",
   insuranceValidUpTo: "26 Feb 2027",
   fitnessValidUpTo: "08 Aug 2038",
@@ -166,6 +176,7 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
     lastBatteryChangedOn: normalizeIndianDate(merged.lastBatteryChangedOn),
     lastBrakePadsChangedOn: normalizeIndianDate(merged.lastBrakePadsChangedOn),
     lastTyresChangedOn: normalizeIndianDate(merged.lastTyresChangedOn),
+    tyreSetup: normalizeTyreSetup(merged.tyreSetup),
     puccExpireDate: normalizeIndianDate(merged.puccExpireDate),
     insuranceValidUpTo: normalizeIndianDate(merged.insuranceValidUpTo),
     fitnessValidUpTo: normalizeIndianDate(merged.fitnessValidUpTo),
@@ -182,12 +193,17 @@ function requiresCarSpecNormalization(
 
   const normalized = normalizeCarSpec(carSpec);
   const keys = Object.keys(DEFAULT_CAR_SPEC) as (keyof CarSpec)[];
+  const serializeCarSpecValue = (value: unknown) =>
+    typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value);
 
   return keys.some((key) => {
     const rawValue = carSpec[key];
     const normalizedValue = normalized[key];
     return (
-      rawValue === undefined || String(rawValue) !== String(normalizedValue)
+      rawValue === undefined ||
+      serializeCarSpecValue(rawValue) !== serializeCarSpecValue(normalizedValue)
     );
   });
 }
@@ -213,8 +229,18 @@ type AppState = PersistedAppData & {
     biometricEnabled: boolean;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  startTrip: (params: { userId: string; userName: string; odometer: number; sharedTrip?: boolean }) => Promise<EntryRecord>;
-  endTrip: (params: { userId: string; userName: string; odometer: number; sharedTrip?: boolean }) => Promise<EntryRecord>;
+  startTrip: (params: {
+    userId: string;
+    userName: string;
+    odometer: number;
+    sharedTrip?: boolean;
+  }) => Promise<EntryRecord>;
+  endTrip: (params: {
+    userId: string;
+    userName: string;
+    odometer: number;
+    sharedTrip?: boolean;
+  }) => Promise<EntryRecord>;
   addEntryOfflineFirst: (entry: AddEntryInput) => Promise<EntryRecord>;
   updateEntryOfflineFirst: (
     entryId: string,
@@ -226,8 +252,14 @@ type AppState = PersistedAppData & {
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
   updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  updateTyreSetup: (tyreSetup: TyreRecord[]) => void;
   markCarSpecSynced: () => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
+  setReportMileage: (monthKey: string, value: number) => void;
+  replaceReportMileage: (data: Record<string, number>) => void;
+  markReportSettled: (monthKey: string) => void;
+  unmarkReportSettled: (monthKey: string) => void;
+  replaceSettledReportMonths: (data: Record<string, boolean>) => void;
   markEntrySharedTrip: (
     entryId: string,
     actor: SharedTripActor,
@@ -245,6 +277,8 @@ const initialPersistedState: PersistedAppData = {
   biometricEnabled: false,
   carSpecDirty: false,
   carSpec: normalizeCarSpec(),
+  reportMileageByMonth: {},
+  settledReportMonths: {},
 };
 
 async function ensureIntegritySecret(): Promise<string> {
@@ -283,29 +317,49 @@ function validateUpdatedEntryOdometer(
   entries: EntryRecord[],
   entryId: string,
   nextOdometer: number,
+  nextCreatedAt?: number,
 ): void {
   if (!Number.isFinite(nextOdometer) || nextOdometer <= 0) {
     throw new Error("Enter a valid odometer reading.");
   }
 
-  const chronologicalEntries = [...entries].sort(
-    (a, b) => a.createdAt - b.createdAt,
-  );
+  const targetEntry = entries.find((entry) => entry.id === entryId);
+  if (!targetEntry) {
+    throw new Error("Entry not found.");
+  }
+
+  const effectiveCreatedAt = nextCreatedAt ?? targetEntry.createdAt;
+  const chronologicalEntries = entries
+    .map((entry) =>
+      entry.id === entryId
+        ? {
+            ...entry,
+            createdAt: effectiveCreatedAt,
+          }
+        : entry,
+    )
+    .sort((a, b) => a.createdAt - b.createdAt);
   const targetIndex = chronologicalEntries.findIndex(
     (entry) => entry.id === entryId,
   );
-
-  if (targetIndex === -1) {
-    throw new Error("Entry not found.");
-  }
 
   const previousEntry = chronologicalEntries[targetIndex - 1];
   const nextEntry = chronologicalEntries[targetIndex + 1];
 
   if (previousEntry && nextOdometer < previousEntry.odometer) {
-    throw new Error(
-      "Edited odometer cannot be less than the previous recorded value.",
-    );
+    // Allow lower odometer values for expense entries (users might need to correct readings or add missed expenses)
+    if (targetEntry.type === "expense") {
+      // For expenses, allow lower odometer values but still validate for reasonable ranges
+      if (previousEntry.odometer - nextOdometer > 1000) {
+        throw new Error(
+          "Edited odometer for expense cannot be more than 1000 km less than the previous recorded value.",
+        );
+      }
+    } else {
+      throw new Error(
+        "Edited odometer cannot be less than the previous recorded value.",
+      );
+    }
   }
 
   if (nextEntry && nextOdometer > nextEntry.odometer) {
@@ -316,6 +370,32 @@ function validateUpdatedEntryOdometer(
     throw new Error(
       "Single odometer entry cannot exceed 500 km from the previous reading.",
     );
+  }
+
+  if (targetEntry.tripId && targetEntry.tripStage) {
+    const pairedEntry = entries.find(
+      (entry) =>
+        entry.id !== entryId &&
+        entry.tripId === targetEntry.tripId &&
+        entry.tripStage &&
+        entry.tripStage !== targetEntry.tripStage,
+    );
+
+    if (
+      pairedEntry &&
+      targetEntry.tripStage === "start" &&
+      effectiveCreatedAt > pairedEntry.createdAt
+    ) {
+      throw new Error("Trip start date cannot be after the trip end date.");
+    }
+
+    if (
+      pairedEntry &&
+      targetEntry.tripStage === "end" &&
+      effectiveCreatedAt < pairedEntry.createdAt
+    ) {
+      throw new Error("Trip end date cannot be before the trip start date.");
+    }
   }
 }
 
@@ -512,12 +592,16 @@ export const useAppStore = create<AppState>()(
           throw new Error("Enter a valid odometer reading.");
         }
 
-        if (entryOdometer < lastOdometerValue) {
+        // Skip odometer validation for history entries (entries with custom createdAt timestamps)
+        const isHistoryEntry =
+          payload.createdAt && payload.createdAt !== Date.now();
+
+        if (!isHistoryEntry && entryOdometer < lastOdometerValue) {
           throw new Error(
             "New odometer entry cannot be less than the previous value.",
           );
         }
-        if (entryOdometer - lastOdometerValue > 500) {
+        if (!isHistoryEntry && entryOdometer - lastOdometerValue > 500) {
           throw new Error(
             "Single odometer entry cannot exceed 500 km from the previous reading.",
           );
@@ -585,16 +669,39 @@ export const useAppStore = create<AppState>()(
           throw new Error("Entry not found.");
         }
 
-        if (targetEntry.type !== "fuel" && targetEntry.type !== "expense" && targetEntry.type !== "odometer") {
-          throw new Error("Only fuel, expense, and odometer entries can be edited.");
+        if (
+          targetEntry.type !== "fuel" &&
+          targetEntry.type !== "expense" &&
+          targetEntry.type !== "odometer"
+        ) {
+          throw new Error(
+            "Only fuel, expense, and odometer entries can be edited.",
+          );
         }
 
-        validateUpdatedEntryOdometer(entries, entryId, updates.odometer);
+        validateUpdatedEntryOdometer(
+          entries,
+          entryId,
+          updates.odometer,
+          updates.createdAt ?? targetEntry.createdAt,
+        );
 
         const secret = await ensureIntegritySecret();
+        const isPayerEditableEntry =
+          targetEntry.type === "fuel" || targetEntry.type === "expense";
+        const preservedLastSyncedAt =
+          targetEntry.lastSyncedAt ??
+          (targetEntry.synced ? targetEntry.createdAt : undefined);
         const updatedEntry: Entry = {
           ...targetEntry,
+          userId: isPayerEditableEntry
+            ? (updates.userId ?? targetEntry.userId)
+            : targetEntry.userId,
+          userName: isPayerEditableEntry
+            ? (updates.userName ?? targetEntry.userName)
+            : targetEntry.userName,
           odometer: updates.odometer,
+          createdAt: updates.createdAt ?? targetEntry.createdAt,
           fuelAmount:
             targetEntry.type === "fuel" ? updates.fuelAmount : undefined,
           fuelLiters:
@@ -602,14 +709,31 @@ export const useAppStore = create<AppState>()(
           fullTank: targetEntry.type === "fuel" ? updates.fullTank : undefined,
           expenseCategory:
             targetEntry.type === "expense"
-              ? updates.expenseCategory
+              ? (updates.expenseCategory ?? targetEntry.expenseCategory)
               : undefined,
           expenseTitle:
-            targetEntry.type === "expense" ? updates.expenseTitle : undefined,
+            targetEntry.type === "expense"
+              ? (updates.expenseTitle ?? targetEntry.expenseTitle)
+              : undefined,
           cost: updates.cost,
-          sharedTrip: updates.sharedTrip !== undefined ? updates.sharedTrip : targetEntry.sharedTrip,
-          sharedTripMarkedById: updates.sharedTrip ? targetEntry.userId : undefined,
-          sharedTripMarkedByName: updates.sharedTrip ? targetEntry.userName : undefined,
+          sharedTrip:
+            updates.sharedTrip !== undefined
+              ? updates.sharedTrip
+              : targetEntry.sharedTrip,
+          // Fuel and expense entries reuse the existing sharedTripMarkedBy
+          // fields to retain who entered the record, even when a different
+          // user paid.
+          sharedTripMarkedById: isPayerEditableEntry
+            ? (updates.sharedTripMarkedById ?? targetEntry.sharedTripMarkedById)
+            : updates.sharedTrip
+              ? targetEntry.userId
+              : undefined,
+          sharedTripMarkedByName: isPayerEditableEntry
+            ? (updates.sharedTripMarkedByName ??
+              targetEntry.sharedTripMarkedByName)
+            : updates.sharedTrip
+              ? targetEntry.userName
+              : undefined,
           synced: false,
         };
         const integrityHash = await buildEntryIntegrityHash(
@@ -626,18 +750,28 @@ export const useAppStore = create<AppState>()(
         const nextRecord: EntryRecord = {
           ...updatedEntry,
           integrityHash,
+          lastSyncedAt: preservedLastSyncedAt,
         };
 
         set((state) => {
-          const nextEntries = state.entries.map((entry) =>
-            entry.id === entryId ? nextRecord : entry,
-          );
+          const nextEntries = state.entries
+            .map((entry) => (entry.id === entryId ? nextRecord : entry))
+            .sort((a, b) => b.createdAt - a.createdAt);
 
           return {
             entries: nextEntries,
             pendingQueue: nextQueue,
             lastOdometerValue: recalculateLastOdometer(nextEntries),
             syncStatus: "failed",
+            activeTrip:
+              state.activeTrip?.startEntryId === entryId
+                ? {
+                    ...state.activeTrip,
+                    startEntryId: nextRecord.id,
+                    startOdometer: nextRecord.odometer,
+                    startedAt: nextRecord.createdAt,
+                  }
+                : state.activeTrip,
           };
         });
 
@@ -645,41 +779,27 @@ export const useAppStore = create<AppState>()(
       },
 
       deleteEntry: async (entryId) => {
-        const { entries, pendingQueue } = get();
-
         try {
           await removeEntryFromRealtimeDb(entryId);
-        } catch (error) {
-          console.error('Failed to remote delete entry:', error);
+        } catch (_error) {
+          // Error handling can be added here if needed
         }
 
         set((state) => {
-          const nextEntries = state.entries.filter((entry) => entry.id !== entryId);
+          const nextEntries = state.entries.filter(
+            (entry) => entry.id !== entryId,
+          );
           return {
             entries: nextEntries,
-            pendingQueue: state.pendingQueue.filter(q => q.entryId !== entryId),
+            pendingQueue: state.pendingQueue.filter(
+              (q) => q.entryId !== entryId,
+            ),
             lastOdometerValue: recalculateLastOdometer(nextEntries),
           };
         });
       },
 
-      markEntriesSynced: (entryIds) => {
-        const ids = new Set(entryIds);
-
-        set((state) => ({
-          entries: state.entries.map((entry) =>
-            ids.has(entry.id)
-              ? {
-                ...entry,
-                synced: true,
-              }
-              : entry,
-          ),
-          pendingQueue: state.pendingQueue.filter(
-            (item) => !ids.has(item.entryId),
-          ),
-        }));
-      },
+      markEntriesSynced: (_entryIds) => {},
 
       updatePendingQueue: (nextQueue) => {
         set({ pendingQueue: normalizeQueue(nextQueue) });
@@ -687,6 +807,7 @@ export const useAppStore = create<AppState>()(
 
       mergeRemoteEntries: async (remoteEntries) => {
         const secret = await ensureIntegritySecret();
+        const lastSyncedAt = Date.now();
         const remoteRecords: EntryRecord[] = [];
         for (const remoteEntry of remoteEntries) {
           const baseEntry: Entry = {
@@ -697,7 +818,11 @@ export const useAppStore = create<AppState>()(
             baseEntry,
             secret,
           );
-          remoteRecords.push({ ...baseEntry, integrityHash });
+          remoteRecords.push({
+            ...baseEntry,
+            integrityHash,
+            lastSyncedAt,
+          });
         }
 
         set((state) => {
@@ -712,14 +837,15 @@ export const useAppStore = create<AppState>()(
           // If an entry is missing from the latest server snapshot, it was likely
           // deleted on the server and must be removed locally.
           const allEntries = Array.from(byId.values())
-            .sort(
-            (a, b) => b.createdAt - a.createdAt,
-            )
-            .filter((entry) => !entry.synced || remoteIdSet.has(entry.id));
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .filter((entry) => {
+              const localOnlyEntry = !entry.synced && !entry.lastSyncedAt;
+              return remoteIdSet.has(entry.id) || localOnlyEntry;
+            });
 
           const lastOdometerValue = allEntries.reduce(
             (maxValue, entry) => Math.max(maxValue, entry.odometer),
-            state.lastOdometerValue,
+            0,
           );
           const unsyncedIds = new Set(
             allEntries
@@ -737,7 +863,9 @@ export const useAppStore = create<AppState>()(
             activeTrip: (() => {
               const activeTrip = state.activeTrip;
               if (!activeTrip) return null;
-              return allEntries.some((e) => e.id === activeTrip.startEntryId) ? activeTrip : null;
+              return allEntries.some((e) => e.id === activeTrip.startEntryId)
+                ? activeTrip
+                : null;
             })(),
           };
         });
@@ -806,6 +934,16 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      updateTyreSetup: (tyreSetup) => {
+        set((state) => ({
+          carSpec: normalizeCarSpec({
+            ...state.carSpec,
+            tyreSetup,
+          }),
+          carSpecDirty: true,
+        }));
+      },
+
       markCarSpecSynced: () => {
         set({ carSpecDirty: false });
       },
@@ -816,6 +954,39 @@ export const useAppStore = create<AppState>()(
           carSpec: normalizeCarSpec(carSpec),
           carSpecDirty: shouldSyncNormalizedSpec,
         });
+      },
+
+      setReportMileage: (monthKey, value) => {
+        set((state) => ({
+          reportMileageByMonth: {
+            ...state.reportMileageByMonth,
+            [monthKey]: value,
+          },
+        }));
+      },
+
+      replaceReportMileage: (data) => {
+        set({ reportMileageByMonth: data });
+      },
+
+      markReportSettled: (monthKey) => {
+        set((state) => ({
+          settledReportMonths: {
+            ...state.settledReportMonths,
+            [monthKey]: true,
+          },
+        }));
+      },
+
+      unmarkReportSettled: (monthKey) => {
+        set((state) => {
+          const { [monthKey]: _, ...rest } = state.settledReportMonths;
+          return { settledReportMonths: rest };
+        });
+      },
+
+      replaceSettledReportMonths: (data) => {
+        set({ settledReportMonths: data });
       },
 
       markEntrySharedTrip: async (entryId, actor) => {
@@ -854,9 +1025,12 @@ export const useAppStore = create<AppState>()(
           entries: state.entries.map((entry) =>
             entry.id === entryId
               ? {
-                ...updatedEntry,
-                integrityHash,
-              }
+                  ...updatedEntry,
+                  integrityHash,
+                  lastSyncedAt:
+                    entry.lastSyncedAt ??
+                    (entry.synced ? entry.createdAt : undefined),
+                }
               : entry,
           ),
           pendingQueue: nextQueue,
@@ -1427,6 +1601,8 @@ export const useAppStore = create<AppState>()(
         carSpec: state.carSpec,
         carSpecDirty: state.carSpecDirty,
         activeTrip: state.activeTrip,
+        reportMileageByMonth: state.reportMileageByMonth,
+        settledReportMonths: state.settledReportMonths,
       }),
       merge: (persistedState, currentState) => {
         const typedPersistedState = (persistedState as Partial<AppState>) ?? {};
@@ -1438,6 +1614,8 @@ export const useAppStore = create<AppState>()(
           carSpecDirty:
             Boolean(typedPersistedState.carSpecDirty) ||
             requiresCarSpecNormalization(persistedCarSpec),
+          reportMileageByMonth: typedPersistedState.reportMileageByMonth ?? {},
+          settledReportMonths: typedPersistedState.settledReportMonths ?? {},
         };
       },
       onRehydrateStorage: () => (state) => {

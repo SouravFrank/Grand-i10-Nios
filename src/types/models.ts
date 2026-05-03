@@ -1,20 +1,39 @@
-export type EntryType = 'odometer' | 'fuel' | 'spec_update' | 'expense';
+export type EntryType = "odometer" | "fuel" | "spec_update" | "expense";
 
 export type ExpenseCategory =
-  | 'shield_safety'
-  | 'care_comfort'
-  | 'maintenance_lab'
-  | 'utility_addon'
-  | 'purchase'
-  | 'traffic_violation_fine'
-  | 'fasttag_toll_paid'
-  | 'other';
+  | "shield_safety"
+  | "care_comfort"
+  | "maintenance_lab"
+  | "utility_addon"
+  | "purchase"
+  | "traffic_violation_fine"
+  | "fasttag_toll_paid"
+  | "parking"
+  | "other";
 
 export type SpecUpdateDetail = {
   field: string;
   label: string;
   previousValue: string;
   nextValue: string;
+};
+
+export type TyrePosition = "pf" | "df" | "pb" | "db" | "s";
+
+export type TyreRecord = {
+  // Physical tyre identity. This stays stable even if the tyre rotates.
+  id: TyrePosition;
+  // Where the tyre is currently mounted: one of the four active positions or spare.
+  currentPosition: TyrePosition;
+  treadDepthAtInspection: number;
+  inspectionOdometer: number;
+  inspectionDate: string;
+  // Total active-use distance accumulated since the last inspection baseline.
+  accumulatedActiveKm: number;
+  // Odometer when the tyre was last assigned to its current position.
+  positionAssignedAtOdometer: number;
+  isNew: boolean;
+  movedFromPosition?: TyrePosition;
 };
 
 export type Entry = {
@@ -24,7 +43,7 @@ export type Entry = {
   userName: string;
   odometer: number;
   tripId?: string;
-  tripStage?: 'start' | 'end';
+  tripStage?: "start" | "end";
   tripDistanceKm?: number;
   fuelAmount?: number;
   fuelLiters?: number;
@@ -43,6 +62,7 @@ export type Entry = {
 
 export type EntryRecord = Entry & {
   integrityHash: string;
+  lastSyncedAt?: number;
 };
 
 export type ActiveTrip = {
@@ -77,11 +97,15 @@ export type SecureUserPayload = {
   credentialHash: string;
 };
 
-export type SyncStatus = 'synced' | 'syncing' | 'failed';
+export type SyncStatus = "synced" | "syncing" | "failed";
 
-export type AuthStatus = 'booting' | 'unauthenticated' | 'biometric' | 'authenticated';
+export type AuthStatus =
+  | "booting"
+  | "unauthenticated"
+  | "biometric"
+  | "authenticated";
 
-export type RemoteEntryDocument = Omit<Entry, 'synced'>;
+export type RemoteEntryDocument = Omit<Entry, "synced">;
 
 export type CarSpec = {
   purchasedOn: string;
@@ -108,6 +132,7 @@ export type CarSpec = {
   lastBatteryChangedOn: string;
   lastBrakePadsChangedOn: string;
   lastTyresChangedOn: string;
+  tyreSetup: TyreRecord[];
   puccExpireDate: string;
   insuranceValidUpTo: string;
   fitnessValidUpTo: string;
@@ -144,7 +169,14 @@ export type CarSpecFieldUpdateSubmission = {
   cost?: number;
 };
 
-export type CarDocumentKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport';
+export type CarDocumentKey =
+  | "pucc"
+  | "insurance"
+  | "rc"
+  | "fitness"
+  | "roadTax"
+  | "numberPlate"
+  | "pdiReport";
 
 export type RemoteCarDocument = {
   data: string; // base64-encoded file content

@@ -1,0 +1,135 @@
+import { useAppTheme } from '@/theme/useAppTheme';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Text, View } from 'react-native';
+import { FastagData, ReportUserSummary } from '../../reportCalculations';
+import { formatINR } from '../../reportUtils';
+import { styles } from '../common/TripTab.styles';
+
+const AYAN_COLOR = '#3B82F6';
+const SOURAV_COLOR = '#8B5CF6'; 
+
+interface FastagSummarySectionProps {
+  fastag: FastagData;
+  ayanSummary: ReportUserSummary;
+  souravSummary: ReportUserSummary;
+  surfaceColor: string;
+  secondarySurfaceColor: string;
+}
+
+export function FastagSummarySection({
+  fastag, ayanSummary, souravSummary, surfaceColor, secondarySurfaceColor,
+}: FastagSummarySectionProps) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.titleRow}>
+          <View style={{
+            backgroundColor: colors.textPrimary,
+            padding: 6,
+            borderRadius: 8,
+            shadowColor: colors.textPrimary,
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            transform: [{ rotate: '-5deg' }],
+          }}>
+            <MaterialIcons name="toll" size={16} color={colors.background} />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Fastag Summary</Text>
+        </View>
+      </View>
+
+      <View style={styles.threeColumnRow}>
+        <View style={[styles.compactCard, { backgroundColor: secondarySurfaceColor }]}>
+          <Text style={[styles.compactTitle, { color: colors.textSecondary }]}>Previous</Text>
+          <Text style={[styles.compactAmount, { color: colors.textPrimary, marginTop: 4 }]}>
+            {formatINR(fastag.openingBalance)}
+          </Text>
+        </View>
+
+        <View style={[styles.compactCard, { backgroundColor: secondarySurfaceColor }]}>
+          <Text style={[styles.compactTitle, { color: colors.textSecondary }]}>Recharged</Text>
+          <Text style={[styles.compactAmount, { color: colors.textPrimary, marginTop: 4 }]} numberOfLines={1}>
+            {formatINR(fastag.rechargeAmount)}
+          </Text>
+        </View>
+
+        <View style={[styles.compactCard, { backgroundColor: secondarySurfaceColor }]}>
+          <Text style={[styles.compactTitle, { color: colors.textSecondary }]}>Used</Text>
+          <Text style={[styles.compactAmount, { color: colors.textPrimary, marginTop: 4 }]} numberOfLines={1}>
+            {formatINR(fastag.usedAmount)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[
+        styles.highlightedCard, 
+        { backgroundColor: `${colors.primary}10`, borderWidth: 2, borderColor: `${colors.primary}40`, borderStyle: 'dashed' }
+      ]}>
+        <View style={styles.cardHeader}>
+          <MaterialIcons name="account-balance-wallet" size={16} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.primary }]}>Closing Balance</Text>
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={[styles.primaryAmount, { color: colors.primary }]}>{formatINR(fastag.closingBalance)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.userSplitSection}>
+        {/* <Text style={[styles.cardTitle, { color: colors.textSecondary, marginBottom: 4 }]}>User-wise Usage</Text> */}
+        <View style={styles.userCardsRow}>
+          
+          {/* Ayan's Compact Card */}
+          <View style={[
+            styles.userCard, 
+            { padding: 12, backgroundColor: `${AYAN_COLOR}0A`, borderWidth: 1, borderColor: `${AYAN_COLOR}40` }
+          ]}>
+            <View style={[styles.userHeader, { marginBottom: 8 }]}>
+              <MaterialIcons name="person" size={16} color={AYAN_COLOR} />
+              <Text style={[styles.userName, { color: AYAN_COLOR }]}>Ayan</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.userStatBlock}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagUsedAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
+              </View>
+              {/* Subtle Divider */}
+              <View style={{ width: 1, height: 24, backgroundColor: `${AYAN_COLOR}30` }} />
+              <View style={[styles.userStatBlock, { alignItems: 'flex-end' }]}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(ayanSummary.fastagRechargeAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Sourav's Compact Card */}
+          <View style={[
+            styles.userCard, 
+            { padding: 12, backgroundColor: `${SOURAV_COLOR}0A`, borderWidth: 1, borderColor: `${SOURAV_COLOR}40` }
+          ]}>
+            <View style={[styles.userHeader, { marginBottom: 8 }]}>
+              <MaterialIcons name="person" size={16} color={SOURAV_COLOR} />
+              <Text style={[styles.userName, { color: SOURAV_COLOR }]}>Sourav</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.userStatBlock}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagUsedAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Used</Text>
+              </View>
+              {/* Subtle Divider */}
+              <View style={{ width: 1, height: 24, backgroundColor: `${SOURAV_COLOR}30` }} />
+              <View style={[styles.userStatBlock, { alignItems: 'flex-end' }]}>
+                <Text style={[styles.compactAmount, { color: colors.textPrimary }]}>{formatINR(souravSummary.fastagRechargeAmount)}</Text>
+                <Text style={[styles.tertiaryLabel, { color: colors.textSecondary }]}>Recharged</Text>
+              </View>
+            </View>
+          </View>
+
+        </View>
+      </View>
+    </View>
+  );
+}

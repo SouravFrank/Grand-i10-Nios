@@ -1,19 +1,19 @@
-import Constants from 'expo-constants';
-import { useSyncExternalStore } from 'react';
+import Constants from "expo-constants";
+import { useSyncExternalStore } from "react";
 
 type SyncLogPayload = Record<string, unknown> | undefined;
 export type SyncLogEntry = {
   id: string;
-  level: 'log' | 'warn' | 'error';
+  level: "log" | "warn" | "error";
   line: string;
   timestamp: string;
 };
 
-const SYNC_LOG_PREFIX = '[SYNC_DEBUG]';
+const SYNC_LOG_PREFIX = "[SYNC_DEBUG]";
 const isSyncDebugEnabled =
   __DEV__ ||
-  process.env.EXPO_PUBLIC_SYNC_DEBUG === '1' ||
-  Constants.expoConfig?.extra?.syncDebug === '1';
+  process.env.EXPO_PUBLIC_SYNC_DEBUG === "1" ||
+  Constants.expoConfig?.extra?.syncDebug === "1";
 const MAX_SYNC_LOG_ENTRIES = 300;
 let syncLogEntries: SyncLogEntry[] = [];
 const listeners = new Set<() => void>();
@@ -22,7 +22,7 @@ function notifyListeners() {
   listeners.forEach((listener) => listener());
 }
 
-function pushSyncLogEntry(level: 'log' | 'warn' | 'error', line: string) {
+function pushSyncLogEntry(level: "log" | "warn" | "error", line: string) {
   syncLogEntries = [
     {
       id: `${Date.now()}_${Math.random()}`,
@@ -35,41 +35,39 @@ function pushSyncLogEntry(level: 'log' | 'warn' | 'error', line: string) {
   notifyListeners();
 }
 
-function write(level: 'log' | 'warn' | 'error', message: string, payload?: SyncLogPayload) {
+function write(
+  level: "log" | "warn" | "error",
+  message: string,
+  payload?: SyncLogPayload,
+) {
   const line = `${SYNC_LOG_PREFIX} ${new Date().toISOString()} ${message}`;
   if (payload) {
     try {
       const payloadString = JSON.stringify(payload);
       const fullLine = `${line} ${payloadString}`;
       pushSyncLogEntry(level, fullLine);
-      if (isSyncDebugEnabled) {
-        console[level](fullLine);
-      }
     } catch {
       pushSyncLogEntry(level, line);
-      if (isSyncDebugEnabled) {
-        console[level](line, payload);
-      }
     }
     return;
   }
 
   pushSyncLogEntry(level, line);
   if (isSyncDebugEnabled) {
-    console[level](line);
+    // console[level](line);
   }
 }
 
 export function syncLog(message: string, payload?: SyncLogPayload) {
-  write('log', message, payload);
+  write("log", message, payload);
 }
 
 export function syncWarn(message: string, payload?: SyncLogPayload) {
-  write('warn', message, payload);
+  write("warn", message, payload);
 }
 
 export function syncError(message: string, payload?: SyncLogPayload) {
-  write('error', message, payload);
+  write("error", message, payload);
 }
 
 export function toErrorPayload(error: unknown): Record<string, unknown> {
@@ -105,5 +103,9 @@ export function subscribeSyncLogs(listener: () => void) {
 }
 
 export function useSyncLogEntries() {
-  return useSyncExternalStore(subscribeSyncLogs, getSyncLogEntries, getSyncLogEntries);
+  return useSyncExternalStore(
+    subscribeSyncLogs,
+    getSyncLogEntries,
+    getSyncLogEntries,
+  );
 }
