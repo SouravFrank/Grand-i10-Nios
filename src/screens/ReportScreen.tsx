@@ -9,6 +9,7 @@ import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import { buildExpenseReport, ReportData } from '@/screens/reporting/reportCalculations';
 import { DateTarget, ReportFilterMode, ReportTab } from '@/screens/reporting/reportUtils';
+import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import { dayjs } from '@/utils/day';
@@ -206,6 +207,7 @@ export function ReportScreen({ navigation }: Props) {
 
     setReportMileage(report.mileageEditorMonthKey, parsedValue);
     setIsMileageEditorVisible(false);
+    void runSyncCycle();
   };
 
   const handleConfirmSettlement = () => {
@@ -216,6 +218,7 @@ export function ReportScreen({ navigation }: Props) {
 
     markReportSettled(activeRange.monthKey);
     setIsSettlementModalVisible(false);
+    void runSyncCycle();
 
     Animated.sequence([
       Animated.spring(statusScaleAnim, {
@@ -241,6 +244,7 @@ export function ReportScreen({ navigation }: Props) {
 
     unmarkReportSettled(activeRange.monthKey);
     setIsSettlementModalVisible(false);
+    void runSyncCycle();
   };
 
   const handleExportCsv = async () => {

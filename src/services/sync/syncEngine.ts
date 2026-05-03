@@ -1,35 +1,35 @@
 import {
-    ensureAnonymousFirebaseAuth,
-    getFirebaseConfigErrorMessage,
-    getFirebaseDb,
+  ensureAnonymousFirebaseAuth,
+  getFirebaseConfigErrorMessage,
+  getFirebaseDb,
 } from "@/config/firebase";
 import {
-    pullDocumentMetadataFromRealtimeDb,
-    pullSingleDocumentFromRealtimeDb,
+  pullDocumentMetadataFromRealtimeDb,
+  pullSingleDocumentFromRealtimeDb,
 } from "@/services/realtime/documentsRepository";
 import {
-    pullCarSpecFromRealtimeDb,
-    pullEntriesFromRealtimeDb,
-    pushCarSpecToRealtimeDb,
-    pushEntryToRealtimeDb,
+  pullCarSpecFromRealtimeDb,
+  pullEntriesFromRealtimeDb,
+  pushCarSpecToRealtimeDb,
+  pushEntryToRealtimeDb,
 } from "@/services/realtime/entriesRepository";
 import {
-    pullMileageFromRealtimeDb,
-    pullSettlementsFromRealtimeDb,
-    pushMileageToRealtimeDb,
-    pushSettlementsToRealtimeDb,
+  pullMileageFromRealtimeDb,
+  pullSettlementsFromRealtimeDb,
+  pushMileageToRealtimeDb,
+  pushSettlementsToRealtimeDb,
 } from "@/services/realtime/settlementRepository";
 import {
-    getAllLocalDocuments,
-    saveDocumentLocally,
+  getAllLocalDocuments,
+  saveDocumentLocally,
 } from "@/services/storage/localDocuments";
 import { useAppStore } from "@/store/useAppStore";
 import type { CarDocumentKey, PendingQueueItem } from "@/types/models";
 import {
-    syncError,
-    syncLog,
-    syncWarn,
-    toErrorPayload,
+  syncError,
+  syncLog,
+  syncWarn,
+  toErrorPayload,
 } from "@/utils/syncLogger";
 
 function buildFailedQueueItem(queueItem: PendingQueueItem): PendingQueueItem {
@@ -231,13 +231,25 @@ async function runSyncCycleInternal(): Promise<void> {
     }
 
     // ── Settlements & Mileage Sync ──────────────────────────────────────────
+    console.log("[DEBUG] syncEngine: Starting settlements & mileage sync");
     try {
       syncLog("sync_cycle_settlements_start");
+      console.log("[DEBUG] syncEngine: Pulling settlements from remote");
       const remoteSettlements = await pullSettlementsFromRealtimeDb();
-      const localSettlements = currentState.settledReportMonths;
+      // Always get fresh state to ensure we have latest settlement updates
+      const freshStateForSettlements = useAppStore.getState();
+      const localSettlements = freshStateForSettlements.settledReportMonths;
+      console.log("[DEBUG] syncEngine: Local settlements state", {
+        monthCount: Object.keys(localSettlements).length,
+        months: Object.keys(localSettlements),
+      });
 
       if (remoteSettlements) {
         // Merge: if remote has newer data, use it; otherwise keep local
+        console.log("[DEBUG] syncEngine: Remote settlements found, merging", {
+          remoteMonthCount: Object.keys(remoteSettlements.settledReportMonths)
+            .length,
+        });
         const mergedSettlements = {
           ...remoteSettlements.settledReportMonths,
           ...localSettlements,
@@ -246,24 +258,46 @@ async function runSyncCycleInternal(): Promise<void> {
         syncLog("sync_cycle_settlements_merged", {
           count: Object.keys(mergedSettlements).length,
         });
+      } else {
+        console.log("[DEBUG] syncEngine: No remote settlements found");
       }
 
-      // Always push local state to ensure server has latest
-      await pushSettlementsToRealtimeDb(
-        useAppStore.getState().settledReportMonths,
-      );
-      syncLog("sync_cycle_settlements_pushed");
+      // Always push fresh local state to ensure server has latest
+      const stateToPush = useAppStore.getState().settledReportMonths;
+      console.log("[DEBUG] syncEngine: Pushing settlements to remote", {
+        monthCount: Object.keys(stateToPush).length,
+      });
+      await pushSettlementsToRealtimeDb(stateToPush);
+      syncLog("sync_cycle_settlements_pushed", {
+        monthCount: Object.keys(useAppStore.getState().settledReportMonths)
+          .length,
+      });
     } catch (settlementError) {
+      console.error(
+        "[DEBUG] syncEngine: Settlements sync error",
+        settlementError,
+      );
       syncWarn("sync_cycle_settlements_error", toErrorPayload(settlementError));
     }
 
     try {
       syncLog("sync_cycle_mileage_start");
+      console.log("[DEBUG] syncEngine: Pulling mileage from remote");
       const remoteMileage = await pullMileageFromRealtimeDb();
-      const localMileage = currentState.reportMileageByMonth;
+      // Always get fresh state to ensure we have latest mileage updates
+      const freshState = useAppStore.getState();
+      const localMileage = freshState.reportMileageByMonth;
+      console.log("[DEBUG] syncEngine: Local mileage state", {
+        monthCount: Object.keys(localMileage).length,
+        months: Object.keys(localMileage),
+      });
 
       if (remoteMileage) {
         // Merge: if remote has newer data, use it; otherwise keep local
+        console.log("[DEBUG] syncEngine: Remote mileage found, merging", {
+          remoteMonthCount: Object.keys(remoteMileage.reportMileageByMonth)
+            .length,
+        });
         const mergedMileage = {
           ...remoteMileage.reportMileageByMonth,
           ...localMileage,
@@ -272,16 +306,25 @@ async function runSyncCycleInternal(): Promise<void> {
         syncLog("sync_cycle_mileage_merged", {
           count: Object.keys(mergedMileage).length,
         });
+      } else {
+        console.log("[DEBUG] syncEngine: No remote mileage found");
       }
 
-      // Always push local state to ensure server has latest
-      await pushMileageToRealtimeDb(
-        useAppStore.getState().reportMileageByMonth,
-      );
-      syncLog("sync_cycle_mileage_pushed");
+      // Always push fresh local state to ensure server has latest
+      const mileageToPush = useAppStore.getState().reportMileageByMonth;
+      console.log("[DEBUG] syncEngine: Pushing mileage to remote", {
+        monthCount: Object.keys(mileageToPush).length,
+      });
+      await pushMileageToRealtimeDb(mileageToPush);
+      syncLog("sync_cycle_mileage_pushed", {
+        monthCount: Object.keys(useAppStore.getState().reportMileageByMonth)
+          .length,
+      });
     } catch (mileageError) {
+      console.error("[DEBUG] syncEngine: Mileage sync error", mileageError);
       syncWarn("sync_cycle_mileage_error", toErrorPayload(mileageError));
     }
+    console.log("[DEBUG] syncEngine: Finished settlements & mileage sync");
 
     // ── Document Sync (non-blocking) ──────────────────────────────────────────
     try {

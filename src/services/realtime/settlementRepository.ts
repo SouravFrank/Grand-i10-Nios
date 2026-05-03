@@ -1,10 +1,16 @@
-import { get, ref, set } from 'firebase/database';
+import { get, ref, set } from "firebase/database";
 
-import { getFirebaseDb } from '@/config/firebase';
-import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger';
+import { getFirebaseDb } from "@/config/firebase";
+import {
+    syncError,
+    syncLog,
+    syncWarn,
+    toErrorPayload,
+} from "@/utils/syncLogger";
 
-const SETTLEMENTS_PATH = 'carMeta/settlements';
-const MILEAGE_PATH = 'carMeta/reportMileage';
+// Separate top-level tables for mileage and settlements (not under carMeta)
+const SETTLEMENTS_PATH = "reportSettlements";
+const MILEAGE_PATH = "reportMileage";
 
 export type RemoteSettlementsData = {
   settledReportMonths: Record<string, boolean>;
@@ -17,11 +23,14 @@ export type RemoteMileageData = {
 };
 
 export async function pushSettlementsToRealtimeDb(
-  settledReportMonths: Record<string, boolean>
+  settledReportMonths: Record<string, boolean>,
 ): Promise<void> {
   const db = getFirebaseDb();
   if (!db) {
-    throw new Error('Firebase is not configured.');
+    console.error(
+      "[DEBUG] pushSettlementsToRealtimeDb: Firebase DB not configured",
+    );
+    throw new Error("Firebase is not configured.");
   }
 
   const payload: RemoteSettlementsData = {
@@ -30,11 +39,20 @@ export async function pushSettlementsToRealtimeDb(
   };
 
   try {
-    syncLog('realtime_push_settlements_start', { monthCount: Object.keys(settledReportMonths).length });
+    console.log("[DEBUG] pushSettlementsToRealtimeDb: Starting push", {
+      path: SETTLEMENTS_PATH,
+      monthCount: Object.keys(settledReportMonths).length,
+      months: Object.keys(settledReportMonths),
+    });
+    syncLog("realtime_push_settlements_start", {
+      monthCount: Object.keys(settledReportMonths).length,
+    });
     await set(ref(db, SETTLEMENTS_PATH), payload);
-    syncLog('realtime_push_settlements_success');
+    console.log("[DEBUG] pushSettlementsToRealtimeDb: Push successful");
+    syncLog("realtime_push_settlements_success");
   } catch (error) {
-    syncError('realtime_push_settlements_failed', toErrorPayload(error));
+    console.error("[DEBUG] pushSettlementsToRealtimeDb: Push failed", error);
+    syncError("realtime_push_settlements_failed", toErrorPayload(error));
     throw error;
   }
 }
@@ -42,33 +60,52 @@ export async function pushSettlementsToRealtimeDb(
 export async function pullSettlementsFromRealtimeDb(): Promise<RemoteSettlementsData | null> {
   const db = getFirebaseDb();
   if (!db) {
-    syncWarn('realtime_pull_settlements_skipped_no_db');
+    console.warn(
+      "[DEBUG] pullSettlementsFromRealtimeDb: Firebase DB not configured",
+    );
+    syncWarn("realtime_pull_settlements_skipped_no_db");
     return null;
   }
 
   try {
-    syncLog('realtime_pull_settlements_start');
+    console.log("[DEBUG] pullSettlementsFromRealtimeDb: Starting pull", {
+      path: SETTLEMENTS_PATH,
+    });
+    syncLog("realtime_pull_settlements_start");
     const snapshot = await get(ref(db, SETTLEMENTS_PATH));
     if (!snapshot.exists()) {
-      syncLog('realtime_pull_settlements_empty');
+      console.log(
+        "[DEBUG] pullSettlementsFromRealtimeDb: No data exists at path",
+      );
+      syncLog("realtime_pull_settlements_empty");
       return null;
     }
 
     const data = snapshot.val() as RemoteSettlementsData;
-    syncLog('realtime_pull_settlements_success', { monthCount: Object.keys(data.settledReportMonths).length });
+    console.log("[DEBUG] pullSettlementsFromRealtimeDb: Pull successful", {
+      monthCount: Object.keys(data.settledReportMonths).length,
+      months: Object.keys(data.settledReportMonths),
+    });
+    syncLog("realtime_pull_settlements_success", {
+      monthCount: Object.keys(data.settledReportMonths).length,
+    });
     return data;
   } catch (error) {
-    syncError('realtime_pull_settlements_failed', toErrorPayload(error));
+    console.error("[DEBUG] pullSettlementsFromRealtimeDb: Pull failed", error);
+    syncError("realtime_pull_settlements_failed", toErrorPayload(error));
     throw error;
   }
 }
 
 export async function pushMileageToRealtimeDb(
-  reportMileageByMonth: Record<string, number>
+  reportMileageByMonth: Record<string, number>,
 ): Promise<void> {
   const db = getFirebaseDb();
   if (!db) {
-    throw new Error('Firebase is not configured.');
+    console.error(
+      "[DEBUG] pushMileageToRealtimeDb: Firebase DB not configured",
+    );
+    throw new Error("Firebase is not configured.");
   }
 
   const payload: RemoteMileageData = {
@@ -77,11 +114,20 @@ export async function pushMileageToRealtimeDb(
   };
 
   try {
-    syncLog('realtime_push_mileage_start', { monthCount: Object.keys(reportMileageByMonth).length });
+    console.log("[DEBUG] pushMileageToRealtimeDb: Starting push", {
+      path: MILEAGE_PATH,
+      monthCount: Object.keys(reportMileageByMonth).length,
+      months: Object.keys(reportMileageByMonth),
+    });
+    syncLog("realtime_push_mileage_start", {
+      monthCount: Object.keys(reportMileageByMonth).length,
+    });
     await set(ref(db, MILEAGE_PATH), payload);
-    syncLog('realtime_push_mileage_success');
+    console.log("[DEBUG] pushMileageToRealtimeDb: Push successful");
+    syncLog("realtime_push_mileage_success");
   } catch (error) {
-    syncError('realtime_push_mileage_failed', toErrorPayload(error));
+    console.error("[DEBUG] pushMileageToRealtimeDb: Push failed", error);
+    syncError("realtime_push_mileage_failed", toErrorPayload(error));
     throw error;
   }
 }
@@ -89,23 +135,37 @@ export async function pushMileageToRealtimeDb(
 export async function pullMileageFromRealtimeDb(): Promise<RemoteMileageData | null> {
   const db = getFirebaseDb();
   if (!db) {
-    syncWarn('realtime_pull_mileage_skipped_no_db');
+    console.warn(
+      "[DEBUG] pullMileageFromRealtimeDb: Firebase DB not configured",
+    );
+    syncWarn("realtime_pull_mileage_skipped_no_db");
     return null;
   }
 
   try {
-    syncLog('realtime_pull_mileage_start');
+    console.log("[DEBUG] pullMileageFromRealtimeDb: Starting pull", {
+      path: MILEAGE_PATH,
+    });
+    syncLog("realtime_pull_mileage_start");
     const snapshot = await get(ref(db, MILEAGE_PATH));
     if (!snapshot.exists()) {
-      syncLog('realtime_pull_mileage_empty');
+      console.log("[DEBUG] pullMileageFromRealtimeDb: No data exists at path");
+      syncLog("realtime_pull_mileage_empty");
       return null;
     }
 
     const data = snapshot.val() as RemoteMileageData;
-    syncLog('realtime_pull_mileage_success', { monthCount: Object.keys(data.reportMileageByMonth).length });
+    console.log("[DEBUG] pullMileageFromRealtimeDb: Pull successful", {
+      monthCount: Object.keys(data.reportMileageByMonth).length,
+      months: Object.keys(data.reportMileageByMonth),
+    });
+    syncLog("realtime_pull_mileage_success", {
+      monthCount: Object.keys(data.reportMileageByMonth).length,
+    });
     return data;
   } catch (error) {
-    syncError('realtime_pull_mileage_failed', toErrorPayload(error));
+    console.error("[DEBUG] pullMileageFromRealtimeDb: Pull failed", error);
+    syncError("realtime_pull_mileage_failed", toErrorPayload(error));
     throw error;
   }
 }
