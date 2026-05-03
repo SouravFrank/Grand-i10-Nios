@@ -1,7 +1,7 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -88,9 +88,12 @@ export function StartingCarScreen({ navigation, route }: Props) {
 
     const parsedOdometer = Number(odometer);
 
-    if (parsedOdometer < lastOdometer) return Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
-    if (parsedOdometer - lastOdometer > 500) return Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
-    if (isEndingTrip && activeTrip && parsedOdometer < activeTrip.startOdometer) return Alert.alert('Invalid odometer', 'Trip end odometer cannot be less than the trip start reading.');
+    // Validation only applies when creating new entries, not when editing
+    if (!isEditing) {
+      if (parsedOdometer < lastOdometer) return Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
+      if (parsedOdometer - lastOdometer > 500) return Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
+      if (isEndingTrip && activeTrip && parsedOdometer < activeTrip.startOdometer) return Alert.alert('Invalid odometer', 'Trip end odometer cannot be less than the trip start reading.');
+    }
 
     try {
       const payload = { odometer: parsedOdometer, sharedTrip: sharedTripEnabled };

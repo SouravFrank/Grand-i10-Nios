@@ -3,16 +3,18 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-    Alert,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Switch,
-    Text,
-    View,
+  Alert,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
@@ -73,53 +75,28 @@ const keywordCategoryRules: Array<{ keywords: string[]; category: ExpenseCategor
 
 function inferExpenseCategory(title: string): ExpenseCategory {
   const normalized = title.trim().toLowerCase();
-  if (!normalized) {
-    return 'other';
-  }
-
-  const matchedRule = keywordCategoryRules.find((rule) =>
-    rule.keywords.some((keyword) => normalized.includes(keyword)),
-  );
+  if (!normalized) return 'other';
+  const matchedRule = keywordCategoryRules.find((rule) => rule.keywords.some((keyword) => normalized.includes(keyword)));
   return matchedRule?.category ?? 'other';
 }
 
 const expenseSchema = z.object({
-  odometer: z
-    .string()
-    .trim()
-    .min(1, 'Odometer is required.')
-    .refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
+  odometer: z.string().trim().min(1, 'Odometer is required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
   expenseTitle: z.string().trim().min(2, 'Expense title is required.').max(48, 'Keep title under 48 characters.'),
-  cost: z
-    .string()
-    .trim()
-    .min(1, 'Cost is required.')
-    .refine((value) => Number(value) > 0, 'Cost must be positive.'),
-  paidByUserId: z
-    .string()
-    .trim()
-    .optional(),
+  cost: z.string().trim().min(1, 'Cost is required.').refine((value) => Number(value) > 0, 'Cost must be positive.'),
+  paidByUserId: z.string().trim().optional(),
 }).superRefine((data, context) => {
   const category = inferExpenseCategory(data.expenseTitle);
   if (category !== 'fasttag_toll_paid') {
     if (!data.paidByUserId || data.paidByUserId.trim() === '') {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Select who paid.',
-        path: ['paidByUserId'],
-      });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
     } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Select a valid user.',
-        path: ['paidByUserId'],
-      });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
     }
   }
 });
 
 type ExpenseForm = z.infer<typeof expenseSchema>;
-
 const SHAREABLE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid', 'parking'];
 
 export function ExpenseEntryScreen({ navigation, route }: Props) {
@@ -130,11 +107,13 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const updateEntryOfflineFirst = useAppStore((state) => state.updateEntryOfflineFirst);
   const deleteEntry = useAppStore((state) => state.deleteEntry);
   const entries = useAppStore((state) => state.entries);
-  const accentTone = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
-  const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
-  const editingEntry = route.params?.entryId
-    ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'expense')
-    : undefined;
+  
+  // Theme Colors & Liquid Orbs
+  const expenseColor = '#10B981'; // Modern Emerald Green for Expenses
+  const liquidColor1 = isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.25)';
+  const liquidColor2 = isDark ? `${colors.primary}25` : `${colors.primary}35`;
+
+  const editingEntry = route.params?.entryId ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'expense') : undefined;
   const isEditing = Boolean(editingEntry);
 
   const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
@@ -146,13 +125,51 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     return title === 'car maintenance' || maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === title);
   });
 
-  const {
-    control,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<ExpenseForm>({
+  // Animations
+  const headerSlide = useRef(new Animated.Value(-50)).current;
+  const formSlide = useRef(new Animated.Value(100)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  
+  const orb1Scale = useRef(new Animated.Value(1)).current;
+  const orb1TranslateY = useRef(new Animated.Value(0)).current;
+  const orb2Scale = useRef(new Animated.Value(1)).current;
+  const orb2TranslateX = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(headerSlide, { toValue: 0, tension: 40, friction: 6, useNativeDriver: true }),
+      Animated.spring(formSlide, { toValue: 0, tension: 30, friction: 7, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+    ]).start();
+
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(orb1Scale, { toValue: 1.25, duration: 4500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(orb1Scale, { toValue: 1, duration: 4500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(orb1TranslateY, { toValue: 40, duration: 4500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(orb1TranslateY, { toValue: 0, duration: 4500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(orb2Scale, { toValue: 1.35, duration: 5500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(orb2Scale, { toValue: 1, duration: 5500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(orb2TranslateX, { toValue: -50, duration: 5500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(orb2TranslateX, { toValue: 0, duration: 5500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ])
+    ).start();
+  }, [headerSlide, formSlide, opacity, orb1Scale, orb1TranslateY, orb2Scale, orb2TranslateX]);
+
+  const { control, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
       odometer: String(editingEntry?.odometer ?? lastOdometer),
@@ -169,40 +186,24 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
   const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
   const normalizedSelectedExpenseTitle = selectedExpenseTitle.trim().toLowerCase();
-  const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some(
-    (item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle,
-  );
-  const showMaintenanceSubcategories =
-    showMaintenanceOptions ||
-    normalizedSelectedExpenseTitle === 'car maintenance' ||
-    selectedMaintenanceSubcategory;
+  const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle);
+  const showMaintenanceSubcategories = showMaintenanceOptions || normalizedSelectedExpenseTitle === 'car maintenance' || selectedMaintenanceSubcategory;
 
-  // Effect to manage shared state when category changes during editing
   useEffect(() => {
     if (isEditing && editingEntry && previousCategory !== inferredCategory) {
       const isCurrentCategoryShareable = SHAREABLE_CATEGORIES.includes(inferredCategory);
       const originalCategory = editingEntry.expenseCategory;
       const wasOriginallyShareable = originalCategory ? SHAREABLE_CATEGORIES.includes(originalCategory) : false;
       
-      if (!isCurrentCategoryShareable) {
-        // If current category is not shareable, reset shared state to false
-        setSharedExpense(false);
-      } else if (wasOriginallyShareable) {
-        // If original category was shareable, preserve the original shared state
-        setSharedExpense(editingEntry.sharedTrip ?? false);
-      } else {
-        // If original category was not shareable but current is, allow user to choose (default to false)
-        // Don't override the current sharedExpense state unless category becomes non-shareable
-        // This allows user to set shared state when changing from non-shareable to shareable category
-      }
+      if (!isCurrentCategoryShareable) setSharedExpense(false);
+      else if (wasOriginallyShareable) setSharedExpense(editingEntry.sharedTrip ?? false);
       
       setPreviousCategory(inferredCategory);
     }
   }, [inferredCategory, isEditing, editingEntry, previousCategory]);
 
   const handleQuickCategoryPress = (title: (typeof quickExpenseCategories)[number]['title']) => {
-    const isMaintenance = title === 'Car Maintenance';
-    setShowMaintenanceOptions(isMaintenance);
+    setShowMaintenanceOptions(title === 'Car Maintenance');
     setValue('expenseTitle', title, { shouldValidate: true, shouldDirty: true });
   };
 
@@ -213,399 +214,217 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!isEditing && currentUser && !selectedPaidByUserId && showPaidBySection) {
-      setValue('paidByUserId', currentUser.id, {
-        shouldDirty: false,
-        shouldValidate: true,
-      });
+      setValue('paidByUserId', currentUser.id, { shouldDirty: false, shouldValidate: true });
     }
   }, [currentUser, isEditing, selectedPaidByUserId, setValue, showPaidBySection]);
 
-  useEffect(() => {
-    if (editingEntry) {
-      setEntryDate(new Date(editingEntry.createdAt));
-    }
-  }, [editingEntry]);
-
   const handleDatePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (selectedDate) {
-      setEntryDate(selectedDate);
-    }
+    if (selectedDate) setEntryDate(selectedDate);
     setIsDatePickerVisible(false);
   };
 
   const onSubmit = handleSubmit(async ({ odometer, expenseTitle, cost, paidByUserId }) => {
-    if (!currentUser) {
-      Alert.alert('Session expired', 'Please login again.');
-      return;
-    }
-
-    if (isEditing && !editingEntry) {
-      Alert.alert('Entry not found', 'This expense entry is no longer available.');
-      navigation.goBack();
-      return;
-    }
-    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) {
-      Alert.alert('Edit not allowed', 'You can only edit your own expense entries.');
-      return;
-    }
-
-    const parsedOdometer = Number(odometer);
-    const parsedCost = Number(cost);
+    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
+    if (isEditing && !editingEntry) return Alert.alert('Entry not found', 'This expense entry is no longer available.');
+    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Edit not allowed', 'You can only edit your own expense entries.');
 
     const category = inferExpenseCategory(expenseTitle);
-    const isShareable = SHAREABLE_CATEGORIES.includes(category);
-    const shouldShare = isShareable && sharedExpense;
-    
-    // For FASTag toll, use currentUser as the entry user (no paid by selection)
-    // For other expenses (including FASTag recharge), use selected payer
+    const shouldShare = SHAREABLE_CATEGORIES.includes(category) && sharedExpense;
     let entryUser = currentUser;
     
     if (category !== 'fasttag_toll_paid') {
       const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
-      if (!selectedPayer) {
-        Alert.alert('Invalid payer', 'Select who paid for this expense.');
-        return;
-      }
+      if (!selectedPayer) return Alert.alert('Invalid payer', 'Select who paid for this expense.');
       entryUser = selectedPayer;
     }
 
     try {
       if (editingEntry) {
-        const expenseOwnerId = getEntryOwnerId(editingEntry);
-        const expenseOwnerName = getEntryOwnerName(editingEntry);
-        
-        const updateData = {
-          userId: entryUser.id,
-          userName: entryUser.name,
-          odometer: parsedOdometer,
+        await updateEntryOfflineFirst(editingEntry.id, {
+          userId: entryUser.id, userName: entryUser.name, odometer: Number(odometer),
           createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
-          expenseCategory: category,
-          expenseTitle: expenseTitle.trim(),
-          cost: parsedCost,
-          sharedTrip: shouldShare,
-          sharedTripMarkedById: expenseOwnerId,
-          sharedTripMarkedByName: expenseOwnerName,
-        };
-        
-        await updateEntryOfflineFirst(editingEntry.id, updateData);
+          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
+          sharedTrip: shouldShare, sharedTripMarkedById: getEntryOwnerId(editingEntry), sharedTripMarkedByName: getEntryOwnerName(editingEntry),
+        });
       } else {
         await addEntryOfflineFirst({
-          type: 'expense',
-          userId: entryUser.id,
-          userName: entryUser.name,
-          odometer: parsedOdometer,
-          expenseCategory: category,
-          expenseTitle: expenseTitle.trim(),
-          cost: parsedCost,
-          sharedTrip: shouldShare,
-          sharedTripMarkedById: currentUser.id,
-          sharedTripMarkedByName: currentUser.name,
+          type: 'expense', userId: entryUser.id, userName: entryUser.name, odometer: Number(odometer),
+          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
+          sharedTrip: shouldShare, sharedTripMarkedById: currentUser.id, sharedTripMarkedByName: currentUser.name,
         });
       }
-
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert(
-        isEditing ? 'Could not update expense' : 'Could not save expense',
-        error instanceof Error ? error.message : 'Unknown error',
-      );
+      Alert.alert(isEditing ? 'Could not update expense' : 'Could not save expense', error instanceof Error ? error.message : 'Unknown error');
     }
   });
 
   const handleDelete = () => {
     if (!editingEntry) return;
-    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) {
-      Alert.alert('Delete not allowed', 'You can only delete your own expense entries.');
-      return;
-    }
-
+    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Delete not allowed', 'You can only delete your own expense entries.');
     Alert.alert('Delete Entry', 'Are you sure you want to delete this expense entry?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteEntry(editingEntry.id).then(() => {
-            navigation.goBack();
-            void runSyncCycle();
-          });
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteEntry(editingEntry.id).then(() => { navigation.goBack(); void runSyncCycle(); }); } },
     ]);
   };
 
   return (
     <ScreenContainer>
-      <KeyboardAwareScrollView
-        style={styles.keyboardContainer}
-        contentContainerStyle={styles.scrollContent}
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={120}
-      >
+      <KeyboardAwareScrollView style={styles.keyboardContainer} contentContainerStyle={styles.scrollContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} enableOnAndroid={true} enableAutomaticScroll={true} extraScrollHeight={120}>
         <View style={[styles.scrollContent, styles.container]}>
-          <View pointerEvents="none" style={[styles.orbTop, { backgroundColor: orbTone }]} />
+          
+          {/* Dual Liquid Orbs */}
+          <Animated.View pointerEvents="none" style={[styles.orb1, { backgroundColor: liquidColor1, transform: [{ scale: orb1Scale }, { translateY: orb1TranslateY }] }]} />
+          <Animated.View pointerEvents="none" style={[styles.orb2, { backgroundColor: liquidColor2, transform: [{ scale: orb2Scale }, { translateX: orb2TranslateX }] }]} />
 
-          <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Animated.View style={[styles.headerCard, { backgroundColor: colors.card, opacity, transform: [{ translateY: headerSlide }] }]}>
             <View style={styles.headerRow}>
-              <Pressable
-                onPress={() => navigation.goBack()}
-                style={[styles.backButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+              <Pressable onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.backgroundSecondary }]}>
                 <MaterialIcons name="arrow-back" size={20} color={colors.textPrimary} />
               </Pressable>
-
               <View style={styles.headerCopy}>
                 <Text style={[styles.headerEyebrow, { color: colors.textSecondary }]}>EXPENSE ENTRY</Text>
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{isEditing ? 'Edit Expense' : 'Add Expense'}</Text>
               </View>
-
-              <View style={[styles.headerIcon, { backgroundColor: accentTone }]}>
-                <MaterialCommunityIcons name="receipt-text-outline" size={20} color={colors.textPrimary} />
+              <View style={[styles.headerIcon, { backgroundColor: expenseColor }]}>
+                <MaterialCommunityIcons name="receipt-text-outline" size={20} color="#fff" />
               </View>
             </View>
-          </View>
+          </Animated.View>
 
-          <View style={styles.quickWrap}>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Categories</Text>
-            <View style={styles.quickGrid}>
-              {quickExpenseCategories.map((item) => {
-                const active =
-                  item.title === 'Car Maintenance'
-                    ? showMaintenanceSubcategories || inferredCategory === 'maintenance_lab'
-                    : normalizedSelectedExpenseTitle === item.title.toLowerCase();
-                return (
-                  <Pressable
-                    key={item.title}
-                    onPress={() => handleQuickCategoryPress(item.title)}
-                    style={[
-                      styles.quickChip,
-                      {
-                        borderColor: active ? colors.textPrimary : colors.border,
-                        backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary,
-                      },
-                    ]}>
-                    <MaterialIcons
-                      name={active ? 'check' : item.icon}
-                      size={14}
-                      color={active ? colors.invertedText : colors.textSecondary}
-                    />
-                    <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                      {item.title}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+          <Animated.View style={[styles.formCard, { backgroundColor: colors.card, opacity, transform: [{ translateY: formSlide }] }]}>
+            
+            <View style={styles.quickWrap}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Quick Categories</Text>
+              <View style={styles.quickGrid}>
+                {quickExpenseCategories.map((item) => {
+                  const active = item.title === 'Car Maintenance' ? showMaintenanceSubcategories || inferredCategory === 'maintenance_lab' : normalizedSelectedExpenseTitle === item.title.toLowerCase();
+                  return (
+                    <Pressable
+                      key={item.title}
+                      onPress={() => handleQuickCategoryPress(item.title)}
+                      style={[styles.quickChip, { backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary }]}>
+                      <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                      <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{item.title}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-            {showMaintenanceSubcategories ? (
-              <View
-                style={[
-                  styles.maintenancePanel,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.backgroundSecondary,
-                  },
-                ]}
-              >
-                <Text style={[styles.subSectionTitle, { color: colors.textSecondary }]}>Maintenance Items</Text>
-                <View style={styles.quickGrid}>
-                  {maintenanceExpenseTitles.map((item) => {
-                    const active = normalizedSelectedExpenseTitle === item.title.toLowerCase();
-                    return (
-                      <Pressable
-                        key={item.title}
-                        onPress={() => handleMaintenanceSubcategoryPress(item.title)}
-                        style={[
-                          styles.subCategoryChip,
-                          {
-                            borderColor: active ? colors.textPrimary : colors.border,
-                            backgroundColor: active ? colors.textPrimary : colors.card,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={active ? 'check' : item.icon}
-                          size={14}
-                          color={active ? colors.invertedText : colors.textSecondary}
-                        />
-                        <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>
-                          {item.title}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+              {showMaintenanceSubcategories && (
+                <View style={[styles.maintenancePanel, { backgroundColor: colors.backgroundSecondary }]}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Maintenance Items</Text>
+                  <View style={styles.quickGrid}>
+                    {maintenanceExpenseTitles.map((item) => {
+                      const active = normalizedSelectedExpenseTitle === item.title.toLowerCase();
+                      return (
+                        <Pressable
+                          key={item.title}
+                          onPress={() => handleMaintenanceSubcategoryPress(item.title)}
+                          style={[styles.quickChip, { backgroundColor: active ? colors.textPrimary : colors.card }]}>
+                          <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                          <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{item.title}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
-              </View>
-            ) : null}
-          </View>
+              )}
+            </View>
 
-          <View style={[styles.formCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            {showPaidBySection ? (
+            {showPaidBySection && (
               <View style={styles.formSection}>
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>
-
                 <View style={styles.payerGrid}>
                   {ALLOWED_USERS.map((user) => {
                     const active = selectedPaidByUserId === user.id;
                     const isCurrentUser = currentUser?.id === user.id;
+                    const userColor = user.name.toLowerCase() === 'ayan' ? '#3B82F6' : (user.name.toLowerCase() === 'sourav' ? '#8B5CF6' : colors.primary);
 
                     return (
                       <Pressable
                         key={user.id}
                         onPress={() => setValue('paidByUserId', user.id, { shouldValidate: true, shouldDirty: true })}
-                        style={[
-                          styles.payerOption,
-                          {
-                            borderColor: active ? colors.textPrimary : colors.border,
-                            backgroundColor: active ? colors.backgroundSecondary : colors.card,
-                          },
-                        ]}>
+                        style={[styles.payerOption, { backgroundColor: active ? `${userColor}15` : colors.backgroundSecondary }]}>
                         <View style={styles.payerOptionHead}>
-                          <Text style={[styles.payerName, { color: colors.textPrimary }]}>{user.name}</Text>
-                          <MaterialIcons
-                            name={active ? 'radio-button-checked' : 'radio-button-unchecked'}
-                            size={20}
-                            color={active ? colors.textPrimary : colors.textSecondary}
-                          />
+                          <Text style={[styles.payerName, { color: active ? userColor : colors.textPrimary }]}>{user.name}</Text>
+                          <MaterialIcons name={active ? 'radio-button-checked' : 'radio-button-unchecked'} size={20} color={active ? userColor : colors.textSecondary} />
                         </View>
-                        <Text style={[styles.payerMeta, { color: colors.textSecondary }]}>
-                          {isCurrentUser ? 'Logged in user' : 'Choose if they paid'}
-                        </Text>
+                        <Text style={[styles.payerMeta, { color: active ? userColor : colors.textSecondary }]}>{isCurrentUser ? 'Logged in user' : 'Choose if they paid'}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
-                {errors.paidByUserId ? (
-                  <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>
-                ) : null}
-              </View>
-            ) : (
-              <View style={styles.formSection}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Details</Text>
-                <Text style={[styles.payerHint, { color: colors.textSecondary }]}>
-                  FASTag toll amount will be deducted from your FASTag wallet balance.
-                </Text>
+                {errors.paidByUserId && <Text style={styles.selectionError}>{errors.paidByUserId.message}</Text>}
               </View>
             )}
 
-            {isEditing ? (
+            {isEditing && (
               <View style={styles.formSection}>
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Date</Text>
-                <Pressable
-                  onPress={() => setIsDatePickerVisible(true)}
-                  style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                  <MaterialIcons name="calendar-today" size={18} color={colors.textPrimary} />
+                <Pressable onPress={() => setIsDatePickerVisible(true)} style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary }]}>
+                  <MaterialIcons name="event" size={20} color={expenseColor} />
                   <View style={styles.dateCopy}>
                     <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Recorded on</Text>
-                    <Text style={[styles.dateValue, { color: colors.textPrimary }]}>
-                      {dayjs(entryDate).format(INDIA_DATE_FORMAT)}
-                    </Text>
+                    <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(entryDate).format(INDIA_DATE_FORMAT)}</Text>
                   </View>
                 </Pressable>
-                {isDatePickerVisible ? (
-                  <DateTimePicker
-                    value={entryDate}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    maximumDate={new Date()}
-                    onChange={handleDatePickerChange}
-                  />
-                ) : null}
+                {isDatePickerVisible && <DateTimePicker value={entryDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={handleDatePickerChange} />}
               </View>
-            ) : null}
+            )}
 
             <View style={styles.formSection}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Expense Details</Text>
-              <Controller
-                control={control}
-                name="expenseTitle"
-                render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Expense title"
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder="Type your own expense title"
-                    autoCapitalize="sentences"
-                    error={errors.expenseTitle?.message}
-                    inputStyle={styles.roundedInput}
-                  />
-                )}
-              />
-              <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>
-                Detected category: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
-              </Text>
-              <Controller
-                control={control}
-                name="cost"
-                render={({ field: { onChange, value } }) => (
-                  <AppTextField
-                    label="Amount (Rs)"
-                    value={value}
-                    onChangeText={onChange}
-                    keyboardType="decimal-pad"
-                    placeholder="e.g. 950"
-                    error={errors.cost?.message}
-                    inputStyle={styles.roundedInput}
-                  />
-                )}
-              />
-            </View>
-
-            <View style={[styles.odoPanel, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-              <View style={styles.odoHead}>
-                <Text style={[styles.odoLabel, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
-                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>{isEditing ? `Latest ${lastOdometer} km` : `Previous ${lastOdometer} km`}</Text>
+              <Controller control={control} name="expenseTitle" render={({ field: { onChange, value } }) => (
+                <AppTextField label="Expense title" value={value} onChangeText={onChange} placeholder="Type your own expense title" autoCapitalize="sentences" error={errors.expenseTitle?.message} />
+              )} />
+              
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 4 }}>
+                <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Detected Category: <Text style={{ color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
+                </Text>
               </View>
-              <Controller
-                control={control}
-                name="odometer"
-                render={({ field: { onChange, value } }) => (
-                  <OdometerDigitInput
-                    label="Current Odometer"
-                    value={value}
-                    onChangeText={onChange}
-                    error={errors.odometer?.message}
-                  />
-                )}
-              />
+
+              <Controller control={control} name="cost" render={({ field: { onChange, value } }) => (
+                <AppTextField label="Amount (₹)" value={value} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 950" error={errors.cost?.message} />
+              )} />
             </View>
 
-            {showSharedToggle ? (
-              <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+            <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
+              <View style={styles.odoHead}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
+                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>{isEditing ? `Latest ${lastOdometer}` : `Previous ${lastOdometer}`}</Text>
+              </View>
+              <Controller control={control} name="odometer" render={({ field: { onChange, value } }) => (
+                <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message} />
+              )} />
+            </View>
+
+            {showSharedToggle && (
+              <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary }]}>
                 <View style={styles.switchCopy}>
                   <Text style={[styles.switchLabel, { color: colors.textPrimary }]}>Shared Expense</Text>
                   <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
-                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : 
-                     inferredCategory === 'parking' ? 'Parking expense was shared' : 
-                     'Violation expense was shared'}
+                    {inferredCategory === 'fasttag_toll_paid' ? 'Toll was paid on a shared trip' : inferredCategory === 'parking' ? 'Parking expense was shared' : 'Violation expense was shared'}
                   </Text>
                 </View>
-                <Switch
-                  value={sharedExpense}
-                  onValueChange={setSharedExpense}
-                  trackColor={{ false: colors.border, true: colors.textSecondary }}
-                  thumbColor={isDark ? colors.textPrimary : colors.background}
-                />
+                <Switch value={sharedExpense} onValueChange={setSharedExpense} trackColor={{ false: colors.border, true: expenseColor }} thumbColor={sharedExpense ? '#fff' : colors.textSecondary} />
               </View>
-            ) : null}
+            )}
 
             <View style={styles.actionRow}>
-              {isEditing ? (
-                <Pressable
-                  onPress={handleDelete}
-                  style={[styles.deleteBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}>
+              {isEditing && (
+                <Pressable onPress={handleDelete} style={[styles.deleteBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}>
                   <MaterialIcons name="delete-outline" size={24} color={isDark ? '#FCA5A5' : '#EF4444'} />
                 </Pressable>
-              ) : null}
+              )}
               <View style={{ flex: 1 }}>
                 <PrimaryButton label={isEditing ? 'UPDATE EXPENSE' : 'SAVE EXPENSE'} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
               </View>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAwareScrollView>
     </ScreenContainer>
@@ -613,295 +432,54 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  keyboardContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  container: {
-    gap: 14,
-    paddingBottom: 28,
-    position: 'relative',
-  },
-  orbTop: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    top: -30,
-    right: -50,
-  },
-  headerCard: {
-    borderWidth: 1,
-    borderRadius: 26,
-    padding: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  headerEyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  headerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroCard: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 16,
-    gap: 16,
-  },
-  heroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  heroIcon: {
-    borderWidth: 1,
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroCopy: {
-    flex: 1,
-    gap: 3,
-  },
-  heroTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  heroSubtitle: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  inferredBadge: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  inferredCopy: {
-    gap: 2,
-  },
-  inferredLabel: {
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  inferredValue: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  payerHint: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  payerGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  payerOption: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 6,
-  },
-  payerOptionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  payerName: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  payerMeta: {
-    fontSize: 9,
-    lineHeight: 5,
-  },
-  selectionError: {
-    color: '#EF4444',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dateButton: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateCopy: {
-    gap: 2,
-  },
-  dateLabel: {
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  dateValue: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  quickWrap: {
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  quickGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickChip: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  quickChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  maintenancePanel: {
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 12,
-    gap: 10,
-  },
-  subSectionTitle: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  subCategoryChip: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  formCard: {
-    borderWidth: 1,
-    borderRadius: 26,
-    padding: 16,
-    gap: 16,
-  },
-  formSection: {
-    gap: 12,
-  },
-  roundedInput: {
-    height: 52,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  odoPanel: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 12,
-    gap: 10,
-  },
-  odoHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
-  odoLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  odoHint: {
-    fontSize: 12,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  primaryAction: {
-    flex: 1,
-    height: 54,
-    borderRadius: 16,
-  },
-  deleteBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  switchRow: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  switchCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  switchLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  switchHint: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
+  keyboardContainer: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  container: { gap: 16, padding: 16, paddingBottom: 32, position: 'relative' },
+  
+  orb1: { position: 'absolute', width: 280, height: 280, borderRadius: 140, top: -40, right: -60, zIndex: 0 },
+  orb2: { position: 'absolute', width: 220, height: 220, borderRadius: 110, top: 180, left: -40, zIndex: 0 },
+  
+  headerCard: { borderRadius: 24, padding: 16, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backButton: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  headerCopy: { flex: 1, gap: 2 },
+  headerEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
+  headerTitle: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-5deg' }], shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  
+  formCard: { borderRadius: 24, padding: 20, gap: 24, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  formSection: { gap: 12 },
+  sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+  
+  quickWrap: { gap: 12 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  quickChip: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  quickChipText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  
+  maintenancePanel: { borderRadius: 20, padding: 16, gap: 12 },
+  
+  payerGrid: { flexDirection: 'row', gap: 12 },
+  payerOption: { flex: 1, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, gap: 6 },
+  payerOptionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  payerName: { fontSize: 16, fontWeight: '900' },
+  payerMeta: { fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
+  selectionError: { color: '#EF4444', fontSize: 12, fontWeight: '600' },
+  
+  dateButton: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dateCopy: { gap: 2 },
+  dateLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  dateValue: { fontSize: 16, fontWeight: '800' },
+  
+  odoPanel: { borderRadius: 18, padding: 16, gap: 12 },
+  odoHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 },
+  odoHint: { fontSize: 12, fontWeight: '600' },
+  
+  switchRow: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  switchCopy: { flex: 1, gap: 2 },
+  switchLabel: { fontSize: 14, fontWeight: '800' },
+  switchHint: { fontSize: 11, fontWeight: '500', letterSpacing: 0.3 },
+  
+  actionRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  primaryAction: { flex: 1, height: 56, borderRadius: 16 },
+  deleteBtn: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });

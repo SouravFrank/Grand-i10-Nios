@@ -1,4 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -9,6 +8,7 @@ interface SettlementModalProps {
   isVisible: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onUnmark?: () => void;
   canConfirmSettlement: boolean;
   isSettled: boolean;
   surfaceColor: string;
@@ -19,6 +19,7 @@ export function SettlementModal({
   isVisible,
   onClose,
   onConfirm,
+  onUnmark,
   canConfirmSettlement,
   isSettled,
   surfaceColor,
@@ -51,6 +52,12 @@ export function SettlementModal({
             {canConfirmSettlement ? (
               <Pressable onPress={onConfirm} style={[styles.modalPrimaryButton, { backgroundColor: colors.textPrimary }]}>
                 <Text style={[styles.modalPrimaryText, { color: colors.invertedText }]}>Confirm</Text>
+              </Pressable>
+            ) : null}
+
+            {isSettled && onUnmark ? (
+              <Pressable onPress={onUnmark} style={[styles.modalPrimaryButton, { backgroundColor: colors.error ?? '#EF4444' }]}>
+                <Text style={[styles.modalPrimaryText, { color: colors.invertedText }]}>Unmark as settled</Text>
               </Pressable>
             ) : null}
 

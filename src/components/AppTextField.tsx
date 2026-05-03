@@ -44,35 +44,43 @@ export function AppTextField({
         style={[
           styles.input,
           {
-            borderColor: colors.border,
             color: colors.textPrimary,
-            backgroundColor: colors.card,
+            // Flat, borderless design using the secondary background tint
+            backgroundColor: colors.backgroundSecondary, 
           },
-          error && { borderColor: colors.textSecondary },
-          !editable && { backgroundColor: colors.backgroundSecondary },
+          // Only show a border if there is an error
+          error && { borderWidth: 1, borderColor: '#EF4444' }, 
+          // Dim the field if it is disabled
+          !editable && { opacity: 0.6 }, 
           inputStyle,
         ]}
       />
-      {error ? <Text style={[styles.errorText, { color: colors.textSecondary }]}>{error}</Text> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    gap: 6,
+    gap: 8,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase', // Matches the telemetry aesthetic
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 2,
-    height: 46,
-    paddingHorizontal: 12,
+    borderRadius: 16, // Beautiful, modern rounded corners
+    height: 52, // Slightly taller for a premium, touchable feel
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontWeight: '800', // Bold numbers to look like digital readouts
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EF4444', // Modern red for errors
+    marginTop: -2,
   },
 });

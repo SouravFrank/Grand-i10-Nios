@@ -21,13 +21,13 @@ import { ReportHeader } from './reporting/components/ReportHeader';
 import { SummaryDashboard } from './reporting/components/SummaryDashboard';
 import { TabNavigator } from './reporting/components/TabNavigator';
 import {
-  FastagSummarySection,
-  FuelMetricsSection,
-  FuelSummarySection,
-  MileageSection,
-  ParkingSection,
-  TrafficFineSection,
-  TripSummarySection,
+    FastagSummarySection,
+    FuelMetricsSection,
+    FuelSummarySection,
+    MileageSection,
+    ParkingSection,
+    TrafficFineSection,
+    TripSummarySection,
 } from './reporting/components/TripTab';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Report'>;
@@ -40,6 +40,7 @@ export function ReportScreen({ navigation }: Props) {
   const settledReportMonths = useAppStore((state) => state.settledReportMonths);
   const setReportMileage = useAppStore((state) => state.setReportMileage);
   const markReportSettled = useAppStore((state) => state.markReportSettled);
+  const unmarkReportSettled = useAppStore((state) => state.unmarkReportSettled);
 
   const currentMonthKey = dayjs().format('YYYY-MM');
   const [filterMode, setFilterMode] = useState<ReportFilterMode>('month');
@@ -230,6 +231,16 @@ export function ReportScreen({ navigation }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+  };
+
+  const handleUnmarkSettlement = () => {
+    if (!activeRange.monthKey || !report?.isSettled) {
+      setIsSettlementModalVisible(false);
+      return;
+    }
+
+    unmarkReportSettled(activeRange.monthKey);
+    setIsSettlementModalVisible(false);
   };
 
   const handleExportCsv = async () => {
@@ -490,6 +501,7 @@ export function ReportScreen({ navigation }: Props) {
         isVisible={isSettlementModalVisible}
         onClose={() => setIsSettlementModalVisible(false)}
         onConfirm={handleConfirmSettlement}
+        onUnmark={handleUnmarkSettlement}
         canConfirmSettlement={canConfirmSettlement}
         isSettled={report.isSettled}
         surfaceColor={surfaceColor}

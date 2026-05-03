@@ -14,6 +14,12 @@ import {
     pushEntryToRealtimeDb,
 } from "@/services/realtime/entriesRepository";
 import {
+    pullMileageFromRealtimeDb,
+    pullSettlementsFromRealtimeDb,
+    pushMileageToRealtimeDb,
+    pushSettlementsToRealtimeDb,
+} from "@/services/realtime/settlementRepository";
+import {
     getAllLocalDocuments,
     saveDocumentLocally,
 } from "@/services/storage/localDocuments";
@@ -222,6 +228,59 @@ async function runSyncCycleInternal(): Promise<void> {
       await pushCarSpecToRealtimeDb(currentState.carSpec);
       syncLog("sync_cycle_push_car_spec_success");
       useAppStore.getState().markCarSpecSynced();
+    }
+
+    // ── Settlements & Mileage Sync ──────────────────────────────────────────
+    try {
+      syncLog("sync_cycle_settlements_start");
+      const remoteSettlements = await pullSettlementsFromRealtimeDb();
+      const localSettlements = currentState.settledReportMonths;
+
+      if (remoteSettlements) {
+        // Merge: if remote has newer data, use it; otherwise keep local
+        const mergedSettlements = {
+          ...remoteSettlements.settledReportMonths,
+          ...localSettlements,
+        };
+        useAppStore.getState().replaceSettledReportMonths(mergedSettlements);
+        syncLog("sync_cycle_settlements_merged", {
+          count: Object.keys(mergedSettlements).length,
+        });
+      }
+
+      // Always push local state to ensure server has latest
+      await pushSettlementsToRealtimeDb(
+        useAppStore.getState().settledReportMonths,
+      );
+      syncLog("sync_cycle_settlements_pushed");
+    } catch (settlementError) {
+      syncWarn("sync_cycle_settlements_error", toErrorPayload(settlementError));
+    }
+
+    try {
+      syncLog("sync_cycle_mileage_start");
+      const remoteMileage = await pullMileageFromRealtimeDb();
+      const localMileage = currentState.reportMileageByMonth;
+
+      if (remoteMileage) {
+        // Merge: if remote has newer data, use it; otherwise keep local
+        const mergedMileage = {
+          ...remoteMileage.reportMileageByMonth,
+          ...localMileage,
+        };
+        useAppStore.getState().replaceReportMileage(mergedMileage);
+        syncLog("sync_cycle_mileage_merged", {
+          count: Object.keys(mergedMileage).length,
+        });
+      }
+
+      // Always push local state to ensure server has latest
+      await pushMileageToRealtimeDb(
+        useAppStore.getState().reportMileageByMonth,
+      );
+      syncLog("sync_cycle_mileage_pushed");
+    } catch (mileageError) {
+      syncWarn("sync_cycle_mileage_error", toErrorPayload(mileageError));
     }
 
     // ── Document Sync (non-blocking) ──────────────────────────────────────────

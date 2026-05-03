@@ -256,7 +256,10 @@ type AppState = PersistedAppData & {
   markCarSpecSynced: () => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
   setReportMileage: (monthKey: string, value: number) => void;
+  replaceReportMileage: (data: Record<string, number>) => void;
   markReportSettled: (monthKey: string) => void;
+  unmarkReportSettled: (monthKey: string) => void;
+  replaceSettledReportMonths: (data: Record<string, boolean>) => void;
   markEntrySharedTrip: (
     entryId: string,
     actor: SharedTripActor,
@@ -962,6 +965,10 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      replaceReportMileage: (data) => {
+        set({ reportMileageByMonth: data });
+      },
+
       markReportSettled: (monthKey) => {
         set((state) => ({
           settledReportMonths: {
@@ -969,6 +976,17 @@ export const useAppStore = create<AppState>()(
             [monthKey]: true,
           },
         }));
+      },
+
+      unmarkReportSettled: (monthKey) => {
+        set((state) => {
+          const { [monthKey]: _, ...rest } = state.settledReportMonths;
+          return { settledReportMonths: rest };
+        });
+      },
+
+      replaceSettledReportMonths: (data) => {
+        set({ settledReportMonths: data });
       },
 
       markEntrySharedTrip: async (entryId, actor) => {

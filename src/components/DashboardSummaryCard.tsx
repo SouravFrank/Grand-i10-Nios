@@ -91,7 +91,7 @@ function DigitRoller({ digit, delay, isLeading, accent, dim, slotBg }: DigitRoll
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 type DashboardSummaryCardProps = {
-  latestEntry?:   EntryRecord;
+  entries?:       EntryRecord[];
   syncStatus:     SyncStatus;
   lastSyncError?: string | null;
   queuedCount:    number;
@@ -101,7 +101,7 @@ type DashboardSummaryCardProps = {
 
 // ─── DashboardSummaryCard ────────────────────────────────────────────────────
 export function DashboardSummaryCard({
-  latestEntry,
+  entries,
   syncStatus,
   lastSyncError,
   queuedCount,
@@ -110,14 +110,21 @@ export function DashboardSummaryCard({
 }: DashboardSummaryCardProps) {
   const { colors } = useAppTheme();
 
+  // Find entry with max odometer value
+  const maxEntry = entries && entries.length > 0
+    ? entries.reduce((max, entry) =>
+        Number(entry.odometer) > Number(max.odometer) ? entry : max
+      )
+    : undefined;
+
   const isSyncing    = syncStatus === 'syncing';
-  const recordedDate = latestEntry
-    ? dayjs(latestEntry.createdAt).format(INDIA_DATE_FORMAT)
+  const recordedDate = maxEntry
+    ? dayjs(maxEntry.createdAt).format(INDIA_DATE_FORMAT)
     : '—';
-  const recordedBy   = latestEntry
-    ? getEntryOwnerName(latestEntry).toUpperCase()
+  const recordedBy   = maxEntry
+    ? getEntryOwnerName(maxEntry).toUpperCase()
     : '—';
-  const odometerVal  = latestEntry ? Number(latestEntry.odometer) : undefined;
+  const odometerVal  = maxEntry ? Number(maxEntry.odometer) : undefined;
 
   // ── Shared animation refs ───────────────────────────────────────────────
   const cardY       = useRef(new Animated.Value(32)).current;

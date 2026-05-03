@@ -39,8 +39,6 @@ export function HomeScreen({ navigation }: Props) {
     Constants.expoConfig?.version ??
     '1.0.0';
 
-  const latestEntry = entries[0];
-
   // Screen entrance animations
   const welcomeOpacity = useRef(new Animated.Value(0)).current;
   const welcomeSlideY = useRef(new Animated.Value(-15)).current;
@@ -162,7 +160,7 @@ export function HomeScreen({ navigation }: Props) {
           />
 
           <DashboardSummaryCard
-            latestEntry={latestEntry}
+            entries={entries}
             syncStatus={syncStatus}
             lastSyncError={lastSyncError}
             queuedCount={pendingQueue.length}
