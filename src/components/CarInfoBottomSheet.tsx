@@ -30,6 +30,7 @@ import insurancePdf from '../../assets/pdf/insurence.pdf';
 import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
 import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
 import rcPdf from '../../assets/pdf/RC.pdf';
+import tyre_warranty from '../../assets/pdf/tyre_yoko.pdf';
 
 type CarInfoBottomSheetProps = {
   visible: boolean;
@@ -48,7 +49,7 @@ type SpecRow = {
 };
 
 type CarSpecTab = 'health' | 'on_road' | 'identity';
-type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport';
+type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport' | 'tyreWarranty';
 
 type LegalGalleryItem = {
   key: LegalGalleryKey;
@@ -88,6 +89,7 @@ const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'roadTax', title: 'Road Tax', subtitle: 'Tax payment proof', icon: 'account-balance-wallet', accent: '#7A1FA2' },
   { key: 'numberPlate', title: 'Number Plate', subtitle: 'Registration plate photo', icon: 'directions-car', accent: '#455A64' },
   { key: 'pdiReport', title: 'PDI Report', subtitle: 'Pre-delivery inspection report', icon: 'fact-check', accent: '#B71C1C' },
+  { key: 'tyreWarranty', title: 'Tyre Warranty', subtitle: 'Tyre warranty card Yokohama', icon: 'settings', accent: '#1565C0' },
 ];
 
 async function openFileByUri(localUri: string, mimeType: string, cacheFileName: string): Promise<void> {
@@ -116,6 +118,7 @@ const BUNDLED_ASSETS: Partial<Record<CarDocumentKey, { module: number; cacheFile
   insurance: { module: insurancePdf, cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
   rc: { module: rcPdf, cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
   numberPlate: { module: numberPlateJpg, cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
+  tyreWarranty: { module: tyre_warranty, cacheFileName: 'tyre_warranty.pdf', mimeType: 'application/pdf' },
 };
 
 async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<void> {

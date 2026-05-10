@@ -180,7 +180,8 @@ export type CarDocumentKey =
   | "fitness"
   | "roadTax"
   | "numberPlate"
-  | "pdiReport";
+  | "pdiReport"
+  | "tyreWarranty";
 
 export type RemoteCarDocument = {
   data: string; // base64-encoded file content
