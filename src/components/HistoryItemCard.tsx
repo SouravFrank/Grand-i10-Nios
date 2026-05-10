@@ -14,6 +14,8 @@ type HistoryItemCardProps = {
   tripEndOdometer?: number | null;
   tripTotalCost?: number;
   tripTotalFuelLiters?: number;
+  mileage?: number | null;
+  costPerKm?: number | null;
   index: number;
   canEdit?: boolean;
   onPressEdit?: () => void;
@@ -44,6 +46,8 @@ export function HistoryItemCard({
   tripEndOdometer = null,
   tripTotalCost = 0,
   tripTotalFuelLiters = 0,
+  mileage = null,
+  costPerKm = null,
   index,
   canEdit,
   onPressEdit,
@@ -100,7 +104,7 @@ export function HistoryItemCard({
           : entry.type === 'expense' ? 'receipt-long'
             : 'speed';
 
-  const primaryText = entry.type === 'spec_update' ? specUpdateLines[0] ?? 'Specifications updated'
+  const primaryText = entry.type === 'spec_update' ? entry.expenseTitle || specUpdateLines[0] || 'Specifications updated'
     : entry.type === 'expense' ? entry.expenseTitle || 'Expense logged'
       : isTripSummary ? `${tripStartOdometer} -> ${tripEndOdometer}`
         : `${entry.odometer} KM`;
@@ -127,8 +131,20 @@ export function HistoryItemCard({
 
   if (isTripSummary) {
     if (distanceKm !== null) metrics.push({ icon: 'route', text: `${distanceKm} KM` });
-    if (tripTotalFuelLiters > 0) metrics.push({ icon: 'water-drop', text: `${tripTotalFuelLiters.toFixed(2)} L` });
-    if (tripTotalCost > 0) metrics.push({ icon: 'currency-rupee', text: `${tripTotalCost}` });
+    // Calculate and show oil spent (fuel used based on mileage)
+    if (mileage !== null && mileage > 0 && distanceKm !== null) {
+      const fuelUsedLiters = distanceKm / mileage;
+      metrics.push({ icon: 'water-drop', text: `${fuelUsedLiters.toFixed(2)} L` });
+    } else if (tripTotalFuelLiters > 0) {
+      metrics.push({ icon: 'water-drop', text: `${tripTotalFuelLiters.toFixed(2)} L` });
+    }
+    // Calculate and show total trip cost based on per km cost
+    if (costPerKm !== null && costPerKm > 0 && distanceKm !== null) {
+      const totalCost = distanceKm * costPerKm;
+      metrics.push({ icon: 'currency-rupee', text: `${totalCost.toFixed(0)}` });
+    } else if (tripTotalCost > 0) {
+      metrics.push({ icon: 'currency-rupee', text: `${tripTotalCost.toFixed(0)}` });
+    }
   } else {
     if (entry.type === 'odometer' && entry.tripStage === 'start') tags.push({ icon: 'play-arrow', text: 'Trip started' });
     if (entry.type === 'odometer' && entry.tripStage === 'end' && typeof entry.tripDistanceKm === 'number') metrics.push({ icon: 'route', text: `${entry.tripDistanceKm} KM` });

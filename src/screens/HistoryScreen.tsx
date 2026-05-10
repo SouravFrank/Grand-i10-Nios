@@ -2,17 +2,18 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import {
-  Pressable,
-  SectionList,
-  StyleSheet,
-  Text,
-  View
+    Pressable,
+    SectionList,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SmartFilterSheet, type CategoryFilter, type DatePreset, type DateTarget } from '@/components/SmartFilterSheet';
 import type { AppStackParamList } from '@/navigation/types';
+import { DEFAULT_MONTHLY_MILEAGE } from '@/screens/reporting/reportCalculations';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord } from '@/types/models';
@@ -28,6 +29,8 @@ type HistoryRow = {
   tripEndOdometer: number | null;
   tripTotalCost: number;
   tripTotalFuelLiters: number;
+  mileage: number | null;
+  costPerKm: number | null;
 };
 
 type ExpenseSubcategory = 'fasttag' | 'car_maintenance' | 'parking' | 'traffic_violation' | 'others';
@@ -42,8 +45,81 @@ function canEditEntry(entry: EntryRecord, currentUserId?: string | null) {
   return getEntryOwnerId(entry) === currentUserId;
 }
 
-function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
+function getMonthKey(timestamp: number): string {
+  return dayjs(timestamp).format('YYYY-MM');
+}
+
+function getFuelAmount(entry: EntryRecord): number | null {
+  if (entry.type !== 'fuel') return null;
+  const amount = typeof entry.fuelAmount === 'number' ? entry.fuelAmount : entry.cost;
+  return typeof amount === 'number' && Number.isFinite(amount) ? amount : null;
+}
+
+function getFuelLiters(entry: EntryRecord): number | null {
+  if (entry.type !== 'fuel') return null;
+  return typeof entry.fuelLiters === 'number' && Number.isFinite(entry.fuelLiters)
+    ? entry.fuelLiters
+    : null;
+}
+
+function buildFuelStatsByMonth(entries: EntryRecord[]): Map<string, { rates: number[]; amount: number; liters: number }> {
+  const statsByMonth = new Map<string, { rates: number[]; amount: number; liters: number }>();
+
+  for (const entry of entries) {
+    if (entry.type !== 'fuel') continue;
+
+    const amount = getFuelAmount(entry);
+    const liters = getFuelLiters(entry);
+    if (!amount || !liters || amount <= 0 || liters <= 0) continue;
+
+    const monthKey = getMonthKey(entry.createdAt);
+    const stats = statsByMonth.get(monthKey) ?? {
+      rates: [],
+      amount: 0,
+      liters: 0,
+    };
+
+    stats.rates.push(amount / liters);
+    stats.amount += amount;
+    stats.liters += liters;
+    statsByMonth.set(monthKey, stats);
+  }
+
+  return statsByMonth;
+}
+
+function getAverageFuelRate(monthKey: string, statsByMonth: Map<string, { rates: number[]; amount: number; liters: number }>): number {
+  const stats = statsByMonth.get(monthKey);
+  if (!stats || stats.rates.length === 0) return 0;
+  return stats.rates.reduce((total, rate) => total + rate, 0) / stats.rates.length;
+}
+
+function resolveMonthMileage(monthKey: string, mileageByMonth: Record<string, number>): number {
+  const saved = mileageByMonth[monthKey];
+  return Number.isFinite(saved) ? saved : DEFAULT_MONTHLY_MILEAGE;
+}
+
+function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string, number>): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
+  const fuelStatsByMonth = buildFuelStatsByMonth(entries);
+
+  // Calculate weighted average fuel price up to a given timestamp
+  function getWeightedAvgFuelRateUpTo(timestamp: number): number {
+    let totalLiters = 0;
+    let totalValue = 0;
+
+    for (const entry of entries) {
+      if (entry.type !== 'fuel' || entry.createdAt > timestamp) continue;
+      const liters = getFuelLiters(entry);
+      const amount = getFuelAmount(entry);
+      if (liters && amount) {
+        totalLiters += liters;
+        totalValue += amount;
+      }
+    }
+
+    return totalLiters > 0 ? totalValue / totalLiters : 0;
+  }
 
   const trips = new Map<string, { start?: EntryRecord; end?: EntryRecord }>();
   for (const entry of sorted) {
@@ -95,6 +171,13 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
         visited.add(start.id);
         const distanceKm = entry.odometer - start.odometer;
         const { totalCost, totalFuelLiters } = getTripTotals(entry.tripId, start.createdAt, entry.createdAt);
+
+        // Calculate mileage and cost per km based on the trip's month
+        const monthKey = getMonthKey(entry.createdAt);
+        const mileage = resolveMonthMileage(monthKey, mileageByMonth);
+        const avgFuelRate = getWeightedAvgFuelRateUpTo(entry.createdAt);
+        const costPerKm = mileage > 0 ? avgFuelRate / mileage : 0;
+
         rows.push({
           entry,
           distanceKm: distanceKm > 0 ? distanceKm : null,
@@ -102,6 +185,8 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
           tripEndOdometer: entry.odometer,
           tripTotalCost: totalCost,
           tripTotalFuelLiters: totalFuelLiters,
+          mileage,
+          costPerKm: costPerKm > 0 ? costPerKm : null,
         });
         continue;
       }
@@ -121,6 +206,8 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
         tripEndOdometer: entry.tripStage === 'end' ? entry.odometer : null,
         tripTotalCost: 0,
         tripTotalFuelLiters: 0,
+        mileage: null,
+        costPerKm: null,
       });
       continue;
     }
@@ -133,6 +220,8 @@ function buildHistoryRows(entries: EntryRecord[]): HistoryRow[] {
       tripEndOdometer: null,
       tripTotalCost: 0,
       tripTotalFuelLiters: 0,
+      mileage: null,
+      costPerKm: null,
     });
   }
 
@@ -143,6 +232,7 @@ export function HistoryScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
+  const reportMileageByMonth = useAppStore((state) => state.reportMileageByMonth);
   
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
@@ -206,7 +296,6 @@ export function HistoryScreen({ navigation }: Props) {
         all: 'All',
         odometer: 'Odometer',
         fuel: 'Fuel',
-        expense: 'Expense',
         expense_fasttag: 'Fastag',
         expense_car_maintenance: 'Car Maintenance',
         expense_parking: 'Parking',
@@ -247,7 +336,7 @@ export function HistoryScreen({ navigation }: Props) {
   }, [category, datePreset, fromDate, selectedMonth, selectedUser, toDate, userOptions]);
 
   const rows = useMemo(() => {
-    const baseRows = buildHistoryRows(entries);
+    const baseRows = buildHistoryRows(entries, reportMileageByMonth);
     const fromTimestamp = fromDate
       ? dayjs(fromDate).startOf('day').isBefore(MIN_FILTER_DATE, 'day')
         ? MIN_FILTER_DATE.valueOf()
@@ -498,6 +587,8 @@ export function HistoryScreen({ navigation }: Props) {
             tripEndOdometer={item.tripEndOdometer}
             tripTotalCost={item.tripTotalCost}
             tripTotalFuelLiters={item.tripTotalFuelLiters}
+            mileage={item.mileage}
+            costPerKm={item.costPerKm}
             index={index}
             canEdit={canEditEntry(item.entry, currentUser?.id)}
             onPressEdit={() => {

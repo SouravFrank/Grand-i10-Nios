@@ -5,21 +5,21 @@ import { useAppTheme } from '@/theme/useAppTheme';
 import type { TyrePosition, TyreRecord } from '@/types/models';
 import { dayjs } from '@/utils/day';
 import {
-  AVERAGE_TOTAL_TYRE_LIFE_KM,
-  MIN_SAFE_TREAD_MM,
-  NEW_TREAD_DEPTH_MM,
-  POSITION_LABELS,
-  POSITION_ORDER,
-  POSITION_SHORT,
-  TYRE_SIZE,
-  applyTyreInspectionUpdate,
-  applyTyrePositionUpdate,
-  buildTyrePositionAssignments,
-  calcCurrentHealth,
-  calcHealthFromTread,
-  getTyreDisplayName,
-  normalizeTyreSetup,
-  sortTyresByCurrentPosition
+    AVERAGE_TOTAL_TYRE_LIFE_KM,
+    MIN_SAFE_TREAD_MM,
+    NEW_TREAD_DEPTH_MM,
+    POSITION_LABELS,
+    POSITION_ORDER,
+    POSITION_SHORT,
+    TYRE_SIZE,
+    applyTyreInspectionUpdate,
+    applyTyrePositionUpdate,
+    buildTyrePositionAssignments,
+    calcCurrentHealth,
+    calcHealthFromTread,
+    getTyreDisplayName,
+    normalizeTyreSetup,
+    sortTyresByCurrentPosition
 } from '@/utils/tyreHealth';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -61,6 +61,8 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
   const tyreSetup = useAppStore((state) => state.carSpec.tyreSetup);
   const updateTyreSetup = useAppStore((state) => state.updateTyreSetup);
+  const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const currentUser = useAppStore((state) => state.currentUser);
 
   const tyres = useMemo(() => sortTyresByCurrentPosition(normalizeTyreSetup(tyreSetup)), [tyreSetup]);
   const currentAssignments = useMemo(() => buildTyrePositionAssignments(tyres), [tyres]);
@@ -98,6 +100,38 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
   const persistTyreSetup = useCallback((nextTyreSetup: TyreRecord[]) => { updateTyreSetup(nextTyreSetup); void runSyncCycle(); }, [updateTyreSetup]);
 
+  const addTyreHistoryEntry = useCallback(async (action: 'new_tyre' | 'swap_stepney' | 'inspect', position: TyrePosition, odometer: number, details?: { treadDepth?: number; isNew?: boolean }) => {
+    if (!currentUser) return;
+    const positionLabel = POSITION_LABELS[position];
+    const actionLabels: Record<string, string> = {
+      new_tyre: `New tyre installed at ${positionLabel}`,
+      swap_stepney: `Stepney swapped to ${positionLabel}`,
+      inspect: `Tyre inspected at ${positionLabel}`,
+    };
+    const specUpdateDetails = [];
+    if (details?.treadDepth !== undefined) {
+      specUpdateDetails.push({ field: 'treadDepth', label: 'Tread Depth', previousValue: '-', nextValue: `${details.treadDepth} mm` });
+    }
+    if (details?.isNew) {
+      specUpdateDetails.push({ field: 'tyreCondition', label: 'Condition', previousValue: '-', nextValue: 'New Tyre' });
+    }
+    try {
+      await addEntryOfflineFirst({
+        type: 'spec_update',
+        userId: currentUser.id,
+        userName: currentUser.name,
+        odometer,
+        cost: undefined,
+        specUpdatedFields: ['tyreSetup'],
+        specUpdateDetails,
+        expenseTitle: actionLabels[action],
+      });
+      void runSyncCycle();
+    } catch {
+      // Silent fail - tyre setup is already saved locally
+    }
+  }, [addEntryOfflineFirst, currentUser]);
+
   const saveEdit = useCallback(() => {
     if (!editingTyreRecord || !editAction) return;
     const parsedOdometer = Number(draftOdometer);
@@ -106,6 +140,7 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
     if (editAction === 'change') {
       persistTyreSetup(applyTyreInspectionUpdate(tyres, editingTyreRecord.id, { odometer: parsedOdometer, inspectionDate: eventDate, treadDepthAtInspection: NEW_TREAD_DEPTH_MM, isNew: true }));
+      void addTyreHistoryEntry('new_tyre', editingTyreRecord.currentPosition, parsedOdometer, { isNew: true });
       cancelEdit(); return;
     }
 
@@ -113,6 +148,7 @@ export function TyreHealthSection({ currentOdometer }: Props) {
       if (editingTyreRecord.currentPosition === 's') return;
       const nextAssignments = { ...currentAssignments, [editingTyreRecord.currentPosition]: currentAssignments.s, s: currentAssignments[editingTyreRecord.currentPosition] };
       persistTyreSetup(applyTyrePositionUpdate(tyres, nextAssignments, parsedOdometer));
+      void addTyreHistoryEntry('swap_stepney', editingTyreRecord.currentPosition, parsedOdometer);
       cancelEdit(); return;
     }
 
@@ -123,8 +159,9 @@ export function TyreHealthSection({ currentOdometer }: Props) {
     }
 
     persistTyreSetup(applyTyreInspectionUpdate(tyres, editingTyreRecord.id, { odometer: parsedOdometer, inspectionDate: eventDate, treadDepthAtInspection: parsedTread, isNew: false }));
+    void addTyreHistoryEntry('inspect', editingTyreRecord.currentPosition, parsedOdometer, { treadDepth: parsedTread });
     cancelEdit();
-  }, [cancelEdit, currentAssignments, currentOdometer, draftOdometer, draftTreadDepth, editAction, editingTyreRecord, persistTyreSetup, tyres]);
+  }, [cancelEdit, currentAssignments, currentOdometer, draftOdometer, draftTreadDepth, editAction, editingTyreRecord, persistTyreSetup, tyres, addTyreHistoryEntry]);
 
   const openPositionEditor = () => { cancelEdit(); setDraftAssignments(currentAssignments); setDraftPositionOdometer(String(currentOdometer)); setIsPositionEditorOpen(true); };
   const cancelPositionEditor = () => { setDraftAssignments(currentAssignments); setDraftPositionOdometer(String(currentOdometer)); setIsPositionEditorOpen(false); };
@@ -143,6 +180,25 @@ export function TyreHealthSection({ currentOdometer }: Props) {
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
     if (areAssignmentsEqual(currentAssignments, draftAssignments)) { cancelPositionEditor(); return; }
     persistTyreSetup(applyTyrePositionUpdate(tyres, draftAssignments, parsedOdometer));
+    // Create history entry for position changes
+    const changedPositions = POSITION_ORDER.filter((pos) => currentAssignments[pos] !== draftAssignments[pos]);
+    if (changedPositions.length > 0 && currentUser) {
+      const positionChanges = changedPositions.map((pos) => {
+        const oldTyre = getTyreDisplayName(currentAssignments[pos]);
+        const newTyre = getTyreDisplayName(draftAssignments[pos]);
+        return `${POSITION_LABELS[pos]}: ${oldTyre} → ${newTyre}`;
+      });
+      void addEntryOfflineFirst({
+        type: 'spec_update',
+        userId: currentUser.id,
+        userName: currentUser.name,
+        odometer: parsedOdometer,
+        cost: undefined,
+        specUpdatedFields: ['tyreSetup'],
+        specUpdateDetails: positionChanges.map((change) => ({ field: 'position', label: change, previousValue: '-', nextValue: '-' })),
+        expenseTitle: `Tyre positions updated (${changedPositions.length} change${changedPositions.length > 1 ? 's' : ''})`,
+      }).then(() => runSyncCycle()).catch(() => { /* Silent fail */ });
+    }
     setIsPositionEditorOpen(false);
   };
 

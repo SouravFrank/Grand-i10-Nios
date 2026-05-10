@@ -30,6 +30,7 @@ import insurancePdf from '../../assets/pdf/insurence.pdf';
 import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
 import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
 import rcPdf from '../../assets/pdf/RC.pdf';
+import tyre_warranty from '../../assets/pdf/tyre_yoko.pdf';
 
 type CarInfoBottomSheetProps = {
   visible: boolean;
@@ -48,7 +49,7 @@ type SpecRow = {
 };
 
 type CarSpecTab = 'health' | 'on_road' | 'identity';
-type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport';
+type LegalGalleryKey = 'pucc' | 'insurance' | 'rc' | 'fitness' | 'roadTax' | 'numberPlate' | 'pdiReport' | 'tyreWarranty';
 
 type LegalGalleryItem = {
   key: LegalGalleryKey;
@@ -58,7 +59,7 @@ type LegalGalleryItem = {
   accent: string;
 };
 
-const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
+const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string; intervalKm?: number }[] = [
   { key: 'lastMaintenanceDate', label: 'Last Maintenance' },
   { key: 'lastCoolantRefillOn', label: 'Coolant' },
   { key: 'lastEngineOilChangedOn', label: 'Engine Oil' },
@@ -70,6 +71,7 @@ const HEALTH_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] 
   { key: 'lastSparkPlugsChangedOn', label: 'Spark Plugs' },
   { key: 'lastBatteryChangedOn', label: 'Battery' },
   { key: 'lastBrakePadsChangedOn', label: 'Brake Pads' },
+  { key: 'lastWheelAlignmentOn', label: 'Wheel Alignment', intervalKm: 5000 },
 ];
 
 const ON_ROAD_EDITABLE_CONFIG: { key: CarSpecEditableFieldKey; label: string }[] = [
@@ -87,6 +89,7 @@ const LEGAL_GALLERY_ITEMS: LegalGalleryItem[] = [
   { key: 'roadTax', title: 'Road Tax', subtitle: 'Tax payment proof', icon: 'account-balance-wallet', accent: '#7A1FA2' },
   { key: 'numberPlate', title: 'Number Plate', subtitle: 'Registration plate photo', icon: 'directions-car', accent: '#455A64' },
   { key: 'pdiReport', title: 'PDI Report', subtitle: 'Pre-delivery inspection report', icon: 'fact-check', accent: '#B71C1C' },
+  { key: 'tyreWarranty', title: 'Tyre Warranty', subtitle: 'Tyre warranty card Yokohama', icon: 'settings', accent: '#1565C0' },
 ];
 
 async function openFileByUri(localUri: string, mimeType: string, cacheFileName: string): Promise<void> {
@@ -115,6 +118,7 @@ const BUNDLED_ASSETS: Partial<Record<CarDocumentKey, { module: number; cacheFile
   insurance: { module: insurancePdf, cacheFileName: 'insurance.pdf', mimeType: 'application/pdf' },
   rc: { module: rcPdf, cacheFileName: 'rc.pdf', mimeType: 'application/pdf' },
   numberPlate: { module: numberPlateJpg, cacheFileName: 'number_plate.jpg', mimeType: 'image/jpeg' },
+  tyreWarranty: { module: tyre_warranty, cacheFileName: 'tyre_warranty.pdf', mimeType: 'application/pdf' },
 };
 
 async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<void> {
@@ -233,6 +237,42 @@ function getTrafficLightStatus(value: string, fieldKey: CarSpecEditableFieldKey,
       : `${formatYMD(convertDaysToYMD(remainingDays))} left`;
 
   return { color, hex, rgba, text: statusText, remainingDays };
+}
+
+const WHEEL_ALIGNMENT_INTERVAL_KM = 5000;
+
+function getWheelAlignmentStatus(lastAlignmentOdometer: number | undefined, currentOdometer: number): { color: TrafficLightColor; hex: string; rgba: string; text: string; remainingKm: number } | null {
+  if (lastAlignmentOdometer === undefined || lastAlignmentOdometer <= 0) {
+    return null;
+  }
+  const kmDriven = currentOdometer - lastAlignmentOdometer;
+  const remainingKm = WHEEL_ALIGNMENT_INTERVAL_KM - kmDriven;
+
+  let color: TrafficLightColor = 'green';
+  let hex = '#10B981';
+  let rgba = 'rgba(16, 185, 129, 0.15)';
+
+  if (remainingKm <= 0) {
+    color = 'red';
+    hex = '#EF4444';
+    rgba = 'rgba(239, 68, 68, 0.15)';
+  } else if (remainingKm <= 500) {
+    color = 'orange';
+    hex = '#F97316';
+    rgba = 'rgba(249, 115, 22, 0.15)';
+  } else if (remainingKm <= 1500) {
+    color = 'yellow';
+    hex = '#EAB308';
+    rgba = 'rgba(234, 179, 8, 0.15)';
+  }
+
+  const statusText = remainingKm < 0
+    ? `Overdue by ${Math.abs(remainingKm).toLocaleString()} km`
+    : remainingKm === 0
+      ? 'Due now'
+      : `${remainingKm.toLocaleString()} km left`;
+
+  return { color, hex, rgba, text: statusText, remainingKm };
 }
 
 export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, onSaveFieldEdit }: CarInfoBottomSheetProps) {
@@ -424,10 +464,21 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
     if (Number.isNaN(parsedCost) || parsedCost < 0) { Alert.alert('Invalid cost', 'Cost must be provided for spec update entries.'); return; }
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
-    if (parsedOdometer < lastOdometer) { Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
-    if (parsedOdometer - lastOdometer > 500) { Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
+    // Skip odometer restrictions for wheel alignment (can be historical entry)
+    if (activeField !== 'lastWheelAlignmentOn') {
+      if (parsedOdometer < lastOdometer) { Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
+      if (parsedOdometer - lastOdometer > 500) { Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
+    }
 
-    onSaveFieldEdit({ field: activeField, label: config.label, previousValue: carSpec[activeField], value: nextValue, odometer: parsedOdometer, cost: Number.isFinite(parsedCost) ? parsedCost : undefined });
+    onSaveFieldEdit({
+      field: activeField,
+      label: config.label,
+      previousValue: carSpec[activeField],
+      value: nextValue,
+      odometer: parsedOdometer,
+      cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
+      wheelAlignmentOdometer: activeField === 'lastWheelAlignmentOn' ? parsedOdometer : undefined,
+    });
     cancelEdit();
   };
 
@@ -502,7 +553,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
             <View style={isGridTab ? styles.gridContainer : styles.listContainer}>
               {editableRows.map((row) => {
                 const isActive = row.editable && row.key === activeField;
-                const status = row.editable ? getTrafficLightStatus(row.value, row.key as CarSpecEditableFieldKey, activeTab === 'on_road') : null;
+                const isWheelAlignment = row.key === 'lastWheelAlignmentOn';
+                const status = row.editable
+                  ? isWheelAlignment
+                    ? getWheelAlignmentStatus(carSpec.lastWheelAlignmentOdometer, lastOdometer)
+                    : getTrafficLightStatus(row.value, row.key as CarSpecEditableFieldKey, activeTab === 'on_road')
+                  : null;
                 const viewKey = row.editable && activeTab === 'on_road' ? getGalleryKeyForSpecField(row.key as CarSpecEditableFieldKey) : null;
                 const isCompact = isGridTab && !isActive;
 

@@ -14,7 +14,7 @@ import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
-import type { CarSpecFieldUpdateSubmission } from '@/types/models';
+import type { CarSpec, CarSpecFieldUpdateSubmission } from '@/types/models';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Home'>;
 
@@ -96,8 +96,12 @@ export function HomeScreen({ navigation }: Props) {
   }, [isOnline, pendingQueue.length]);
 
   const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
-    const { field, label, previousValue, value, odometer, cost } = submission;
-    updateCarSpec({ [field]: value });
+    const { field, label, previousValue, value, odometer, cost, wheelAlignmentOdometer } = submission;
+    const updates: Partial<CarSpec> = { [field]: value };
+    if (field === 'lastWheelAlignmentOn' && wheelAlignmentOdometer !== undefined) {
+      updates.lastWheelAlignmentOdometer = wheelAlignmentOdometer;
+    }
+    updateCarSpec(updates);
 
     if (!currentUser) {
       return;

@@ -30,7 +30,6 @@ import type {
     AppUser,
     AuthStatus,
     CarSpec,
-    CarSpecEditableFields,
     Entry,
     EntryRecord,
     ExpenseCategory,
@@ -127,6 +126,8 @@ const DEFAULT_CAR_SPEC: CarSpec = {
   lastBatteryChangedOn: "Not set",
   lastBrakePadsChangedOn: "05 Sep 2025",
   lastTyresChangedOn: "Not set",
+  lastWheelAlignmentOn: "Not set",
+  lastWheelAlignmentOdometer: 0,
   tyreSetup: buildDefaultTyreSetup(),
   puccExpireDate: "20 Sep 2026",
   insuranceValidUpTo: "26 Feb 2027",
@@ -176,6 +177,8 @@ function normalizeCarSpec(carSpec?: Partial<CarSpec> | null): CarSpec {
     lastBatteryChangedOn: normalizeIndianDate(merged.lastBatteryChangedOn),
     lastBrakePadsChangedOn: normalizeIndianDate(merged.lastBrakePadsChangedOn),
     lastTyresChangedOn: normalizeIndianDate(merged.lastTyresChangedOn),
+    lastWheelAlignmentOn: normalizeIndianDate(merged.lastWheelAlignmentOn),
+    lastWheelAlignmentOdometer: merged.lastWheelAlignmentOdometer ?? 0,
     tyreSetup: normalizeTyreSetup(merged.tyreSetup),
     puccExpireDate: normalizeIndianDate(merged.puccExpireDate),
     insuranceValidUpTo: normalizeIndianDate(merged.insuranceValidUpTo),
@@ -251,7 +254,7 @@ type AppState = PersistedAppData & {
   updatePendingQueue: (nextQueue: PendingQueueItem[]) => void;
   mergeRemoteEntries: (remoteEntries: RemoteEntryDocument[]) => Promise<void>;
   runIntegrityCheck: () => Promise<void>;
-  updateCarSpec: (updates: Partial<CarSpecEditableFields>) => void;
+  updateCarSpec: (updates: Partial<CarSpec>) => void;
   updateTyreSetup: (tyreSetup: TyreRecord[]) => void;
   markCarSpecSynced: () => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
@@ -596,7 +599,12 @@ export const useAppStore = create<AppState>()(
         const isHistoryEntry =
           payload.createdAt && payload.createdAt !== Date.now();
 
-        if (!isHistoryEntry && entryOdometer < lastOdometerValue) {
+        // Allow lower odometer values for expense entries (users might need to add missed/corrected expenses)
+        if (
+          !isHistoryEntry &&
+          entryOdometer < lastOdometerValue &&
+          payload.type !== "expense"
+        ) {
           throw new Error(
             "New odometer entry cannot be less than the previous value.",
           );

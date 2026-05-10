@@ -5,7 +5,7 @@ import { type DateTimePickerEvent } from '@react-native-community/datetimepicker
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Animated, Easing, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
@@ -15,8 +15,10 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { ALLOWED_USERS } from '@/constants/users';
 import type { AppStackParamList } from '@/navigation/types';
+import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
+import { getEntryOwnerId } from '@/utils/entryOwnership';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'FuelEntryModal'>;
 
@@ -138,12 +140,58 @@ export function FuelEntryScreen({ navigation, route }: Props) {
     setIsDatePickerVisible(false);
   };
 
-  const onSubmit = handleSubmit(async (values) => {
-    // ... Keep exact logic ...
+  const onSubmit = handleSubmit(async ({ odometer, fuelAmount, fuelLiters, fullTank, paidByUserId }) => {
+    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
+    if (isEditing && !editingEntry) return Alert.alert('Entry not found', 'This fuel entry is no longer available.');
+    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Edit not allowed', 'You can only edit your own fuel entries.');
+
+    const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
+    if (!selectedPayer) return Alert.alert('Invalid payer', 'Select who paid for this fuel.');
+
+    try {
+      if (editingEntry) {
+        await updateEntryOfflineFirst(editingEntry.id, {
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
+          odometer: Number(odometer),
+          fuelAmount: Number(fuelAmount),
+          fuelLiters: Number(fuelLiters),
+          fullTank,
+        });
+      } else {
+        await addEntryOfflineFirst({
+          type: 'fuel',
+          userId: selectedPayer.id,
+          userName: selectedPayer.name,
+          odometer: Number(odometer),
+          fuelAmount: Number(fuelAmount),
+          fuelLiters: Number(fuelLiters),
+          fullTank,
+        });
+      }
+      navigation.goBack();
+      void runSyncCycle();
+    } catch (error) {
+      Alert.alert(isEditing ? 'Could not update fuel entry' : 'Could not save fuel entry', error instanceof Error ? error.message : 'Unknown error');
+    }
   });
 
   const handleDelete = () => {
-    // ... Keep exact logic ...
+    if (!editingEntry) return;
+    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Delete not allowed', 'You can only delete your own fuel entries.');
+    Alert.alert('Delete Entry', 'Are you sure you want to delete this fuel entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteEntry(editingEntry.id).then(() => {
+            navigation.goBack();
+            void runSyncCycle();
+          });
+        },
+      },
+    ]);
   };
 
   return (
