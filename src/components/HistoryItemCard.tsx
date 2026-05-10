@@ -100,7 +100,7 @@ export function HistoryItemCard({
           : entry.type === 'expense' ? 'receipt-long'
             : 'speed';
 
-  const primaryText = entry.type === 'spec_update' ? specUpdateLines[0] ?? 'Specifications updated'
+  const primaryText = entry.type === 'spec_update' ? entry.expenseTitle || specUpdateLines[0] || 'Specifications updated'
     : entry.type === 'expense' ? entry.expenseTitle || 'Expense logged'
       : isTripSummary ? `${tripStartOdometer} -> ${tripEndOdometer}`
         : `${entry.odometer} KM`;

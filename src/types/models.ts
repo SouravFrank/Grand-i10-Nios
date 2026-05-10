@@ -132,6 +132,8 @@ export type CarSpec = {
   lastBatteryChangedOn: string;
   lastBrakePadsChangedOn: string;
   lastTyresChangedOn: string;
+  lastWheelAlignmentOn: string;
+  lastWheelAlignmentOdometer: number;
   tyreSetup: TyreRecord[];
   puccExpireDate: string;
   insuranceValidUpTo: string;
@@ -152,6 +154,7 @@ export type CarSpecEditableFields = {
   lastBatteryChangedOn: string;
   lastBrakePadsChangedOn: string;
   lastTyresChangedOn: string;
+  lastWheelAlignmentOn: string;
   puccExpireDate: string;
   insuranceValidUpTo: string;
   fitnessValidUpTo: string;
@@ -167,6 +170,7 @@ export type CarSpecFieldUpdateSubmission = {
   value: string;
   odometer: number;
   cost?: number;
+  wheelAlignmentOdometer?: number;
 };
 
 export type CarDocumentKey =
