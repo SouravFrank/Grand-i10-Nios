@@ -1,11 +1,12 @@
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { styles } from '@/screens/HistoryEntryScreen.styles';
+import { ThemeColors } from '@/theme/colors';
 import { Control, Controller, FieldErrors } from 'react-hook-form';
 import { Switch, Text, View } from 'react-native';
 
 type FastagFormData = { odometer: string; tollAmount: string; tollLocation: string; isSharedTrip: boolean; };
-interface FastagFormSectionProps { control: Control<FastagFormData>; errors: FieldErrors<FastagFormData>; lastOdometer: number; isDark: boolean; colors: any; }
+interface FastagFormSectionProps { control: Control<FastagFormData>; errors: FieldErrors<FastagFormData>; lastOdometer: number; isDark: boolean; colors: ThemeColors; }
 
 export function FastagFormSection({ control, errors, lastOdometer, isDark, colors }: FastagFormSectionProps) {
   return (
@@ -17,16 +18,16 @@ export function FastagFormSection({ control, errors, lastOdometer, isDark, color
               <Text style={[styles.odoPanelLabel, { color: colors.textSecondary }]}>Odometer</Text>
               <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
             </View>
-            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={(errors as any).odometer?.message} />
+            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message as string | undefined} />
           </View>
         )} />
       </View>
       <View style={styles.fieldsGroup}>
         <Controller control={control} name="tollLocation" render={({ field: { onChange, value } }) => (
-          <AppTextField label="Toll Location" value={value ?? ''} onChangeText={onChange} placeholder="e.g. Expressway" error={(errors as any).tollLocation?.message} />
+          <AppTextField label="Toll Location" value={value ?? ''} onChangeText={onChange} placeholder="e.g. Expressway" error={errors.tollLocation?.message as string | undefined} />
         )} />
         <Controller control={control} name="tollAmount" render={({ field: { onChange, value } }) => (
-          <AppTextField label="Toll Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 85" error={(errors as any).tollAmount?.message} />
+          <AppTextField label="Toll Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 85" error={errors.tollAmount?.message as string | undefined} />
         )} />
       </View>
       <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary }]}>

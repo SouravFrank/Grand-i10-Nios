@@ -3,9 +3,10 @@ import { Switch, Text, View } from 'react-native';
 
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { styles } from '@/screens/HistoryEntryScreen.styles';
+import { ThemeColors } from '@/theme/colors';
 
 type TripFormData = { startOdometer: string; endOdometer: string; isSharedTrip: boolean; };
-interface TripFormSectionProps { control: Control<TripFormData>; errors: FieldErrors<TripFormData>; lastOdometer: number; isDark: boolean; colors: any; }
+interface TripFormSectionProps { control: Control<TripFormData>; errors: FieldErrors<TripFormData>; lastOdometer: number; isDark: boolean; colors: ThemeColors; }
 
 export function TripFormSection({ control, errors, lastOdometer, isDark, colors }: TripFormSectionProps) {
   return (
@@ -18,7 +19,7 @@ export function TripFormSection({ control, errors, lastOdometer, isDark, colors 
             <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
           </View>
           <Controller control={control} name="startOdometer" render={({ field: { onChange, value } }) => (
-            <OdometerDigitInput label="Start Odometer" value={value} onChangeText={onChange} error={(errors as any).startOdometer?.message} />
+            <OdometerDigitInput label="Start Odometer" value={value} onChangeText={onChange} error={errors.startOdometer?.message as string | undefined} />
           )} />
         </View>
         <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
@@ -27,7 +28,7 @@ export function TripFormSection({ control, errors, lastOdometer, isDark, colors 
             <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Trip completion</Text>
           </View>
           <Controller control={control} name="endOdometer" render={({ field: { onChange, value } }) => (
-            <OdometerDigitInput label="End Odometer" value={value} onChangeText={onChange} error={(errors as any).endOdometer?.message} />
+            <OdometerDigitInput label="End Odometer" value={value} onChangeText={onChange} error={errors.endOdometer?.message as string | undefined} />
           )} />
         </View>
       </View>

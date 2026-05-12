@@ -1,11 +1,12 @@
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { styles } from '@/screens/HistoryEntryScreen.styles';
+import { ThemeColors } from '@/theme/colors';
 import { Control, Controller, FieldErrors } from 'react-hook-form';
 import { Switch, Text, View } from 'react-native';
 
 type ParkingFormData = { odometer: string; parkingAmount: string; parkingLocation: string; isSharedTrip: boolean; };
-interface ParkingFormSectionProps { control: Control<ParkingFormData>; errors: FieldErrors<ParkingFormData>; lastOdometer: number; isDark: boolean; colors: any; }
+interface ParkingFormSectionProps { control: Control<ParkingFormData>; errors: FieldErrors<ParkingFormData>; lastOdometer: number; isDark: boolean; colors: ThemeColors; }
 
 export function ParkingFormSection({ control, errors, lastOdometer, isDark, colors }: ParkingFormSectionProps) {
   return (
@@ -17,16 +18,16 @@ export function ParkingFormSection({ control, errors, lastOdometer, isDark, colo
               <Text style={[styles.odoPanelLabel, { color: colors.textSecondary }]}>Odometer</Text>
               <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
             </View>
-            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={(errors as any).odometer?.message} />
+            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message as string | undefined} />
           </View>
         )} />
       </View>
       <View style={styles.fieldsGroup}>
         <Controller control={control} name="parkingLocation" render={({ field: { onChange, value } }) => (
-          <AppTextField label="Parking Location" value={value ?? ''} onChangeText={onChange} placeholder="e.g. Mall Parking" error={(errors as any).parkingLocation?.message} />
+          <AppTextField label="Parking Location" value={value ?? ''} onChangeText={onChange} placeholder="e.g. Mall Parking" error={errors.parkingLocation?.message as string | undefined} />
         )} />
         <Controller control={control} name="parkingAmount" render={({ field: { onChange, value } }) => (
-          <AppTextField label="Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 50" error={(errors as any).parkingAmount?.message} />
+          <AppTextField label="Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 50" error={errors.parkingAmount?.message as string | undefined} />
         )} />
       </View>
       <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary }]}>

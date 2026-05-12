@@ -1,12 +1,13 @@
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { styles } from '@/screens/HistoryEntryScreen.styles';
+import { ThemeColors } from '@/theme/colors';
 import { Control, Controller, FieldErrors } from 'react-hook-form';
 import { Switch, Text, View } from 'react-native';
 
 const GRAND_I10_NIOS_TANK_CAPACITY_LITERS = 37;
 type FuelFormData = { odometer: string; fuelAmount: string; fuelLiters: string; fullTank: boolean; };
-interface FuelFormSectionProps { control: Control<FuelFormData>; errors: FieldErrors<FuelFormData>; lastOdometer: number; fullTankSelected: boolean; isDark: boolean; colors: any; }
+interface FuelFormSectionProps { control: Control<FuelFormData>; errors: FieldErrors<FuelFormData>; lastOdometer: number; fullTankSelected: boolean; isDark: boolean; colors: ThemeColors; }
 
 export function FuelFormSection({ control, errors, lastOdometer, fullTankSelected, isDark, colors }: FuelFormSectionProps) {
   return (
@@ -18,7 +19,7 @@ export function FuelFormSection({ control, errors, lastOdometer, fullTankSelecte
               <Text style={[styles.odoPanelLabel, { color: colors.textSecondary }]}>Odometer</Text>
               <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
             </View>
-            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={(errors as any).odometer?.message} />
+            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message as string | undefined} />
           </View>
         )} />
       </View>
@@ -26,12 +27,12 @@ export function FuelFormSection({ control, errors, lastOdometer, fullTankSelecte
         <View style={styles.metricsRow}>
           <View style={styles.metricField}>
             <Controller control={control} name="fuelAmount" render={({ field: { onChange, value } }) => (
-              <AppTextField label="Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 2000" error={(errors as any).fuelAmount?.message} />
+              <AppTextField label="Amount (Rs)" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 2000" error={errors.fuelAmount?.message as string | undefined} />
             )} />
           </View>
           <View style={styles.metricField}>
             <Controller control={control} name="fuelLiters" render={({ field: { onChange, value } }) => (
-              <AppTextField label="Liters" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 24.6" error={(errors as any).fuelLiters?.message} editable={!fullTankSelected} />
+              <AppTextField label="Liters" value={value ?? ''} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 24.6" error={errors.fuelLiters?.message as string | undefined} editable={!fullTankSelected} />
             )} />
           </View>
         </View>

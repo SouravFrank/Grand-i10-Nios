@@ -893,7 +893,7 @@ export function buildExpenseReport(params: {
     );
   }
 
-  let totalTripFuelCost = 0;
+  let totalTripFuelCost: number;
   let totalFastagRecharge = 0;
   let totalFastagRechargeBefore = 0;
   let totalFastagUsed = 0;
@@ -1152,7 +1152,7 @@ export function buildExpenseReport(params: {
   for (const user of users) {
     const summary = usersById[user.id];
 
-    let fuelShare = 0;
+    let fuelShare: number;
     if (rangeFuelFilledLiters > 0) {
       fuelShare = summary.fuelFilledLiters / rangeFuelFilledLiters;
     } else {
@@ -1171,7 +1171,7 @@ export function buildExpenseReport(params: {
       userAllocatedLiters * wavgPrice,
     );
 
-    let fastagShare = 0;
+    let fastagShare: number;
     if (totalFastagRecharge > 0) {
       fastagShare = summary.fastagRechargeAmount / totalFastagRecharge;
     } else {
