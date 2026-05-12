@@ -5,7 +5,7 @@ import { isPayerSelectableEntryType } from '@/utils/entryOwnership';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 type HistoryItemCardProps = {
   entry: EntryRecord;
@@ -152,7 +152,7 @@ export function HistoryItemCard({
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateX }] }}>
-      <Swipeable
+      <ReanimatedSwipeable
         renderRightActions={() => {
           if (!canEdit) return null;
           return (
@@ -246,7 +246,7 @@ export function HistoryItemCard({
             </View>
           )}
         </View>
-      </Swipeable>
+      </ReanimatedSwipeable>
     </Animated.View>
   );
 }
