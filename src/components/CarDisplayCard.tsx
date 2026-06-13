@@ -1,24 +1,55 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useAppTheme } from '@/theme/useAppTheme';
+import type { AppUser } from '@/types/models';
 
-import carLeft from '../../assets/images/carL.png';
-import carRight from '../../assets/images/carR.png';
+import carAyan from '../../assets/images/car_Ayan.png';
+import carSourav from '../../assets/images/car_Sourav.png';
+
+type CarHeroImage = {
+  accent: string;
+  source: ImageSourcePropType;
+  userId: string;
+  userName: string;
+};
+
+const imageSources: readonly CarHeroImage[] = [
+  { userId: 'sourav', userName: 'Sourav', source: carSourav, accent: '#8B5CF6' },
+  { userId: 'ayan', userName: 'Ayan', source: carAyan, accent: '#0EA5E9' },
+];
+
+function getImageIndexForUser(user?: Pick<AppUser, 'id' | 'name'> | null) {
+  const normalizedId = user?.id.trim().toLowerCase();
+  const normalizedName = user?.name.trim().toLowerCase();
+  const matchingIndex = imageSources.findIndex(
+    (image) => image.userId === normalizedId || image.userName.toLowerCase() === normalizedName,
+  );
+
+  return matchingIndex >= 0 ? matchingIndex : 0;
+}
 
 type CarDisplayCardProps = {
+  currentUser?: Pick<AppUser, 'id' | 'name'> | null;
   registrationText: string;
   subtitle: string;
   onPress: () => void;
   onLongPressRegistration?: () => void;
 };
 
-export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPressRegistration }: CarDisplayCardProps) {
+export function CarDisplayCard({
+  currentUser,
+  registrationText,
+  subtitle,
+  onPress,
+  onLongPressRegistration,
+}: CarDisplayCardProps) {
   const { colors } = useAppTheme();
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const imageSources = [carLeft, carRight] as const;
+  const [selectedImageIndex, setSelectedImageIndex] = useState(() => getImageIndexForUser(currentUser));
   const selectedImage = imageSources[selectedImageIndex];
+  const welcomeName = currentUser?.name ?? selectedImage.userName;
 
   // Entrance animations
   const imageScale = useRef(new Animated.Value(0.85)).current;
@@ -61,6 +92,10 @@ export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPres
     ]).start();
   }, [imageScale, imageOpacity, textSlideY, textOpacity]);
 
+  useEffect(() => {
+    setSelectedImageIndex(getImageIndexForUser(currentUser));
+  }, [currentUser?.id, currentUser?.name]);
+
   const switchImage = (direction: 'prev' | 'next') => {
     // Quick scale-down then back up on switch
     Animated.sequence([
@@ -89,41 +124,70 @@ export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPres
     <View style={styles.wrapper}>
       <Animated.View
         style={[
-          styles.imagePressable,
+          styles.heroFrame,
+          { backgroundColor: colors.backgroundSecondary },
           {
             transform: [{ scale: Animated.multiply(imageScale, switchScale) }],
             opacity: imageOpacity,
           },
         ]}
       >
-        <View style={styles.imageRow}>
-          <Pressable onPress={() => switchImage('prev')} style={styles.arrowBtn}>
-            <MaterialIcons name="chevron-left" size={26} color={colors.textPrimary} />
-          </Pressable>
-          <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, styles.imageTapArea]}>
-            <Image source={selectedImage} style={styles.image} />
-          </Pressable>
-          <Pressable onPress={() => switchImage('next')} style={styles.arrowBtn}>
-            <MaterialIcons name="chevron-right" size={26} color={colors.textPrimary} />
-          </Pressable>
-        </View>
-      </Animated.View>
+        <Pressable onPress={onPress} style={({ pressed }) => [styles.imageTapArea, { opacity: pressed ? 0.94 : 1 }]}>
+          <Image source={selectedImage.source} style={styles.image} />
+        </Pressable>
 
-      {/* Dots indicator */}
-      <View style={styles.dotsRow}>
-        {imageSources.map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor: i === selectedImageIndex ? colors.textPrimary : colors.border,
-                width: i === selectedImageIndex ? 16 : 6,
-              },
-            ]}
-          />
-        ))}
-      </View>
+        <Svg pointerEvents="none" style={styles.topFade} viewBox="0 0 100 100" preserveAspectRatio="none">
+          <Defs>
+            <LinearGradient id="carHeroTopFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor="#000000" stopOpacity="0.72" />
+              <Stop offset="48%" stopColor="#000000" stopOpacity="0.28" />
+              <Stop offset="100%" stopColor="#000000" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100" height="100" fill="url(#carHeroTopFade)" />
+        </Svg>
+
+        <Svg pointerEvents="none" style={styles.bottomFade} viewBox="0 0 100 100" preserveAspectRatio="none">
+          <Defs>
+            <LinearGradient id="carHeroBottomFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={colors.background} stopOpacity="0" />
+              <Stop offset="44%" stopColor={colors.background} stopOpacity="0.28" />
+              <Stop offset="76%" stopColor={colors.background} stopOpacity="0.82" />
+              <Stop offset="100%" stopColor={colors.background} stopOpacity="1" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100" height="100" fill="url(#carHeroBottomFade)" />
+        </Svg>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.welcomeOverlay,
+            {
+              opacity: textOpacity,
+              transform: [{ translateY: textSlideY }],
+            },
+          ]}
+        >
+          <Text style={styles.welcomeText}>
+            <Text style={styles.welcomePrefix}>Welcome </Text>
+            {welcomeName}
+          </Text>
+          <View style={[styles.accentRule, { backgroundColor: 'white' }]} />
+        </Animated.View>
+
+        <View pointerEvents="none" style={styles.dissolveLines}>
+          <View style={[styles.dissolveLine, styles.dissolveLineWide, { backgroundColor: 'white' }]} />
+          <View style={[styles.dissolveLine, styles.dissolveLineShort, { backgroundColor: 'white' }]} />
+        </View>
+
+        <Pressable hitSlop={20} onPress={() => switchImage('prev')} style={[styles.arrowBtn, styles.leftArrow]}>
+          <MaterialIcons name="chevron-left" size={18} color="#FFFFFF" />
+        </Pressable>
+        <Pressable hitSlop={20} onPress={() => switchImage('next')} style={[styles.arrowBtn, styles.rightArrow]}>
+          <MaterialIcons name="chevron-right" size={18} color="#FFFFFF" />
+        </Pressable>
+      </Animated.View>
 
       <Animated.View style={{ transform: [{ translateY: textSlideY }], opacity: textOpacity }}>
         <Pressable onLongPress={onLongPressRegistration} delayLongPress={250}>
@@ -137,39 +201,137 @@ export function CarDisplayCard({ registrationText, subtitle, onPress, onLongPres
 
 const styles = StyleSheet.create({
   wrapper: {
-    gap: 2,
+    gap: 4,
   },
-  imagePressable: {
-    height: 246,
+  heroFrame: {
+    height: 286,
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 26,
+    // shadowColor: '#000000',
+    // shadowOpacity: 0.16,
+    // shadowRadius: 18,
+    // shadowOffset: { width: 0, height: 10 },
+    // elevation: 6,
+  },
+  imageTapArea: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  image: {
+    height: '100%',
+    resizeMode: 'cover',
+    transform: [{ scale: 1.045 }],
     width: '100%',
   },
-  imageRow: {
+  topFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 124,
+  },
+  bottomFade: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 142,
+  },
+  welcomeOverlay: {
+    position: 'absolute',
+    top: 18,
+    left: 24,
+    right: 24,
+    alignItems: 'center',
+  },
+  kickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
+    gap: 7,
+    marginBottom: 6,
+  },
+  signalDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.65,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  kickerText: {
+    color: 'rgba(255,255,255,0.74)',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  welcomeText: {
+    color: '#FFFFFF',
+    fontSize: 25,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 12,
+  },
+  welcomePrefix: {
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  accentRule: {
+    width: 74,
+    height: 2,
+    borderRadius: 2,
+    marginTop: 9,
+    opacity: 0.9,
+  },
+  dissolveLines: {
+    position: 'absolute',
+    left: 30,
+    right: 30,
+    bottom: 20,
+    alignItems: 'center',
+    gap: 8,
+    opacity: 0.34,
+  },
+  dissolveLine: {
+    height: 1,
+    borderRadius: 1,
+  },
+  dissolveLineWide: {
+    width: '78%',
+  },
+  dissolveLineShort: {
+    width: '38%',
   },
   arrowBtn: {
-    width: 36,
-    height: 36,
+    position: 'absolute',
+    top: '50%',
+    width: 25,
+    height: 25,
+    marginTop: -12.5,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 12.5,
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
   },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
+  leftArrow: {
+    left: 8,
   },
-  imageTapArea: {
-    width: '82%',
-    height: '100%',
+  rightArrow: {
+    right: 8,
   },
   dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    marginTop: -4,
+    marginTop: -8,
     marginBottom: 4,
   },
   dot: {

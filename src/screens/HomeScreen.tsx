@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppAlert } from '@/components/AppAlert';
@@ -41,8 +41,6 @@ export function HomeScreen({ navigation }: Props) {
     '1.0.0';
 
   // Screen entrance animations
-  const welcomeOpacity = useRef(new Animated.Value(0)).current;
-  const welcomeSlideY = useRef(new Animated.Value(-15)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
   const ctaSlideY = useRef(new Animated.Value(25)).current;
   const footerOpacity = useRef(new Animated.Value(0)).current;
@@ -51,20 +49,6 @@ export function HomeScreen({ navigation }: Props) {
     void runSyncCycle();
 
     Animated.stagger(150, [
-      Animated.parallel([
-        Animated.timing(welcomeOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-          easing: Easing.out(Easing.ease),
-        }),
-        Animated.spring(welcomeSlideY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 60,
-          friction: 10,
-        }),
-      ]),
       Animated.parallel([
         Animated.timing(ctaOpacity, {
           toValue: 1,
@@ -84,7 +68,7 @@ export function HomeScreen({ navigation }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [welcomeOpacity, welcomeSlideY, ctaOpacity, ctaSlideY, footerOpacity]);
+  }, [ctaOpacity, ctaSlideY, footerOpacity]);
 
   const offlineBannerText = useMemo(() => {
     if (isOnline) {
@@ -144,13 +128,6 @@ export function HomeScreen({ navigation }: Props) {
     <ScreenContainer>
       <View style={styles.screen}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          <Animated.Text style={[styles.title, { color: colors.textPrimary, opacity: welcomeOpacity, transform: [{ translateY: welcomeSlideY }] }]}>
-            <Text style={{ fontSize: 18, color: colors.textSecondary, fontWeight: '400' }}>
-              Welcome{' '}
-            </Text>
-            {currentUser?.name ?? 'User'}
-          </Animated.Text>
-
           {offlineBannerText ? (
             <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
               <Text style={[styles.offlineText, { color: colors.textSecondary }]}>{offlineBannerText}</Text>
@@ -158,6 +135,7 @@ export function HomeScreen({ navigation }: Props) {
           ) : null}
 
           <CarDisplayCard
+            currentUser={currentUser}
             registrationText={carSpec.registrationNumber}
             subtitle="Viraaj i10"
             onPress={() => setCarSheetVisible(true)}
@@ -342,14 +320,6 @@ const styles = StyleSheet.create({
   offlineText: {
     fontSize: 11,
     letterSpacing: 0.8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    marginTop: 2,
-    alignSelf: 'center',
-    textAlign: 'center',
   },
   ctaRow: {
     flexDirection: 'row',
