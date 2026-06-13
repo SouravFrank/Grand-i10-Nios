@@ -80,13 +80,33 @@ function inferExpenseCategory(title: string): ExpenseCategory {
   return matchedRule?.category ?? 'other';
 }
 
+const NO_ODOMETER_EXPENSE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid', 'parking'];
+
+function isFastagRechargeExpense(title: string) {
+  const normalized = title.trim().toLowerCase();
+  return /fast\s*tag|fastag/.test(normalized) && normalized.includes('recharge');
+}
+
+function expenseRequiresOdometer(title: string) {
+  const category = inferExpenseCategory(title);
+  return !NO_ODOMETER_EXPENSE_CATEGORIES.includes(category) && !isFastagRechargeExpense(title);
+}
+
 const expenseSchema = z.object({
-  odometer: z.string().trim().min(1, 'Odometer is required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'),
+  odometer: z.string().trim(),
   expenseTitle: z.string().trim().min(2, 'Expense title is required.').max(48, 'Keep title under 48 characters.'),
   cost: z.string().trim().min(1, 'Cost is required.').refine((value) => Number(value) > 0, 'Cost must be positive.'),
   paidByUserId: z.string().trim().optional(),
 }).superRefine((data, context) => {
   const category = inferExpenseCategory(data.expenseTitle);
+  if (expenseRequiresOdometer(data.expenseTitle)) {
+    if (!data.odometer) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Odometer is required.', path: ['odometer'] });
+    } else if (!/^\d{1,6}$/.test(data.odometer)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Use up to 6 digits.', path: ['odometer'] });
+    }
+  }
+
   if (category !== 'fasttag_toll_paid') {
     if (!data.paidByUserId || data.paidByUserId.trim() === '') {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
@@ -185,6 +205,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
   const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
+  const showOdometerSection = expenseRequiresOdometer(selectedExpenseTitle);
   const normalizedSelectedExpenseTitle = selectedExpenseTitle.trim().toLowerCase();
   const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle);
   const showMaintenanceSubcategories = showMaintenanceOptions || normalizedSelectedExpenseTitle === 'car maintenance' || selectedMaintenanceSubcategory;
@@ -230,6 +251,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 
     const category = inferExpenseCategory(expenseTitle);
     const shouldShare = SHAREABLE_CATEGORIES.includes(category) && sharedExpense;
+    const entryOdometer = expenseRequiresOdometer(expenseTitle) ? Number(odometer) : (editingEntry?.odometer ?? lastOdometer);
     let entryUser = currentUser;
     
     if (category !== 'fasttag_toll_paid') {
@@ -241,14 +263,14 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     try {
       if (editingEntry) {
         await updateEntryOfflineFirst(editingEntry.id, {
-          userId: entryUser.id, userName: entryUser.name, odometer: Number(odometer),
+          userId: entryUser.id, userName: entryUser.name, odometer: entryOdometer,
           createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
           expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
           sharedTrip: shouldShare, sharedTripMarkedById: getEntryOwnerId(editingEntry), sharedTripMarkedByName: getEntryOwnerName(editingEntry),
         });
       } else {
         await addEntryOfflineFirst({
-          type: 'expense', userId: entryUser.id, userName: entryUser.name, odometer: Number(odometer),
+          type: 'expense', userId: entryUser.id, userName: entryUser.name, odometer: entryOdometer,
           expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
           sharedTrip: shouldShare, sharedTripMarkedById: currentUser.id, sharedTripMarkedByName: currentUser.name,
         });
@@ -392,15 +414,17 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               )} />
             </View>
 
-            <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
-              <View style={styles.odoHead}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
-                <Text style={[styles.odoHint, { color: colors.textSecondary }]}>{isEditing ? `Latest ${lastOdometer}` : `Previous ${lastOdometer}`}</Text>
+            {showOdometerSection && (
+              <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
+                <View style={styles.odoHead}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Odometer Snapshot</Text>
+                  <Text style={[styles.odoHint, { color: colors.textSecondary }]}>{isEditing ? `Latest ${lastOdometer}` : `Previous ${lastOdometer}`}</Text>
+                </View>
+                <Controller control={control} name="odometer" render={({ field: { onChange, value } }) => (
+                  <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message} />
+                )} />
               </View>
-              <Controller control={control} name="odometer" render={({ field: { onChange, value } }) => (
-                <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message} />
-              )} />
-            </View>
+            )}
 
             {showSharedToggle && (
               <View style={[styles.switchRow, { backgroundColor: colors.backgroundSecondary }]}>
