@@ -2,9 +2,10 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppAlert } from '@/components/AppAlert';
 import { CarDisplayCard } from '@/components/CarDisplayCard';
 import { CarInfoBottomSheet } from '@/components/CarInfoBottomSheet';
 import { DashboardSummaryCard } from '@/components/DashboardSummaryCard';
@@ -133,9 +134,9 @@ export function HomeScreen({ navigation }: Props) {
   const handleCopyVehicleNumber = async () => {
     try {
       await Clipboard.setStringAsync(carSpec.registrationNumber);
-      Alert.alert('Copied', 'Vehicle number copied to clipboard.');
+      AppAlert.alert('Copied', 'Vehicle number copied to clipboard.');
     } catch {
-      Alert.alert('Copy failed', 'Could not copy vehicle number.');
+      AppAlert.alert('Copy failed', 'Could not copy vehicle number.');
     }
   };
 

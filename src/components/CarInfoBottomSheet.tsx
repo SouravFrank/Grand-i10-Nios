@@ -8,9 +8,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
+import { AppAlert, AppAlertProvider } from '@/components/AppAlert';
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { TyreHealthSection } from '@/components/TyreHealthSection';
@@ -105,7 +106,7 @@ async function openFileByUri(localUri: string, mimeType: string, cacheFileName: 
   } else {
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
-      Alert.alert('Not supported', 'File sharing is not available on this device.');
+      AppAlert.alert('Not supported', 'File sharing is not available on this device.');
       return;
     }
     const uti = mimeType === 'application/pdf' ? 'com.adobe.pdf' : undefined;
@@ -135,16 +136,16 @@ async function openDocument(docKey: CarDocumentKey, docTitle: string): Promise<v
       const asset = Asset.fromModule(bundled.module);
       await asset.downloadAsync();
       if (!asset.localUri) {
-        Alert.alert('Error', `Could not load ${docTitle}.`);
+        AppAlert.alert('Error', `Could not load ${docTitle}.`);
         return;
       }
       await openFileByUri(asset.localUri, bundled.mimeType, bundled.cacheFileName);
       return;
     }
 
-    Alert.alert('No document', `No ${docTitle} document is available yet. Attach one using the upload button in the gallery.`);
+    AppAlert.alert('No document', `No ${docTitle} document is available yet. Attach one using the upload button in the gallery.`);
   } catch {
-    Alert.alert('Error', `Failed to open ${docTitle}.`);
+    AppAlert.alert('Error', `Failed to open ${docTitle}.`);
   }
 }
 
@@ -303,12 +304,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
       const pickedFile = result.assets[0];
       if (!pickedFile.uri || !pickedFile.name) {
-        Alert.alert('Error', 'Could not read the selected file.');
+        AppAlert.alert('Error', 'Could not read the selected file.');
         return;
       }
 
       if (pickedFile.size && pickedFile.size > 5 * 1024 * 1024) {
-        Alert.alert(
+        AppAlert.alert(
           'File too large',
           `The selected file is ${(pickedFile.size / (1024 * 1024)).toFixed(1)} MB. Please choose a file under 5 MB to ensure reliable sync.`,
         );
@@ -329,12 +330,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
           uploadedByUserId: currentUser?.id ?? 'unknown',
           uploadedByUserName: currentUser?.name ?? 'Unknown',
         });
-        Alert.alert('Uploaded', `${docTitle} has been saved and will sync to other devices.`);
+        AppAlert.alert('Uploaded', `${docTitle} has been saved and will sync to other devices.`);
       } catch {
-        Alert.alert('Saved locally', `${docTitle} was saved on this device but could not be synced. It will retry on next sync.`);
+        AppAlert.alert('Saved locally', `${docTitle} was saved on this device but could not be synced. It will retry on next sync.`);
       }
     } catch {
-      Alert.alert('Error', `Failed to upload ${docTitle}.`);
+      AppAlert.alert('Error', `Failed to upload ${docTitle}.`);
     } finally {
       setIsUploading(false);
     }
@@ -462,12 +463,12 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
     const parsedCost = draftCost.trim() ? Number(draftCost) : NaN;
     const parsedOdometer = Number(draftOdometer);
 
-    if (Number.isNaN(parsedCost) || parsedCost < 0) { Alert.alert('Invalid cost', 'Cost must be provided for spec update entries.'); return; }
-    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
+    if (Number.isNaN(parsedCost) || parsedCost < 0) { AppAlert.alert('Invalid cost', 'Cost must be provided for spec update entries.'); return; }
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { AppAlert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
     // Skip odometer restrictions for wheel alignment (can be historical entry)
     if (activeField !== 'lastWheelAlignmentOn') {
-      if (parsedOdometer < lastOdometer) { Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
-      if (parsedOdometer - lastOdometer > 500) { Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
+      if (parsedOdometer < lastOdometer) { AppAlert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
+      if (parsedOdometer - lastOdometer > 500) { AppAlert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
     }
 
     onSaveFieldEdit({
@@ -491,9 +492,9 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   const copyValue = async (label: string, value: string) => {
     try {
       await Clipboard.setStringAsync(value);
-      Alert.alert('Copied', `${label} copied to clipboard.`);
+      AppAlert.alert('Copied', `${label} copied to clipboard.`);
     } catch {
-      Alert.alert('Copy failed', `Could not copy ${label.toLowerCase()}.`);
+      AppAlert.alert('Copy failed', `Could not copy ${label.toLowerCase()}.`);
     }
   };
 
@@ -772,6 +773,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
           </View>
         </View>
       ) : null}
+
+      <AppAlertProvider priority={100} />
     </Modal>
   );
 }

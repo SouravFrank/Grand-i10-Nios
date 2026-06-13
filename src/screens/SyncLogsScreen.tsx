@@ -1,8 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { AppAlert } from '@/components/AppAlert';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -16,7 +17,7 @@ export function SyncLogsScreen({ navigation }: Props) {
 
   const handleCopyAll = async () => {
     if (logEntries.length === 0) {
-      Alert.alert('Nothing to copy', 'No sync logs are available yet.');
+      AppAlert.alert('Nothing to copy', 'No sync logs are available yet.');
       return;
     }
 
@@ -28,18 +29,18 @@ export function SyncLogsScreen({ navigation }: Props) {
 
     try {
       await Clipboard.setStringAsync(payload);
-      Alert.alert('Copied', `${logEntries.length} sync log ${logEntries.length === 1 ? 'entry' : 'entries'} copied to clipboard.`);
+      AppAlert.alert('Copied', `${logEntries.length} sync log ${logEntries.length === 1 ? 'entry' : 'entries'} copied to clipboard.`);
     } catch {
-      Alert.alert('Copy failed', 'Could not copy sync logs.');
+      AppAlert.alert('Copy failed', 'Could not copy sync logs.');
     }
   };
 
   const handleCopyEntry = async (line: string) => {
     try {
       await Clipboard.setStringAsync(line);
-      Alert.alert('Copied', 'Sync log line copied to clipboard.');
+      AppAlert.alert('Copied', 'Sync log line copied to clipboard.');
     } catch {
-      Alert.alert('Copy failed', 'Could not copy this sync log line.');
+      AppAlert.alert('Copy failed', 'Could not copy this sync log line.');
     }
   };
 

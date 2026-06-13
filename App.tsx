@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { AppAlertProvider } from '@/components/AppAlert';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAppInitialization } from '@/hooks/useAppInitialization';
@@ -25,6 +26,7 @@ export default function App() {
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
           <AppBootstrapper />
           <AnimatedSplashOverlay />
+          <AppAlertProvider />
         </SafeAreaProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>

@@ -24,7 +24,9 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { AppAlert } from '@/components/AppAlert';
 
 type EditActionType = 'change' | 'swap_stepney' | 'inspect';
 
@@ -135,7 +137,7 @@ export function TyreHealthSection({ currentOdometer }: Props) {
   const saveEdit = useCallback(() => {
     if (!editingTyreRecord || !editAction) return;
     const parsedOdometer = Number(draftOdometer);
-    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { AppAlert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
     const eventDate = dayjs().format('YYYY-MM-DD');
 
     if (editAction === 'change') {
@@ -154,7 +156,7 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
     const parsedTread = Number(draftTreadDepth);
     if (!Number.isFinite(parsedTread) || parsedTread < MIN_SAFE_TREAD_MM || parsedTread > NEW_TREAD_DEPTH_MM) {
-      Alert.alert('Invalid tread depth', `Tread depth must be between ${MIN_SAFE_TREAD_MM} and ${NEW_TREAD_DEPTH_MM} mm.`);
+      AppAlert.alert('Invalid tread depth', `Tread depth must be between ${MIN_SAFE_TREAD_MM} and ${NEW_TREAD_DEPTH_MM} mm.`);
       return;
     }
 
@@ -177,7 +179,7 @@ export function TyreHealthSection({ currentOdometer }: Props) {
 
   const savePositionEditor = () => {
     const parsedOdometer = Number(draftPositionOdometer);
-    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { Alert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
+    if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { AppAlert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
     if (areAssignmentsEqual(currentAssignments, draftAssignments)) { cancelPositionEditor(); return; }
     persistTyreSetup(applyTyrePositionUpdate(tyres, draftAssignments, parsedOdometer));
     // Create history entry for position changes

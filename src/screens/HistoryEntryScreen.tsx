@@ -5,7 +5,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
-  Alert,
   Platform,
   Pressable,
   Text,
@@ -14,9 +13,11 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
+import { AppAlert } from '@/components/AppAlert';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { ALLOWED_USERS } from '@/constants/users';
+import type { AppStackParamList } from '@/navigation/types';
 import { FastagFormSection } from '@/screens/HistoryEntry/components/FastagFormSection';
 import { FuelFormSection } from '@/screens/HistoryEntry/components/FuelFormSection';
 import { ParkingFormSection } from '@/screens/HistoryEntry/components/ParkingFormSection';
@@ -61,6 +62,49 @@ const fasttagSchema = baseSchema.extend({
 const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema]);
 type HistoryForm = z.infer<typeof historyFormSchema>;
 
+function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerId: string, lastOdometer: number): HistoryForm {
+  const commonDefaults = { entryDate, ownerId };
+  const odometer = String(lastOdometer);
+
+  switch (category) {
+    case 'trip':
+      return {
+        ...commonDefaults,
+        category: 'trip',
+        startOdometer: odometer,
+        endOdometer: '',
+        isSharedTrip: false,
+      };
+    case 'fuel':
+      return {
+        ...commonDefaults,
+        category: 'fuel',
+        odometer,
+        fuelAmount: '',
+        fuelLiters: '',
+        fullTank: false,
+      };
+    case 'parking':
+      return {
+        ...commonDefaults,
+        category: 'parking',
+        odometer,
+        parkingAmount: '',
+        parkingLocation: '',
+        isSharedTrip: false,
+      };
+    case 'fasttag':
+      return {
+        ...commonDefaults,
+        category: 'fasttag',
+        odometer,
+        tollAmount: '',
+        tollLocation: '',
+        isSharedTrip: false,
+      };
+  }
+}
+
 const CATEGORY_CONFIG: Record<EntryCategory, { label: string; icon: keyof typeof MaterialIcons.glyphMap; color: string }> = {
   trip: { label: 'trip', icon: 'route', color: '#0EA5E9' },
   fuel: { label: 'fuel', icon: 'local-gas-station', color: '#F59E0B' },
@@ -77,9 +121,10 @@ export function HistoryEntryScreen({ navigation }: Props) {
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
 
-  const defaultValues = useMemo(() => ({
-    category: 'trip' as const, entryDate, ownerId: currentUser?.id ?? '', startOdometer: String(lastOdometer), endOdometer: '', isSharedTrip: false, odometer: String(lastOdometer), fuelAmount: '', fuelLiters: '', fullTank: false, parkingAmount: '', parkingLocation: '', tollAmount: '', tollLocation: '',
-  }), [currentUser?.id, lastOdometer, entryDate]);
+  const defaultValues = useMemo(
+    () => getHistoryFormDefaults('trip', entryDate, currentUser?.id ?? '', lastOdometer),
+    [currentUser?.id, entryDate, lastOdometer],
+  );
 
   const { control, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<HistoryForm>({
     resolver: zodResolver(historyFormSchema), defaultValues,
@@ -98,7 +143,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
   }, [fullTankSelected, category, setValue]);
 
   const handleCategoryChange = (newCategory: EntryCategory) => {
-    reset({ ...defaultValues, category: newCategory, ownerId: selectedOwnerId || currentUser?.id || '' });
+    reset(getHistoryFormDefaults(newCategory, entryDate, selectedOwnerId || currentUser?.id || '', lastOdometer));
   };
 
   const handleDatePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -110,9 +155,9 @@ export function HistoryEntryScreen({ navigation }: Props) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
+    if (!currentUser) return AppAlert.alert('Session expired', 'Please login again.');
     const selectedOwner = ALLOWED_USERS.find((user) => user.id === values.ownerId);
-    if (!selectedOwner) return Alert.alert('Invalid owner', 'Select who owns this entry.');
+    if (!selectedOwner) return AppAlert.alert('Invalid owner', 'Select who owns this entry.');
     
     const entryTime = values.entryDate.getTime();
     try {
@@ -130,7 +175,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
+      AppAlert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
     }
   });
 

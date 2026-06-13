@@ -1,5 +1,6 @@
 import { Modal, Pressable, Text, View } from 'react-native';
 
+import { AppAlertProvider } from '@/components/AppAlert';
 import { useAppTheme } from '@/theme/useAppTheme';
 
 import { styles } from './Modals.styles';
@@ -76,6 +77,7 @@ export function SettlementModal({
           </View>
         </View>
       </View>
+      {isVisible ? <AppAlertProvider priority={100} /> : null}
     </Modal>
   );
 }

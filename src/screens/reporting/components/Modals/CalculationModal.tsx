@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AppAlertProvider } from '@/components/AppAlert';
 import type { AppStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -212,6 +213,7 @@ export function CalculationModal({
           </ScrollView>
         </View>
       </View>
+      {isVisible ? <AppAlertProvider priority={100} /> : null}
     </Modal>
   );
 }

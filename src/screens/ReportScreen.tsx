@@ -3,8 +3,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, ScrollView, Text, View } from 'react-native';
+import { Animated, Easing, ScrollView, Text, View } from 'react-native';
 
+import { AppAlert } from '@/components/AppAlert';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import type { AppStackParamList } from '@/navigation/types';
 import { buildExpenseReport, ReportData } from '@/screens/reporting/reportCalculations';
@@ -254,7 +255,7 @@ export function ReportScreen({ navigation }: Props) {
     try {
       const targetDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
       if (!targetDirectory) {
-        Alert.alert('CSV export unavailable', 'No writable export directory is available on this device.');
+        AppAlert.alert('CSV export unavailable', 'No writable export directory is available on this device.');
         return;
       }
 
@@ -270,10 +271,10 @@ export function ReportScreen({ navigation }: Props) {
           UTI: 'public.comma-separated-values-text',
         });
       } else {
-        Alert.alert('CSV ready', fileUri);
+        AppAlert.alert('CSV ready', fileUri);
       }
     } catch (error) {
-      Alert.alert('Could not export CSV', error instanceof Error ? error.message : 'Unknown error');
+      AppAlert.alert('Could not export CSV', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsExportingCsv(false);
     }

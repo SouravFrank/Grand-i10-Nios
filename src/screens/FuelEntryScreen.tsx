@@ -5,10 +5,11 @@ import { type DateTimePickerEvent } from '@react-native-community/datetimepicker
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Animated, Easing, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { z } from 'zod';
 
+import { AppAlert } from '@/components/AppAlert';
 import { AppTextField } from '@/components/AppTextField';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -141,12 +142,12 @@ export function FuelEntryScreen({ navigation, route }: Props) {
   };
 
   const onSubmit = handleSubmit(async ({ odometer, fuelAmount, fuelLiters, fullTank, paidByUserId }) => {
-    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
-    if (isEditing && !editingEntry) return Alert.alert('Entry not found', 'This fuel entry is no longer available.');
-    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Edit not allowed', 'You can only edit your own fuel entries.');
+    if (!currentUser) return AppAlert.alert('Session expired', 'Please login again.');
+    if (isEditing && !editingEntry) return AppAlert.alert('Entry not found', 'This fuel entry is no longer available.');
+    if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) return AppAlert.alert('Edit not allowed', 'You can only edit your own fuel entries.');
 
     const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
-    if (!selectedPayer) return Alert.alert('Invalid payer', 'Select who paid for this fuel.');
+    if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid for this fuel.');
 
     try {
       if (editingEntry) {
@@ -172,14 +173,14 @@ export function FuelEntryScreen({ navigation, route }: Props) {
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
-      Alert.alert(isEditing ? 'Could not update fuel entry' : 'Could not save fuel entry', error instanceof Error ? error.message : 'Unknown error');
+      AppAlert.alert(isEditing ? 'Could not update fuel entry' : 'Could not save fuel entry', error instanceof Error ? error.message : 'Unknown error');
     }
   });
 
   const handleDelete = () => {
     if (!editingEntry) return;
-    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) return Alert.alert('Delete not allowed', 'You can only delete your own fuel entries.');
-    Alert.alert('Delete Entry', 'Are you sure you want to delete this fuel entry?', [
+    if (!currentUser || getEntryOwnerId(editingEntry) !== currentUser.id) return AppAlert.alert('Delete not allowed', 'You can only delete your own fuel entries.');
+    AppAlert.alert('Delete Entry', 'Are you sure you want to delete this fuel entry?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

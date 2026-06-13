@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppAlertProvider } from '@/components/AppAlert';
 import { useAppTheme } from '@/theme/useAppTheme';
 import { dayjs, INDIA_DATE_FORMAT, INDIA_MONTH_FORMAT } from '@/utils/day';
 
@@ -248,6 +249,7 @@ export function SmartFilterSheet({
           </ScrollView>
         </Animated.View>
       </View>
+      {isRendered ? <AppAlertProvider priority={100} /> : null}
     </Modal>
   );
 }

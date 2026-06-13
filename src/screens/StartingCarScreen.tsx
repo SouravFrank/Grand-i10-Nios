@@ -5,10 +5,11 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AnimatedCarSvg } from '@/components/AnimatedCarSvg';
+import { AppAlert } from '@/components/AppAlert';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TripSuccessOverlay } from '@/components/TripSuccessOverlay';
@@ -83,16 +84,16 @@ export function StartingCarScreen({ navigation, route }: Props) {
 
   // Handlers
   const onSubmit = handleSubmit(async ({ odometer }) => {
-    if (!currentUser) return Alert.alert('Session expired', 'Please login again.');
-    if (isEndingTrip && !activeTrip) return Alert.alert('No active trip', 'Start a trip before trying to end it.'), navigation.goBack();
+    if (!currentUser) return AppAlert.alert('Session expired', 'Please login again.');
+    if (isEndingTrip && !activeTrip) return AppAlert.alert('No active trip', 'Start a trip before trying to end it.'), navigation.goBack();
 
     const parsedOdometer = Number(odometer);
 
     // Validation only applies when creating new entries, not when editing
     if (!isEditing) {
-      if (parsedOdometer < lastOdometer) return Alert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
-      if (parsedOdometer - lastOdometer > 500) return Alert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
-      if (isEndingTrip && activeTrip && parsedOdometer < activeTrip.startOdometer) return Alert.alert('Invalid odometer', 'Trip end odometer cannot be less than the trip start reading.');
+      if (parsedOdometer < lastOdometer) return AppAlert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.');
+      if (parsedOdometer - lastOdometer > 500) return AppAlert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.');
+      if (isEndingTrip && activeTrip && parsedOdometer < activeTrip.startOdometer) return AppAlert.alert('Invalid odometer', 'Trip end odometer cannot be less than the trip start reading.');
     }
 
     try {
@@ -110,13 +111,13 @@ export function StartingCarScreen({ navigation, route }: Props) {
       void runSyncCycle();
       playSuccessAnimation();
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Unknown error');
+      AppAlert.alert('Error', error instanceof Error ? error.message : 'Unknown error');
     }
   });
 
   const handleDelete = () => {
     if (!entryId) return;
-    Alert.alert('Delete Entry', 'Are you sure you want to delete this odometer reading?', [
+    AppAlert.alert('Delete Entry', 'Are you sure you want to delete this odometer reading?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

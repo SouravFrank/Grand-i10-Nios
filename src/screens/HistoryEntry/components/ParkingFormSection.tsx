@@ -1,5 +1,4 @@
 import { AppTextField } from '@/components/AppTextField';
-import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { styles } from '@/screens/HistoryEntryScreen.styles';
 import { ThemeColors } from '@/theme/colors';
 import { Control, Controller, FieldErrors } from 'react-hook-form';
@@ -11,17 +10,6 @@ interface ParkingFormSectionProps { control: Control<ParkingFormData>; errors: F
 export function ParkingFormSection({ control, errors, lastOdometer, isDark, colors }: ParkingFormSectionProps) {
   return (
     <>
-      <View style={styles.fieldsGroup}>
-        <Controller control={control} name="odometer" render={({ field: { onChange, value } }) => (
-          <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
-            <View style={styles.odoHead}>
-              <Text style={[styles.odoPanelLabel, { color: colors.textSecondary }]}>Odometer</Text>
-              <Text style={[styles.odoPanelHint, { color: colors.textSecondary }]}>Previous {lastOdometer} km</Text>
-            </View>
-            <OdometerDigitInput label="Current Odometer" value={value} onChangeText={onChange} error={errors.odometer?.message as string | undefined} />
-          </View>
-        )} />
-      </View>
       <View style={styles.fieldsGroup}>
         <Controller control={control} name="parkingLocation" render={({ field: { onChange, value } }) => (
           <AppTextField label="Parking Location" value={value ?? ''} onChangeText={onChange} placeholder="e.g. Mall Parking" error={errors.parkingLocation?.message as string | undefined} />

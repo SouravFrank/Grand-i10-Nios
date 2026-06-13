@@ -40,9 +40,7 @@ export function SummaryDashboard({
   canConfirmSettlement,
   onOpenSettlement,
   statusScaleAnim,
-  statusToneAnim,
   statusBackgroundColor,
-  statusBorderColor,
   statusTextColor,
   surfaceColor,
   secondarySurfaceColor,
@@ -97,7 +95,7 @@ export function SummaryDashboard({
             { transform: [{ skewX: '-20deg' }, { translateX: shimmerTranslate }] },
           ]}
         />
-        
+
         <View style={styles.summaryTopRow}>
           <View style={styles.labelRow}>
             <MaterialIcons name="account-balance-wallet" size={16} color={HERO_MUTED} />
@@ -215,7 +213,7 @@ export function SummaryDashboard({
                   {formatINRZeroDecimal(report.settlement.amount)}
                 </Text>
               </Animated.View>
-              
+
               <View style={styles.labelRow}>
                 {/* A nested arrow icon makes the flow of money visual */}
                 <MaterialIcons name="subdirectory-arrow-right" size={16} color={colors.textSecondary} />
@@ -223,7 +221,7 @@ export function SummaryDashboard({
                   {report.settlement.directionMessage}
                 </Text>
               </View>
-             </View>
+            </View>
           )}
         </View>
 
@@ -240,9 +238,9 @@ export function SummaryDashboard({
               },
             ]}
           >
-            <Animated.Text 
+            <Animated.Text
               style={[
-                styles.settlementBadgeText, 
+                styles.settlementBadgeText,
                 { color: report.isSettled ? colors.textPrimary : statusTextColor }
               ]}
             >
@@ -253,9 +251,9 @@ export function SummaryDashboard({
 
         {/* Lock Hints / Warnings below the button */}
         {!canConfirmSettlement && !report.isSettled ? (
-          <View style={[styles.inlineInfoRow, { justifyContent: 'center', marginTop: -8 }]}>
+          <View style={[styles.inlineInfoRow, { justifyContent: 'center', alignItems: 'center', marginTop: -8 }]}>
             <MaterialIcons name="info-outline" size={14} color={colors.textSecondary} />
-            <Text style={[styles.settlementLockHint, { color: colors.textSecondary }]}>
+            <Text style={[styles.settlementLockHint, { color: colors.textSecondary, marginTop: -2 }]}>
               Complete month required
             </Text>
           </View>
