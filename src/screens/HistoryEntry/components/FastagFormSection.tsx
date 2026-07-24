@@ -8,7 +8,7 @@ import { Pressable, Switch, Text, View } from 'react-native';
 type FastagFormData = {
   odometer: string;
   tollAmount: string;
-  tollLocation: string;
+  tollLocation?: string;
   isSharedTrip: boolean;
   fasttagType?: 'toll_paid' | 'recharge';
 };
@@ -81,19 +81,6 @@ export function FastagFormSection({ control, errors, isDark, colors }: FastagFor
             </View>
 
             <View style={styles.fieldsGroup}>
-              <Controller
-                control={control}
-                name="tollLocation"
-                render={({ field: { onChange: onLocationChange, value: locationValue } }) => (
-                  <AppTextField
-                    label={isRecharge ? 'Recharge Title / Note' : 'Toll Location'}
-                    value={locationValue ?? ''}
-                    onChangeText={onLocationChange}
-                    placeholder={isRecharge ? 'e.g. FASTag Recharge' : 'e.g. Expressway Toll'}
-                    error={errors.tollLocation?.message as string | undefined}
-                  />
-                )}
-              />
               <Controller
                 control={control}
                 name="tollAmount"

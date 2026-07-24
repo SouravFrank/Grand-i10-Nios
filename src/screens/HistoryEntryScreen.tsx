@@ -171,7 +171,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
         await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'parking' as ExpenseCategory, expenseTitle: values.parkingLocation, cost: Number(values.parkingAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       } else if (values.category === 'fasttag') {
         const isRecharge = values.fasttagType === 'recharge';
-        const title = values.tollLocation?.trim() || (isRecharge ? 'FASTag Recharge' : 'FASTag Toll Paid');
+        const title = isRecharge ? 'FASTag Recharge' : 'FASTag Toll Paid';
         if (isRecharge) {
           await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'utility_addon' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime });
         } else {
