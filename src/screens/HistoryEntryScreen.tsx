@@ -56,7 +56,7 @@ const parkingSchema = baseSchema.extend({
   category: z.literal('parking'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), parkingAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), parkingLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(),
 });
 const fasttagSchema = baseSchema.extend({
-  category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(), fasttagType: z.enum(['toll_paid', 'recharge']).optional(),
+  category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().optional(), isSharedTrip: z.boolean(), fasttagType: z.enum(['toll_paid', 'recharge']).optional(),
 });
 const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema]);
 type HistoryForm = z.infer<typeof historyFormSchema>;
@@ -171,10 +171,11 @@ export function HistoryEntryScreen({ navigation }: Props) {
         await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'parking' as ExpenseCategory, expenseTitle: values.parkingLocation, cost: Number(values.parkingAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       } else if (values.category === 'fasttag') {
         const isRecharge = values.fasttagType === 'recharge';
+        const title = values.tollLocation?.trim() || (isRecharge ? 'FASTag Recharge' : 'FASTag Toll Paid');
         if (isRecharge) {
-          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'utility_addon' as ExpenseCategory, expenseTitle: values.tollLocation.trim() || 'FASTag Recharge', cost: Number(values.tollAmount), createdAt: entryTime });
+          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'utility_addon' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime });
         } else {
-          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: values.tollLocation.trim() || 'FASTag Toll Paid', cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
+          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
         }
       }
       navigation.goBack();
