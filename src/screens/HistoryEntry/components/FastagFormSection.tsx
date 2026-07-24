@@ -47,7 +47,7 @@ export function FastagFormSection({ control, errors, isDark, colors, watch, setV
               borderWidth: 1.5,
               borderColor: !isRecharge ? colors.primary : 'transparent',
             }}>
-            <FastagBrandIcon size={18} />
+            <FastagBrandIcon size={18} color={!isRecharge ? colors.primary : colors.textPrimary} />
             <Text style={{ fontSize: 13, fontWeight: '800', color: !isRecharge ? colors.primary : colors.textPrimary }}>
               Toll Paid
             </Text>
@@ -68,7 +68,7 @@ export function FastagFormSection({ control, errors, isDark, colors, watch, setV
               borderWidth: 1.5,
               borderColor: isRecharge ? '#F97316' : 'transparent',
             }}>
-            <FastagBrandIcon size={18} />
+            <FastagBrandIcon size={18} color={isRecharge ? '#F97316' : colors.textPrimary} />
             <Text style={{ fontSize: 13, fontWeight: '800', color: isRecharge ? '#F97316' : colors.textPrimary }}>
               Recharge
             </Text>

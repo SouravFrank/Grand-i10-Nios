@@ -324,7 +324,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                       onPress={() => handleQuickCategoryPress(item.title)}
                       style={[styles.quickChip, { backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary }]}>
                       {isFastag ? (
-                        <FastagBrandIcon size={16} />
+                        <FastagBrandIcon size={16} color={active ? colors.invertedText : colors.textSecondary} />
                       ) : (
                         <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
                       )}

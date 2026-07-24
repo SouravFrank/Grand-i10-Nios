@@ -225,7 +225,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
                         { backgroundColor: active ? `${config.color}15` : colors.backgroundSecondary },
                       ]}>
                       {isFasttagCat ? (
-                        <FastagBrandIcon size={24} />
+                        <FastagBrandIcon size={24} color={active ? config.color : colors.textSecondary} />
                       ) : (
                         <MaterialIcons name={config.icon} size={24} color={active ? config.color : colors.textSecondary} />
                       )}
