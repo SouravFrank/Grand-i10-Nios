@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -20,6 +20,7 @@ import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 import { getEntryOwnerId } from '@/utils/entryOwnership';
+import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'FuelEntryModal'>;
 
@@ -223,6 +224,34 @@ export function FuelEntryScreen({ navigation, route }: Props) {
           {/* Animated Form Body */}
           <Animated.View style={[styles.formCard, { backgroundColor: colors.card, opacity, transform: [{ translateY: formSlide }] }]}>
             
+            {/* Entry Date */}
+            {isEditing && (
+              <View style={styles.fieldsGroup}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Entry Date</Text>
+                <Pressable onPress={() => setIsDatePickerVisible(true)} style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary }]}>
+                  <MaterialIcons name="event" size={20} color={fuelColor} />
+                  <View style={styles.dateCopy}>
+                    <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Recorded on</Text>
+                    <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(entryDate).format(INDIA_DATE_FORMAT)}</Text>
+                  </View>
+                </Pressable>
+                {isDatePickerVisible && (
+                  <DateTimePicker
+                    value={entryDate}
+                    mode="date"
+                    accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDatePickerChange}
+                    positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                    negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                    textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                  />
+                )}
+              </View>
+            )}
+
             {/* Payer Grid */}
             <View style={styles.fieldsGroup}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Paid By</Text>

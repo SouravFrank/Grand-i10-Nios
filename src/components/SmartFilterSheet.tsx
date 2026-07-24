@@ -51,7 +51,7 @@ export function SmartFilterSheet({
   onDateChange, viewContextOptions, monthOptions, matchedCount, activeFilterPills,
   isDatePickerVisible, onDatePickerVisibilityChange, activeDateTarget, onActiveDateTargetChange, onReset, minDate, maxDate,
 }: SmartFilterSheetProps) {
-  const { colors } = useAppTheme();
+  const { isDark, colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const translateY = useRef(new Animated.Value(600)).current;
@@ -235,13 +235,17 @@ export function SmartFilterSheet({
                   )}
                 </View>
                 <DateTimePicker
-                  mode="date" value={pickerDate} accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} display={Platform.OS === 'ios' ? 'spinner' : undefined}
+                  mode="date"
+                  value={pickerDate}
+                  accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   minimumDate={activeDateTarget === 'from' ? minDate : fromDate ?? minDate}
                   maximumDate={activeDateTarget === 'from' ? (toDate && dayjs(toDate).isBefore(dayjs(), 'day') ? toDate : new Date()) : maxDate}
                   onChange={handleDatePickerChange}
-                  positiveButton={Platform.OS === 'android' ? { label: 'Apply', textColor: colors.textPrimary } : undefined}
-                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined}
-                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} themeVariant={Platform.OS === 'ios' ? 'dark' : undefined}
+                  positiveButton={Platform.OS === 'android' ? { label: 'Apply', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                  themeVariant={isDark ? 'dark' : 'light'}
                 />
               </View>
             ) : null}

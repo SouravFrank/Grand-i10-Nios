@@ -3,7 +3,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, ScrollView, Text, View } from 'react-native';
+import { Animated, Easing, Platform, ScrollView, Text, View } from 'react-native';
 
 import { AppAlert } from '@/components/AppAlert';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -482,9 +482,13 @@ export function ReportScreen({ navigation }: Props) {
             <DateTimePicker
               mode="date"
               value={activeDateTarget === 'from' ? fromDate : toDate}
-              display="spinner"
-              accentColor={colors.textPrimary}
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
               onChange={handleDatePickerChange}
+              positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+              negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+              textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+              themeVariant={isDark ? 'dark' : 'light'}
             />
           </View>
         ) : null}

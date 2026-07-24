@@ -392,7 +392,20 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                     <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(entryDate).format(INDIA_DATE_FORMAT)}</Text>
                   </View>
                 </Pressable>
-                {isDatePickerVisible && <DateTimePicker value={entryDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={handleDatePickerChange} />}
+                {isDatePickerVisible && (
+                  <DateTimePicker
+                    value={entryDate}
+                    mode="date"
+                    accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDatePickerChange}
+                    positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                    negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                    textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                  />
+                )}
               </View>
             )}
 
