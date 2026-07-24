@@ -71,7 +71,7 @@ function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerI
         ...commonDefaults,
         category: 'trip',
         startOdometer: odometer,
-        endOdometer: '',
+        endOdometer: odometer,
         isSharedTrip: false,
       };
     case 'fuel':
