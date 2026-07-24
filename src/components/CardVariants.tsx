@@ -1,3 +1,4 @@
+import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -24,10 +25,19 @@ function CardHeader({
   textSecondary: string;
   children?: React.ReactNode;
 }) {
+  const isFasttagItem =
+    entry.expenseCategory === 'fasttag_toll_paid' ||
+    theme.icon === 'toll' ||
+    Boolean(entry.expenseTitle?.toLowerCase().includes('fastag'));
+
   return (
     <View style={baseStyles.headerRow}>
       <View style={[baseStyles.iconBadge, { backgroundColor: theme.accentAlpha(0.14) }]}>
-        <MaterialIcons name={theme.icon} size={16} color={theme.accent} />
+        {isFasttagItem ? (
+          <FastagBrandIcon size={16} />
+        ) : (
+          <MaterialIcons name={theme.icon} size={16} color={theme.accent} />
+        )}
       </View>
       <View style={baseStyles.headerMeta}>
         <Text style={[baseStyles.typeLabel, { color: theme.accent }]}>{theme.label}</Text>

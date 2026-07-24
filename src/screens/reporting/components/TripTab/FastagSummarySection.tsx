@@ -1,3 +1,4 @@
+import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import { useAppTheme } from '@/theme/useAppTheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Text, View } from 'react-native';
@@ -25,20 +26,8 @@ export function FastagSummarySection({
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <View style={{
-            backgroundColor: colors.textPrimary,
-            padding: 6,
-            borderRadius: 8,
-            shadowColor: colors.textPrimary,
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 2,
-            transform: [{ rotate: '-5deg' }],
-          }}>
-            <MaterialIcons name="toll" size={16} color={colors.background} />
-          </View>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 4 }]}>Fastag Summary</Text>
+          <FastagBrandIcon size={24} />
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 8 }]}>Fastag Summary</Text>
         </View>
       </View>
 

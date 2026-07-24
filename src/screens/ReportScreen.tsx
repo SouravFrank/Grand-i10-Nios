@@ -314,7 +314,9 @@ export function ReportScreen({ navigation }: Props) {
             selectedMonthKey={selectedMonthKey}
             setSelectedMonthKey={setSelectedMonthKey}
             fromDate={fromDate}
+            setFromDate={setFromDate}
             toDate={toDate}
+            setToDate={setToDate}
             onOpenDatePicker={openDatePicker}
             onOpenCalculation={() => setIsCalculationModalVisible(true)}
             onExportCsv={handleExportCsv}
@@ -372,8 +374,6 @@ export function ReportScreen({ navigation }: Props) {
                   setMileageDraft={setMileageDraft}
                   isMileageEditorVisible={isMileageEditorVisible}
                   setIsMileageEditorVisible={setIsMileageEditorVisible}
-                  showFuelInfo={showFuelInfo}
-                  setShowFuelInfo={setShowFuelInfo}
                   onSaveMileage={handleSaveMileage}
                   surfaceColor={surfaceColor}
                   secondarySurfaceColor={secondarySurfaceColor}

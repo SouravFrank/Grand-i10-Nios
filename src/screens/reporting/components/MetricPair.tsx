@@ -1,8 +1,7 @@
-import { View, Text } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { styles } from '../../ReportScreen.styles';
-import { CountUpText } from './CountUpText';
+import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIconName } from '../reportUtils';
+import { CountUpText } from './CountUpText';
 
 export function MetricPair({
   label,
@@ -34,3 +33,29 @@ export function MetricPair({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  metricCard: {
+    borderRadius: 14,
+    padding: 12,
+    gap: 4,
+    flex: 1,
+  },
+  metricLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  metricHint: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+});

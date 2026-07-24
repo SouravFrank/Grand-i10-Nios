@@ -57,7 +57,7 @@ export function SettlementModal({
             ) : null}
 
             {isSettled && onUnmark ? (
-              <Pressable onPress={onUnmark} style={[styles.modalPrimaryButton, { backgroundColor: colors.error ?? '#EF4444' }]}>
+              <Pressable onPress={onUnmark} style={[styles.modalPrimaryButton, { backgroundColor: '#EF4444' }]}>
                 <Text style={[styles.modalPrimaryText, { color: colors.invertedText }]}>Unmark as settled</Text>
               </Pressable>
             ) : null}

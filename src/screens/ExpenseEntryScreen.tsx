@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { AppAlert } from '@/components/AppAlert';
 import { AppTextField } from '@/components/AppTextField';
+import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -107,12 +108,10 @@ const expenseSchema = z.object({
     }
   }
 
-  if (category !== 'fasttag_toll_paid') {
-    if (!data.paidByUserId || data.paidByUserId.trim() === '') {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
-    } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
-    }
+  if (!data.paidByUserId || data.paidByUserId.trim() === '') {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
+  } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
   }
 });
 
@@ -204,7 +203,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
-  const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
+  const showPaidBySection = true;
   const showOdometerSection = expenseRequiresOdometer(selectedExpenseTitle);
   const normalizedSelectedExpenseTitle = selectedExpenseTitle.trim().toLowerCase();
   const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle);
@@ -252,13 +251,9 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     const category = inferExpenseCategory(expenseTitle);
     const shouldShare = SHAREABLE_CATEGORIES.includes(category) && sharedExpense;
     const entryOdometer = expenseRequiresOdometer(expenseTitle) ? Number(odometer) : (editingEntry?.odometer ?? lastOdometer);
-    let entryUser = currentUser;
-    
-    if (category !== 'fasttag_toll_paid') {
-      const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
-      if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid for this expense.');
-      entryUser = selectedPayer;
-    }
+    const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
+    if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid/incurred this expense.');
+    const entryUser = selectedPayer;
 
     try {
       if (editingEntry) {
@@ -322,12 +317,17 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               <View style={styles.quickGrid}>
                 {quickExpenseCategories.map((item) => {
                   const active = item.title === 'Car Maintenance' ? showMaintenanceSubcategories || inferredCategory === 'maintenance_lab' : normalizedSelectedExpenseTitle === item.title.toLowerCase();
+                  const isFastag = item.title.startsWith('FASTag');
                   return (
                     <Pressable
                       key={item.title}
                       onPress={() => handleQuickCategoryPress(item.title)}
                       style={[styles.quickChip, { backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary }]}>
-                      <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                      {isFastag ? (
+                        <FastagBrandIcon size={16} />
+                      ) : (
+                        <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                      )}
                       <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{item.title}</Text>
                     </Pressable>
                   );

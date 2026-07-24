@@ -11,8 +11,8 @@ type AnimatedCarSvgProps = {
   accentColor?: string; // Internally overridden for accurate Spark Green Pearl
 };
 
-const AnimatedG = Animated.createAnimatedComponent(G);
-const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedG = Animated.createAnimatedComponent(G as any);
+const AnimatedPath = Animated.createAnimatedComponent(Path as any);
 
 export function AnimatedCarSvg({
   width = 280,
