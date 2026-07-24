@@ -306,7 +306,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
             {category === 'trip' && <TripFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
             {category === 'fuel' && <FuelFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} fullTankSelected={fullTankSelected} isDark={isDark} colors={colors} />}
             {category === 'parking' && <ParkingFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
-            {category === 'fasttag' && <FastagFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} watch={watch as never} setValue={setValue as never} />}
+            {category === 'fasttag' && <FastagFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
 
             <View style={styles.actionRow}>
               <PrimaryButton label={`SAVE ${CATEGORY_CONFIG[category].label.toUpperCase()} ENTRY`} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />
