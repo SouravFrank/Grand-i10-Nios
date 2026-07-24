@@ -403,7 +403,11 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               )} />
               
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 4 }}>
-                <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                {inferredCategory === 'fasttag_toll_paid' || isFastagRechargeExpense(selectedExpenseTitle) ? (
+                  <FastagBrandIcon size={16} color={colors.primary} />
+                ) : (
+                  <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                )}
                 <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Detected Category: <Text style={{ color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
                 </Text>

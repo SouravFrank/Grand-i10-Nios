@@ -26,7 +26,7 @@ export function FastagSummarySection({
     <View style={[styles.sectionCard, { backgroundColor: surfaceColor, borderColor: colors.border }]}>
       <View style={styles.sectionHeader}>
         <View style={styles.titleRow}>
-          <FastagBrandIcon size={24} />
+          <FastagBrandIcon size={24} color={colors.primary} />
           <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginLeft: 8 }]}>Fastag Summary</Text>
         </View>
       </View>

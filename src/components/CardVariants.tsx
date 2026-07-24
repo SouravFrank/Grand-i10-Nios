@@ -34,7 +34,7 @@ function CardHeader({
     <View style={baseStyles.headerRow}>
       <View style={[baseStyles.iconBadge, { backgroundColor: theme.accentAlpha(0.14) }]}>
         {isFasttagItem ? (
-          <FastagBrandIcon size={16} />
+          <FastagBrandIcon size={16} color={theme.accent} />
         ) : (
           <MaterialIcons name={theme.icon} size={16} color={theme.accent} />
         )}
