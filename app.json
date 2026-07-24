@@ -51,50 +51,50 @@
           "android": {
             "datePicker": {
               "colorAccent": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#2563EB",
+                "dark": "#60A5FA"
               },
               "colorControlActivated": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#2563EB",
+                "dark": "#60A5FA"
               },
               "colorControlHighlight": {
-                "light": "#E6E6E6",
-                "dark": "#2A2A2A"
+                "light": "#E2E8F0",
+                "dark": "#334155"
               },
               "textColorPrimary": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#0F172A",
+                "dark": "#F8FAFC"
               },
               "textColorSecondary": {
-                "light": "#555555",
-                "dark": "#BBBBBB"
+                "light": "#475569",
+                "dark": "#94A3B8"
               },
               "windowBackground": {
                 "light": "#FFFFFF",
-                "dark": "#000000"
+                "dark": "#1E1E1E"
               }
             },
             "timePicker": {
               "background": {
                 "light": "#FFFFFF",
-                "dark": "#000000"
+                "dark": "#1E1E1E"
               },
               "headerBackground": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#2563EB",
+                "dark": "#1E293B"
               },
               "numbersBackgroundColor": {
-                "light": "#F5F5F5",
-                "dark": "#121212"
+                "light": "#F1F5F9",
+                "dark": "#0F172A"
               },
               "numbersSelectorColor": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#2563EB",
+                "dark": "#60A5FA"
               },
               "numbersTextColor": {
-                "light": "#000000",
-                "dark": "#FFFFFF"
+                "light": "#0F172A",
+                "dark": "#F8FAFC"
               }
             }
           }

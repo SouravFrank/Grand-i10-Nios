@@ -184,9 +184,14 @@ export function StartingCarScreen({ navigation, route }: Props) {
                 <DateTimePicker
                   value={entryDate}
                   mode="date"
+                  accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   maximumDate={new Date()}
                   onChange={handleDatePickerChange}
+                  positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                  themeVariant={isDark ? 'dark' : 'light'}
                 />
               ) : null}
             </View>

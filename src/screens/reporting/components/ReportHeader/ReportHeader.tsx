@@ -9,7 +9,7 @@ import { dayjs, INDIA_DATE_FORMAT, INDIA_MONTH_FORMAT } from '@/utils/day';
 import { DateTarget, ReportFilterMode } from '../../reportUtils';
 import { styles } from './ReportHeader.styles';
 
-type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
+type NavigationProp = NativeStackNavigationProp<AppStackParamList, keyof AppStackParamList>;
 
 interface ReportHeaderProps {
   filterMode: ReportFilterMode;

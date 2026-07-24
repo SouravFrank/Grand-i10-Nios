@@ -627,7 +627,17 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
                           {showDatePicker ? (
                             <View style={[styles.customDatePicker, { backgroundColor: colors.background }]}>
-                              <DateTimePicker mode="date" value={draftDate} accentColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} display={Platform.OS === 'ios' ? 'inline' : undefined} onChange={handleDatePickerChange} positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: colors.textPrimary } : undefined} negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: colors.textSecondary } : undefined} textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined} themeVariant={Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined} />
+                              <DateTimePicker
+                                mode="date"
+                                value={draftDate}
+                                accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                onChange={handleDatePickerChange}
+                                positiveButton={Platform.OS === 'android' ? { label: 'Save', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                                negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                                textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                                themeVariant={isDark ? 'dark' : 'light'}
+                              />
                               {Platform.OS === 'ios' ? (
                                 <Pressable onPress={() => setShowDatePicker(false)} style={[styles.datePickerDoneBtn, { backgroundColor: secondarySurfaceColor }]}>
                                   <Text style={[styles.datePickerDoneText, { color: colors.textPrimary }]}>Done</Text>

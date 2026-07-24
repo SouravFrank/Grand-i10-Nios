@@ -1,6 +1,5 @@
-import { Text, View } from 'react-native';
 import { ReportUserSummary } from '@/screens/reporting/reportCalculations';
-import { styles } from '../../ReportScreen.styles';
+import { StyleSheet, Text, View } from 'react-native';
 import { formatINR, formatKm, formatLiters } from '../reportUtils';
 import { CountUpText } from './CountUpText';
 
@@ -79,3 +78,45 @@ export function UserSplitCard({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  userSplitCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  userSplitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  userSplitName: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  userSplitBadge: {
+    fontSize: 10,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  userSplitGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  userMetric: {
+    width: '47%',
+    gap: 2,
+  },
+  userMetricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  userMetricValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+});

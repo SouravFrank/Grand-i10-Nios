@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { AppAlert } from '@/components/AppAlert';
 import { AppTextField } from '@/components/AppTextField';
+import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import { OdometerDigitInput } from '@/components/OdometerDigitInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -107,12 +108,10 @@ const expenseSchema = z.object({
     }
   }
 
-  if (category !== 'fasttag_toll_paid') {
-    if (!data.paidByUserId || data.paidByUserId.trim() === '') {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
-    } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
-    }
+  if (!data.paidByUserId || data.paidByUserId.trim() === '') {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
+  } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
   }
 });
 
@@ -204,7 +203,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
   const inferredCategoryMeta = categoryMeta[inferredCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
-  const showPaidBySection = inferredCategory !== 'fasttag_toll_paid';
+  const showPaidBySection = true;
   const showOdometerSection = expenseRequiresOdometer(selectedExpenseTitle);
   const normalizedSelectedExpenseTitle = selectedExpenseTitle.trim().toLowerCase();
   const selectedMaintenanceSubcategory = maintenanceExpenseTitles.some((item) => item.title.toLowerCase() === normalizedSelectedExpenseTitle);
@@ -252,13 +251,9 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     const category = inferExpenseCategory(expenseTitle);
     const shouldShare = SHAREABLE_CATEGORIES.includes(category) && sharedExpense;
     const entryOdometer = expenseRequiresOdometer(expenseTitle) ? Number(odometer) : (editingEntry?.odometer ?? lastOdometer);
-    let entryUser = currentUser;
-    
-    if (category !== 'fasttag_toll_paid') {
-      const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
-      if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid for this expense.');
-      entryUser = selectedPayer;
-    }
+    const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
+    if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid/incurred this expense.');
+    const entryUser = selectedPayer;
 
     try {
       if (editingEntry) {
@@ -322,12 +317,17 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               <View style={styles.quickGrid}>
                 {quickExpenseCategories.map((item) => {
                   const active = item.title === 'Car Maintenance' ? showMaintenanceSubcategories || inferredCategory === 'maintenance_lab' : normalizedSelectedExpenseTitle === item.title.toLowerCase();
+                  const isFastag = item.title.startsWith('FASTag');
                   return (
                     <Pressable
                       key={item.title}
                       onPress={() => handleQuickCategoryPress(item.title)}
                       style={[styles.quickChip, { backgroundColor: active ? colors.textPrimary : colors.backgroundSecondary }]}>
-                      <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                      {isFastag ? (
+                        <FastagBrandIcon size={16} color={active ? colors.invertedText : colors.textSecondary} />
+                      ) : (
+                        <MaterialIcons name={active ? 'check' : item.icon} size={14} color={active ? colors.invertedText : colors.textSecondary} />
+                      )}
                       <Text style={[styles.quickChipText, { color: active ? colors.invertedText : colors.textPrimary }]}>{item.title}</Text>
                     </Pressable>
                   );
@@ -392,7 +392,20 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
                     <Text style={[styles.dateValue, { color: colors.textPrimary }]}>{dayjs(entryDate).format(INDIA_DATE_FORMAT)}</Text>
                   </View>
                 </Pressable>
-                {isDatePickerVisible && <DateTimePicker value={entryDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={handleDatePickerChange} />}
+                {isDatePickerVisible && (
+                  <DateTimePicker
+                    value={entryDate}
+                    mode="date"
+                    accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={handleDatePickerChange}
+                    positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                    negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                    textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                  />
+                )}
               </View>
             )}
 
@@ -403,7 +416,11 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               )} />
               
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 4 }}>
-                <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                {inferredCategory === 'fasttag_toll_paid' || isFastagRechargeExpense(selectedExpenseTitle) ? (
+                  <FastagBrandIcon size={16} color={colors.primary} />
+                ) : (
+                  <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                )}
                 <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Detected Category: <Text style={{ color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
                 </Text>

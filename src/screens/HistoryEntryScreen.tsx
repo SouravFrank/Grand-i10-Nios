@@ -14,6 +14,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { z } from 'zod';
 
 import { AppAlert } from '@/components/AppAlert';
+import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { ALLOWED_USERS } from '@/constants/users';
@@ -33,9 +34,7 @@ type Props = NativeStackScreenProps<AppStackParamList, 'HistoryEntryModal'>;
 type EntryCategory = 'trip' | 'fuel' | 'parking' | 'fasttag';
 
 const GRAND_I10_NIOS_TANK_CAPACITY_LITERS = 37;
-// ... (Zod Schemas remain unchanged) ...
 
-// Zod schemas hidden for brevity, keep your exact schemas from the original file!
 const baseSchema = z.object({
   entryDate: z.date(),
   ownerId: z.string().trim().min(1, 'Select owner.').refine((value) => ALLOWED_USERS.some((user) => user.id === value), 'Select a valid user.'),
@@ -57,7 +56,7 @@ const parkingSchema = baseSchema.extend({
   category: z.literal('parking'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), parkingAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), parkingLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(),
 });
 const fasttagSchema = baseSchema.extend({
-  category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().min(1, 'Required.'), isSharedTrip: z.boolean(),
+  category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().optional(), isSharedTrip: z.boolean(), fasttagType: z.enum(['toll_paid', 'recharge']).optional(),
 });
 const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema]);
 type HistoryForm = z.infer<typeof historyFormSchema>;
@@ -72,7 +71,7 @@ function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerI
         ...commonDefaults,
         category: 'trip',
         startOdometer: odometer,
-        endOdometer: '',
+        endOdometer: odometer,
         isSharedTrip: false,
       };
     case 'fuel':
@@ -101,6 +100,7 @@ function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerI
         tollAmount: '',
         tollLocation: '',
         isSharedTrip: false,
+        fasttagType: 'toll_paid',
       };
   }
 }
@@ -109,7 +109,7 @@ const CATEGORY_CONFIG: Record<EntryCategory, { label: string; icon: keyof typeof
   trip: { label: 'trip', icon: 'route', color: '#0EA5E9' },
   fuel: { label: 'fuel', icon: 'local-gas-station', color: '#F59E0B' },
   parking: { label: 'parking', icon: 'local-parking', color: '#22C55E' },
-  fasttag: { label: 'toll paid', icon: 'toll', color: '#EF4444' },
+  fasttag: { label: 'fasttag', icon: 'toll', color: '#F97316' },
 };
 
 export function HistoryEntryScreen({ navigation }: Props) {
@@ -170,7 +170,13 @@ export function HistoryEntryScreen({ navigation }: Props) {
       } else if (values.category === 'parking') {
         await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'parking' as ExpenseCategory, expenseTitle: values.parkingLocation, cost: Number(values.parkingAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
       } else if (values.category === 'fasttag') {
-        await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: values.tollLocation, cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
+        const isRecharge = values.fasttagType === 'recharge';
+        const title = isRecharge ? 'FASTag Recharge' : 'FASTag Toll Paid';
+        if (isRecharge) {
+          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'utility_addon' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime });
+        } else {
+          await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
+        }
       }
       navigation.goBack();
       void runSyncCycle();
@@ -210,6 +216,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
                 {(Object.keys(CATEGORY_CONFIG) as EntryCategory[]).map((cat) => {
                   const config = CATEGORY_CONFIG[cat];
                   const active = category === cat;
+                  const isFasttagCat = cat === 'fasttag';
                   return (
                     <Pressable
                       key={cat}
@@ -218,7 +225,11 @@ export function HistoryEntryScreen({ navigation }: Props) {
                         styles.categoryOption,
                         { backgroundColor: active ? `${config.color}15` : colors.backgroundSecondary },
                       ]}>
-                      <MaterialIcons name={config.icon} size={24} color={active ? config.color : colors.textSecondary} />
+                      {isFasttagCat ? (
+                        <FastagBrandIcon size={24} color={active ? config.color : colors.textSecondary} />
+                      ) : (
+                        <MaterialIcons name={config.icon} size={24} color={active ? config.color : colors.textSecondary} />
+                      )}
                       <Text style={[styles.categoryLabel, { color: active ? config.color : colors.textPrimary }]}>
                         {config.label}
                       </Text>
@@ -243,7 +254,18 @@ export function HistoryEntryScreen({ navigation }: Props) {
                 </View>
               </Pressable>
               {isDatePickerVisible && (
-                <DateTimePicker value={entryDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={handleDatePickerChange} />
+                <DateTimePicker
+                  value={entryDate}
+                  mode="date"
+                  accentColor={Platform.OS === 'ios' ? colors.textPrimary : (isDark ? '#60A5FA' : '#2563EB')}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  maximumDate={new Date()}
+                  onChange={handleDatePickerChange}
+                  positiveButton={Platform.OS === 'android' ? { label: 'OK', textColor: isDark ? '#60A5FA' : '#2563EB' } : undefined}
+                  negativeButton={Platform.OS === 'android' ? { label: 'Cancel', textColor: isDark ? '#94A3B8' : '#64748B' } : undefined}
+                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
+                  themeVariant={isDark ? 'dark' : 'light'}
+                />
               )}
             </View>
 

@@ -341,10 +341,10 @@ function isFastagRecharge(entry: EntryRecord): boolean {
   if (entry.expenseCategory !== "utility_addon") return false;
 
   const title = (entry.expenseTitle ?? "").toLowerCase();
-  return (
-    (title.includes("fastag") || title.includes("fast tag")) &&
-    title.includes("recharge")
-  );
+  const isFastagRelated = title.includes("fastag") || title.includes("fast tag") || title.includes("toll");
+  const isRechargeRelated = title.includes("recharge") || title.includes("topup") || title.includes("top-up") || title.includes("load") || title.includes("wallet");
+
+  return (isFastagRelated && isRechargeRelated) || title.includes("fastag recharge") || title.includes("fast tag recharge");
 }
 
 function isFastagToll(entry: EntryRecord): boolean {
@@ -1033,6 +1033,8 @@ export function buildExpenseReport(params: {
 
       if (entry.sharedTrip) {
         sharesByUser = { ayan: amount / 2, sourav: amount / 2 };
+      } else if (entry.sharedTrip === false) {
+        sharesByUser = { [entry.userId]: amount };
       } else if (matchedTrip) {
         sharesByUser = Object.fromEntries(
           Object.entries(matchedTrip.sharesByUser).map(

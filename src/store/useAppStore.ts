@@ -331,6 +331,12 @@ function validateUpdatedEntryOdometer(
     throw new Error("Entry not found.");
   }
 
+  // Expense entries (FASTag recharge, tolls, parking, fines) do not drive odometer progression.
+  // Skip relative odometer progression checks for expense entries.
+  if (targetEntry.type === "expense") {
+    return;
+  }
+
   const effectiveCreatedAt = nextCreatedAt ?? targetEntry.createdAt;
   const chronologicalEntries = entries
     .map((entry) =>
@@ -350,19 +356,9 @@ function validateUpdatedEntryOdometer(
   const nextEntry = chronologicalEntries[targetIndex + 1];
 
   if (previousEntry && nextOdometer < previousEntry.odometer) {
-    // Allow lower odometer values for expense entries (users might need to correct readings or add missed expenses)
-    if (targetEntry.type === "expense") {
-      // For expenses, allow lower odometer values but still validate for reasonable ranges
-      if (previousEntry.odometer - nextOdometer > 1000) {
-        throw new Error(
-          "Edited odometer for expense cannot be more than 1000 km less than the previous recorded value.",
-        );
-      }
-    } else {
-      throw new Error(
-        "Edited odometer cannot be less than the previous recorded value.",
-      );
-    }
+    throw new Error(
+      "Edited odometer cannot be less than the previous recorded value.",
+    );
   }
 
   if (nextEntry && nextOdometer > nextEntry.odometer) {

@@ -16,7 +16,7 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={homeIcon}
+          src={{ sfSymbol: 'house.fill' } as any}
           renderingMode="template"
         />
       </NativeTabs.Trigger>
