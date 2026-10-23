@@ -81,7 +81,7 @@ export function HomeScreen({ navigation }: Props) {
   }, [isOnline, pendingQueue.length]);
 
   const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
-    const { field, label, previousValue, value, odometer, cost, wheelAlignmentOdometer } = submission;
+    const { field, label, previousValue, value, odometer, cost, wheelAlignmentOdometer, entryDate } = submission;
     const updates: Partial<CarSpec> = { [field]: value };
     if (field === 'lastWheelAlignmentOn' && wheelAlignmentOdometer !== undefined) {
       updates.lastWheelAlignmentOdometer = wheelAlignmentOdometer;
@@ -99,6 +99,9 @@ export function HomeScreen({ navigation }: Props) {
         userName: currentUser.name,
         odometer,
         cost,
+        // The picked date becomes the entry's timeline date so backdated
+        // spec updates are recorded as history entries.
+        createdAt: entryDate,
         specUpdatedFields: [field],
         specUpdateDetails: [
           {

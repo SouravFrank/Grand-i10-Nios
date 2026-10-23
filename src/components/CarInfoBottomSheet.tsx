@@ -465,11 +465,8 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
 
     if (Number.isNaN(parsedCost) || parsedCost < 0) { AppAlert.alert('Invalid cost', 'Cost must be provided for spec update entries.'); return; }
     if (!Number.isFinite(parsedOdometer) || parsedOdometer <= 0) { AppAlert.alert('Invalid odometer', 'Enter a valid odometer reading.'); return; }
-    // Skip odometer restrictions for wheel alignment (can be historical entry)
-    if (activeField !== 'lastWheelAlignmentOn') {
-      if (parsedOdometer < lastOdometer) { AppAlert.alert('Invalid odometer', 'New odometer entry cannot be less than the previous value.'); return; }
-      if (parsedOdometer - lastOdometer > 500) { AppAlert.alert('Invalid odometer', 'Single odometer entry cannot exceed 500 km from the previous reading.'); return; }
-    }
+    // Spec updates may be backdated to any past date, so the odometer snapshot
+    // can be any historical reading (same rules as history entries).
 
     onSaveFieldEdit({
       field: activeField,
@@ -479,6 +476,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       odometer: parsedOdometer,
       cost: Number.isFinite(parsedCost) ? parsedCost : undefined,
       wheelAlignmentOdometer: activeField === 'lastWheelAlignmentOn' ? parsedOdometer : undefined,
+      entryDate: draftDate.getTime(),
     });
     cancelEdit();
   };
@@ -617,7 +615,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                         <View style={[styles.editCard, { backgroundColor: secondarySurfaceColor }]}>
                           <View style={[styles.editorBadgeRow, { backgroundColor: colors.background }]}>
                             <Text style={[styles.editorBadgeText, { color: colors.textPrimary }]}>SPEC UPDATE ENTRY</Text>
-                            <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>Previous odometer {lastOdometer} km</Text>
+                            <Text style={[styles.editorHintText, { color: colors.textSecondary }]}>Backdated entries allowed · Current odometer {lastOdometer} km</Text>
                           </View>
 
                           <Pressable style={[styles.dateSelect, { backgroundColor: colors.background }]} onPress={() => setShowDatePicker((prev) => !prev)}>
@@ -647,7 +645,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                           ) : null}
 
                           <View style={{ marginTop: 6 }}>
-                            <OdometerDigitInput label="Odometer Snapshot (km)" value={draftOdometer} onChangeText={setDraftOdometer} error={draftOdometer && Number(draftOdometer) < lastOdometer ? `Must be >= ${lastOdometer}` : undefined} />
+                            <OdometerDigitInput label="Odometer Snapshot (km)" value={draftOdometer} onChangeText={setDraftOdometer} />
                           </View>
 
                           <AppTextField label="Cost (₹)" value={draftCost} onChangeText={setDraftCost} keyboardType="decimal-pad" placeholder="e.g. 1200" />

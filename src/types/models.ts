@@ -171,6 +171,9 @@ export type CarSpecFieldUpdateSubmission = {
   odometer: number;
   cost?: number;
   wheelAlignmentOdometer?: number;
+  // Timestamp of the picked date; becomes the spec_update entry's createdAt
+  // so backdated spec updates land at the right place in the timeline.
+  entryDate: number;
 };
 
 export type CarDocumentKey =

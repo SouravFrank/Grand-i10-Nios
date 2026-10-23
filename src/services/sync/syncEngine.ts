@@ -8,8 +8,10 @@ import {
   pullSingleDocumentFromRealtimeDb,
 } from "@/services/realtime/documentsRepository";
 import {
+  canUpdateCarSpecFieldsRemotely,
   pullCarSpecFromRealtimeDb,
   pullEntriesFromRealtimeDb,
+  pushCarSpecFieldsToRealtimeDb,
   pushCarSpecToRealtimeDb,
   pushEntryToRealtimeDb,
 } from "@/services/realtime/entriesRepository";
@@ -24,7 +26,7 @@ import {
   saveDocumentLocally,
 } from "@/services/storage/localDocuments";
 import { useAppStore } from "@/store/useAppStore";
-import type { CarDocumentKey, PendingQueueItem } from "@/types/models";
+import type { CarDocumentKey, CarSpec, PendingQueueItem } from "@/types/models";
 import {
   syncError,
   syncLog,
@@ -63,6 +65,28 @@ function getSyncFailureMessage(error: unknown): string {
 }
 
 let inFlightSyncCycle: Promise<void> | null = null;
+
+function diffCarSpecAgainstBaseline(
+  local: CarSpec,
+  baseline: CarSpec,
+): Partial<CarSpec> {
+  const changes: Record<string, unknown> = {};
+  for (const key of Object.keys(local) as (keyof CarSpec)[]) {
+    if (key === "tyreSetup") {
+      if (
+        JSON.stringify(local.tyreSetup) !== JSON.stringify(baseline.tyreSetup)
+      ) {
+        changes.tyreSetup = local.tyreSetup;
+      }
+      continue;
+    }
+
+    if (local[key] !== baseline[key]) {
+      changes[key] = local[key];
+    }
+  }
+  return changes as Partial<CarSpec>;
+}
 
 async function runSyncCycleInternal(): Promise<void> {
   const initialState = useAppStore.getState();
@@ -205,29 +229,74 @@ async function runSyncCycleInternal(): Promise<void> {
       mergedCount: remoteEntries.length,
     });
 
-    const currentState = useAppStore.getState();
     syncLog("sync_cycle_pull_car_spec_start");
     const remoteCarSpec = await pullCarSpecFromRealtimeDb();
+    // Read state AFTER the pull: a spec edit may have landed while awaiting.
+    // Deciding from a pre-await snapshot would either overwrite that edit with
+    // remote data or mark it synced without ever pushing it.
+    const specState = useAppStore.getState();
     syncLog("sync_cycle_pull_car_spec_result", {
       hasRemoteCarSpec: Boolean(remoteCarSpec),
-      carSpecDirty: currentState.carSpecDirty,
+      carSpecDirty: specState.carSpecDirty,
     });
 
-    if (remoteCarSpec && !currentState.carSpecDirty) {
+    const localCarSpec = specState.carSpec;
+
+    if (remoteCarSpec && !specState.carSpecDirty) {
       syncLog("sync_cycle_replace_car_spec_from_remote");
       useAppStore.getState().replaceCarSpecFromRemote(remoteCarSpec);
       const normalizedState = useAppStore.getState();
       if (normalizedState.carSpecDirty) {
+        const normalizedSpec = normalizedState.carSpec;
         syncLog("sync_cycle_push_normalized_car_spec_start");
-        await pushCarSpecToRealtimeDb(normalizedState.carSpec);
+        await pushCarSpecToRealtimeDb(normalizedSpec);
         syncLog("sync_cycle_push_normalized_car_spec_success");
-        useAppStore.getState().markCarSpecSynced();
+        if (useAppStore.getState().carSpec === normalizedSpec) {
+          useAppStore.getState().markCarSpecSynced(normalizedSpec);
+        }
       }
     } else {
-      syncLog("sync_cycle_push_car_spec_start");
-      await pushCarSpecToRealtimeDb(currentState.carSpec);
+      const baseline = specState.lastSyncedCarSpec;
+
+      if (
+        remoteCarSpec &&
+        baseline &&
+        canUpdateCarSpecFieldsRemotely(remoteCarSpec)
+      ) {
+        syncLog("sync_cycle_push_car_spec_start", { mode: "fields" });
+        const changes = diffCarSpecAgainstBaseline(localCarSpec, baseline);
+        if (Object.keys(changes).length > 0) {
+          // Write only the fields changed since the last sync so concurrent
+          // edits from other devices in other fields survive.
+          await pushCarSpecFieldsToRealtimeDb(changes);
+        } else {
+          // Dirty flag with no local delta (e.g. a pending normalization-only
+          // heal from a previous cycle). Local holds nothing unique, so adopt
+          // the remote spec; if normalization rewrites it, heal remote.
+          useAppStore.getState().replaceCarSpecFromRemote(remoteCarSpec);
+          const replacedState = useAppStore.getState();
+          if (replacedState.carSpecDirty) {
+            const replacedSpec = replacedState.carSpec;
+            await pushCarSpecToRealtimeDb(replacedSpec);
+            if (useAppStore.getState().carSpec === replacedSpec) {
+              useAppStore.getState().markCarSpecSynced(replacedSpec);
+            }
+          }
+        }
+      } else {
+        // No baseline yet (first sync after install/update) or the remote
+        // document is missing required fields: fall back to writing the
+        // complete spec, which also heals legacy remote data.
+        syncLog("sync_cycle_push_car_spec_start", { mode: "full" });
+        await pushCarSpecToRealtimeDb(localCarSpec);
+      }
+
       syncLog("sync_cycle_push_car_spec_success");
-      useAppStore.getState().markCarSpecSynced();
+      // Only clear the dirty flag if no edit landed while pushing; otherwise
+      // the newer edit would be marked synced without ever being uploaded.
+      if (useAppStore.getState().carSpec === localCarSpec) {
+        useAppStore.getState().markCarSpecSynced(localCarSpec);
+      }
     }
 
     // ── Settlements & Mileage Sync ──────────────────────────────────────────
