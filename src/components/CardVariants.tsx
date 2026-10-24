@@ -32,7 +32,16 @@ function CardHeader({
 
   return (
     <View style={baseStyles.headerRow}>
-      <View style={[baseStyles.iconBadge, { backgroundColor: theme.accentAlpha(0.14) }]}>
+      <View
+        style={[
+          baseStyles.iconBadge,
+          {
+            backgroundColor: theme.accentAlpha(0.14),
+            borderColor: theme.accentAlpha(0.22),
+            borderWidth: 1,
+          },
+        ]}
+      >
         {isFasttagItem ? (
           <FastagBrandIcon size={17} color={theme.accent} />
         ) : (
@@ -216,6 +225,7 @@ export function TripCard({
   distanceKm,
   tripTotalCost,
   tripTotalFuelCost = 0,
+  tripTotalFuelLiters = 0,
   headerAccessory,
   colors,
 }: {
@@ -226,26 +236,45 @@ export function TripCard({
   distanceKm: number | null;
   tripTotalCost: number;
   tripTotalFuelCost?: number;
+  tripTotalFuelLiters?: number;
   headerAccessory?: React.ReactNode;
   colors: Record<string, string>;
 }) {
-  // Fuel cost = what the trip consumed (distance ÷ mileage × avg fuel rate),
-  // not the money spent at the pump. Total = that fuel cost + other trip
-  // costs (parking, tolls, fines) — shown only when it differs from the fuel
-  // cost, so a fuel-only trip doesn't display the same number twice. The
-  // rupee glyph comes from the icons — never repeat ₹ inside the total's value.
-  const metrics: { icon: keyof typeof MaterialIcons.glyphMap; value: string }[] = [];
+  // Fuel consumed = distance ÷ mileage (liters); its cost = liters × avg fuel
+  // rate — the two share one fuel block. Total = fuel cost + other trip costs
+  // (parking, tolls, fines), highlighted, and shown only when it differs from
+  // the fuel cost so a fuel-only trip doesn't display the same number twice.
+  // The rupee glyph comes from the icons — never repeat ₹ in the total value.
+  type Stat = {
+    key: string;
+    icon: keyof typeof MaterialIcons.glyphMap;
+    value: string;
+    extra?: string;
+    highlighted?: boolean;
+  };
+  const stats: Stat[] = [];
   if (distanceKm !== null) {
-    metrics.push({ icon: 'route', value: `${distanceKm} km` });
+    stats.push({ key: 'distance', icon: 'route', value: `${distanceKm} km` });
   }
-  if (tripTotalFuelCost > 0) {
-    metrics.push({ icon: 'water-drop', value: `₹${Math.round(tripTotalFuelCost)}` });
+  if (tripTotalFuelLiters > 0 || tripTotalFuelCost > 0) {
+    const liters = Math.round(tripTotalFuelLiters * 10) / 10;
+    stats.push({
+      key: 'fuel',
+      icon: 'local-gas-station',
+      value: `${liters} L`,
+      extra: tripTotalFuelCost > 0 ? `₹${Math.round(tripTotalFuelCost)}` : undefined,
+    });
   }
   if (
     tripTotalCost > 0 &&
     Math.round(tripTotalCost) !== Math.round(tripTotalFuelCost)
   ) {
-    metrics.push({ icon: 'currency-rupee', value: `${Math.round(tripTotalCost)}` });
+    stats.push({
+      key: 'total',
+      icon: 'currency-rupee',
+      value: `${Math.round(tripTotalCost)}`,
+      highlighted: true,
+    });
   }
 
   return (
@@ -286,17 +315,46 @@ export function TripCard({
         </View>
       </View>
 
-      {metrics.length > 0 && (
+      {stats.length > 0 && (
         <View style={tripStyles.statsRow}>
-          {metrics.map((metric) => (
+          {stats.map((stat) => (
             <View
-              key={metric.value}
-              style={[tripStyles.statChip, { backgroundColor: colors.backgroundSecondary }]}
+              key={stat.key}
+              style={[
+                tripStyles.statChip,
+                {
+                  backgroundColor: stat.highlighted
+                    ? theme.accentAlpha(0.12)
+                    : colors.backgroundSecondary,
+                  borderColor: stat.highlighted ? theme.accentAlpha(0.45) : 'transparent',
+                },
+              ]}
             >
-              <MaterialIcons name={metric.icon} size={14} color={theme.accent} />
-              <Text style={[tripStyles.statValue, { color: colors.textPrimary }]}>
-                {metric.value}
+              <MaterialIcons name={stat.icon} size={14} color={theme.accent} />
+              <Text
+                style={[
+                  tripStyles.statValue,
+                  { color: stat.highlighted ? theme.accent : colors.textPrimary },
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {stat.value}
               </Text>
+              {stat.extra && (
+                <>
+                  <Text style={[tripStyles.statDot, { color: colors.textSecondary }]}>·</Text>
+                  <Text
+                    style={[tripStyles.statValue, { color: colors.textPrimary }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    {stat.extra}
+                  </Text>
+                </>
+              )}
             </View>
           ))}
         </View>
@@ -437,14 +495,18 @@ export function ExpenseCard({
           )}
         </View>
       ) : (
-        <View style={expenseStyles.dataRow}>
+        <>
           {typeof entry.cost === 'number' && entry.cost > 0 && (
-            <Chip icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+            <View style={expenseStyles.primaryRow}>
+              <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
+            </View>
           )}
           {entry.odometer > 0 && (
-            <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+            <View style={expenseStyles.dataRow}>
+              <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+            </View>
           )}
-        </View>
+        </>
       )}
     </View>
   );

@@ -30,6 +30,7 @@ type HistoryRow = {
   tripEndOdometer: number | null;
   tripTotalCost: number;
   tripTotalFuelCost: number;
+  tripTotalFuelLiters: number;
 };
 
 type ExpenseSubcategory = 'fasttag' | 'car_maintenance' | 'parking' | 'traffic_violation' | 'others';
@@ -62,17 +63,32 @@ function getFuelLiters(entry: EntryRecord): number | null {
     : null;
 }
 
+// A wallet top-up for the FASTag account — never trip spend. Some legacy
+// records were saved under the toll category, so the title is the arbiter.
+function isFastagRechargeTitle(title?: string | null): boolean {
+  if (!title) return false;
+  const normalized = title.trim().toLowerCase();
+  return /fast\s*tag|fastag/.test(normalized) && normalized.includes('recharge');
+}
+
 // Entries that belong to a trip card: fuel fills, parking, FASTag toll
-// payments and traffic fines. Other expenses (maintenance, purchases, annual
-// pass, recharges…) and car records (spec updates, standalone odometer
-// readings) stay as standalone timeline rows.
+// payments and traffic fines. FASTag recharges are wallet top-ups, not trip
+// spend, and stay standalone — even when a legacy record was miscategorized
+// as a toll. Other expenses (maintenance, purchases, annual pass, recharges…)
+// and car records (spec updates, standalone odometer readings) also stay as
+// standalone timeline rows.
 function isTripEntry(entry: EntryRecord): boolean {
   if (entry.type === 'fuel') return true;
   if (entry.type !== 'expense') return false;
-  return (
+  if (
     entry.expenseCategory === 'parking' ||
-    entry.expenseCategory === 'fasttag_toll_paid' ||
     entry.expenseCategory === 'traffic_violation_fine'
+  ) {
+    return true;
+  }
+  return (
+    entry.expenseCategory === 'fasttag_toll_paid' &&
+    !isFastagRechargeTitle(entry.expenseTitle)
   );
 }
 
@@ -128,12 +144,17 @@ function assignTripMembers(entries: EntryRecord[]): Map<string, EntryRecord[]> {
     if (!isTripEntry(entry)) continue;
     const window = windows.find((w) => {
       const inTimeWindow = entry.createdAt >= w.startTs && entry.createdAt <= w.endTs;
-      const inOdometerRange =
-        entry.odometer >= w.startOdo &&
-        entry.odometer <= w.endOdo &&
+      const inGuardedTimeWindow =
         entry.createdAt >= w.startTs - TRIP_MEMBER_TIME_GUARD_MS &&
         entry.createdAt <= w.endTs + TRIP_MEMBER_TIME_GUARD_MS;
-      return inTimeWindow || inOdometerRange;
+      const inOdometerRange =
+        entry.odometer > 0 &&
+        entry.odometer >= w.startOdo &&
+        entry.odometer <= w.endOdo;
+      // Toll, parking and fine entries carry no odometer — the guarded time
+      // window (±12h around the trip) is their only placement signal, so a
+      // toll logged shortly before/after the trip readings still joins it.
+      return inTimeWindow || (inGuardedTimeWindow && (entry.odometer === 0 || inOdometerRange));
     });
     if (!window) continue;
     const list = membersByTripId.get(window.tripId);
@@ -217,16 +238,14 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
         visited.add(start.id);
         const distanceKm = entry.odometer - start.odometer;
 
-        // Fuel cost of the trip = what the distance actually consumed:
-        // distance ÷ month's mileage × weighted average fuel rate. Total =
-        // that fuel cost + the other spend assigned to the trip.
+        // Fuel consumed by the trip = distance ÷ mileage (liters); its cost =
+        // liters × weighted average fuel rate. Total = that fuel cost + the
+        // other spend assigned to the trip.
         const monthKey = dayjs(entry.createdAt).format('YYYY-MM');
         const mileage = resolveMonthMileage(monthKey, mileageByMonth);
         const avgFuelRate = getWeightedAvgFuelRateUpTo(entry.createdAt);
-        const fuelCost =
-          distanceKm > 0 && mileage > 0 && avgFuelRate > 0
-            ? (distanceKm * avgFuelRate) / mileage
-            : 0;
+        const fuelLiters = distanceKm > 0 && mileage > 0 ? distanceKm / mileage : 0;
+        const fuelCost = fuelLiters * avgFuelRate;
         const otherCost = getTripOtherCost(entry.tripId);
 
         rows.push({
@@ -236,6 +255,7 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
           tripEndOdometer: entry.odometer,
           tripTotalCost: fuelCost + otherCost,
           tripTotalFuelCost: fuelCost,
+          tripTotalFuelLiters: fuelLiters,
         });
         continue;
       }
@@ -255,6 +275,7 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
         tripEndOdometer: entry.tripStage === 'end' ? entry.odometer : null,
         tripTotalCost: 0,
         tripTotalFuelCost: 0,
+        tripTotalFuelLiters: 0,
       });
       continue;
     }
@@ -267,6 +288,7 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
       tripEndOdometer: null,
       tripTotalCost: 0,
       tripTotalFuelCost: 0,
+      tripTotalFuelLiters: 0,
     });
   }
 
@@ -283,6 +305,7 @@ type TripGroupData = {
     tripEndOdometer: number | null;
     tripTotalCost: number;
     tripTotalFuelCost: number;
+    tripTotalFuelLiters: number;
   };
 };
 
@@ -353,6 +376,7 @@ function buildGroupedTimeline(rows: HistoryRow[], entries: EntryRecord[]): Timel
           tripEndOdometer: row.tripEndOdometer,
           tripTotalCost: row.tripTotalCost,
           tripTotalFuelCost: row.tripTotalFuelCost,
+          tripTotalFuelLiters: row.tripTotalFuelLiters,
         },
       },
     });
@@ -793,6 +817,7 @@ export function HistoryScreen({ navigation }: Props) {
               tripEndOdometer={row.tripEndOdometer}
               tripTotalCost={row.tripTotalCost}
               tripTotalFuelCost={row.tripTotalFuelCost}
+              tripTotalFuelLiters={row.tripTotalFuelLiters}
               index={index}
               canEdit={canEditEntry(row.entry, currentUser?.id)}
               onPressEdit={() => navigateToEdit(row.entry)}

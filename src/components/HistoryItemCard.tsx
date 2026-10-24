@@ -1,9 +1,9 @@
 /**
  * HistoryItemCard.tsx
  * Orchestrator: resolves card theme → delegates to variant component.
- * Fixes vs previous version:
  * - Shared badge moved inline (no absolute → no overlap)
- * - Animation: slide up (translateY) — natural for vertical feed
+ * - Animation: staggered spring rise with a soft scale-in — natural for a
+ *   vertical feed and for the cascade inside an expanded trip group
  * - Card shell: tighter marginBottom (8px), consistent border
  */
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -29,6 +29,7 @@ type HistoryItemCardProps = {
   tripEndOdometer?: number | null;
   tripTotalCost?: number;
   tripTotalFuelCost?: number;
+  tripTotalFuelLiters?: number;
   index: number;
   canEdit?: boolean;
   onPressEdit?: () => void;
@@ -41,32 +42,43 @@ export function HistoryItemCard({
   tripEndOdometer = null,
   tripTotalCost = 0,
   tripTotalFuelCost = 0,
+  tripTotalFuelLiters = 0,
   index,
   canEdit,
   onPressEdit,
 }: HistoryItemCardProps) {
   const { colors, isDark } = useAppTheme();
 
-  // ── Animation ──────────────────────────────────────────────────────────────
+  // ── Animation: staggered spring rise with a soft scale-in ──────────────────
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(10)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+  const scale = useRef(new Animated.Value(0.97)).current;
+  const entranceDelay = Math.min(index * 45, 240);
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 260,
-        delay: Math.min(index * 30, 220),
+        duration: 240,
+        delay: entranceDelay,
         useNativeDriver: true,
       }),
-      Animated.timing(translateY, {
+      Animated.spring(translateY, {
         toValue: 0,
-        duration: 260,
-        delay: Math.min(index * 30, 220),
+        delay: entranceDelay,
+        friction: 7,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        delay: entranceDelay,
+        friction: 6,
+        tension: 200,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [index, opacity, translateY]);
+  }, [entranceDelay, opacity, scale, translateY]);
 
   // ── Theme resolution ────────────────────────────────────────────────────────
   const isTripSummary =
@@ -101,6 +113,7 @@ export function HistoryItemCard({
           distanceKm={distanceKm}
           tripTotalCost={tripTotalCost}
           tripTotalFuelCost={tripTotalFuelCost}
+          tripTotalFuelLiters={tripTotalFuelLiters}
           colors={colors}
         />
       );
@@ -121,7 +134,7 @@ export function HistoryItemCard({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Animated.View
-      style={[baseStyles.animatedWrapper, { opacity, transform: [{ translateY }] }]}
+      style={[baseStyles.animatedWrapper, { opacity, transform: [{ translateY }, { scale }] }]}
     >
       <ReanimatedSwipeable
         renderRightActions={() => {

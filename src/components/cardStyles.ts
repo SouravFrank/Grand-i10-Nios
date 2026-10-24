@@ -17,7 +17,7 @@ export const baseStyles = StyleSheet.create({
     justifyContent: "center",
   },
   card: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderLeftWidth: 3,
     marginBottom: 10,
@@ -221,8 +221,12 @@ export const tripStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 5,
     paddingVertical: 9,
+    paddingHorizontal: 4,
     borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
+  statDot: { fontSize: 12, fontWeight: "900", opacity: 0.45 },
   statValue: { fontSize: 14, fontWeight: "900", letterSpacing: -0.2 },
 });
 

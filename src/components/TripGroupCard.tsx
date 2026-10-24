@@ -12,11 +12,22 @@
  * The trip's own start/end odometer readings stay in the collapsed summary
  * only — they are not repeated as child cards. Grouping is purely
  * presentational: no entry is hidden or summarized away.
+ *
+ * Motion: the card rises in on a spring and squishes softly while held;
+ * the accordion height glides through a layout transition while the
+ * TRIP ENTRIES sections crossfade between collapsed and expanded states,
+ * and the chevron flicks over with a spring.
  */
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated as RNAnimated, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  FadeOutUp,
+  LinearTransition,
+} from 'react-native-reanimated';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { TripCard } from '@/components/CardVariants';
@@ -40,6 +51,7 @@ type TripGroupCardProps = {
     tripEndOdometer: number | null;
     tripTotalCost: number;
     tripTotalFuelCost: number;
+    tripTotalFuelLiters: number;
   };
   expanded: boolean;
   onToggle: () => void;
@@ -64,24 +76,48 @@ export function TripGroupCard({
 
   const hasMembers = members.length > 0;
 
-  // ── Mount animation (mirrors HistoryItemCard) ──────────────────────────────
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(10)).current;
+  // ── Mount animation: fade + spring rise ────────────────────────────────────
+  const opacity = useRef(new RNAnimated.Value(0)).current;
+  const translateY = useRef(new RNAnimated.Value(12)).current;
+  const pressScale = useRef(new RNAnimated.Value(1)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 260, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 260, useNativeDriver: true }),
+    RNAnimated.parallel([
+      RNAnimated.timing(opacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+      RNAnimated.spring(translateY, {
+        toValue: 0,
+        friction: 7,
+        tension: 140,
+        useNativeDriver: true,
+      }),
     ]).start();
   }, [opacity, translateY]);
 
-  // ── Chevron rotation ───────────────────────────────────────────────────────
-  const chevronRotate = useRef(new Animated.Value(0)).current;
+  // ── Press feedback: soft squish while held, springy release ────────────────
+  const handlePressIn = () => {
+    RNAnimated.timing(pressScale, {
+      toValue: 0.97,
+      duration: 130,
+      useNativeDriver: true,
+    }).start();
+  };
+  const handlePressOut = () => {
+    RNAnimated.spring(pressScale, {
+      toValue: 1,
+      friction: 5,
+      tension: 260,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // ── Chevron rotation (springy flick) ───────────────────────────────────────
+  const chevronRotate = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(chevronRotate, {
+    RNAnimated.spring(chevronRotate, {
       toValue: expanded ? 1 : 0,
-      duration: 200,
+      friction: 6,
+      tension: 220,
       useNativeDriver: true,
     }).start();
   }, [chevronRotate, expanded]);
@@ -108,7 +144,7 @@ export function TripGroupCard({
       <MaterialIcons name="layers" size={12} color={theme.accent} />
       <Text style={[styles.countPillText, { color: theme.accent }]}>{members.length}</Text>
       <View style={[styles.accessoryDivider, { backgroundColor: theme.accentAlpha(0.28) }]} />
-      <Animated.View
+      <RNAnimated.View
         style={{
           transform: [
             {
@@ -121,12 +157,12 @@ export function TripGroupCard({
         }}
       >
         <MaterialIcons name="expand-more" size={15} color={theme.accent} />
-      </Animated.View>
+      </RNAnimated.View>
     </Pressable>
   );
 
   return (
-    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+    <RNAnimated.View style={{ opacity, transform: [{ translateY }, { scale: pressScale }] }}>
       <ReanimatedSwipeable
         // While expanded, hand gestures to the nested entry swipeables.
         enabled={Boolean(canEditTrip) && !expanded}
@@ -144,7 +180,9 @@ export function TripGroupCard({
           );
         }}
       >
-        <View
+        {/* Layout transition glides the card height as the sections swap. */}
+        <Animated.View
+          layout={LinearTransition.springify().damping(26).stiffness(220)}
           style={[
             baseStyles.card,
             {
@@ -156,6 +194,8 @@ export function TripGroupCard({
         >
           <Pressable
             onPress={hasMembers ? onToggle : undefined}
+            onPressIn={hasMembers ? handlePressIn : undefined}
+            onPressOut={hasMembers ? handlePressOut : undefined}
             accessibilityRole={hasMembers ? 'button' : undefined}
             accessibilityState={hasMembers ? { expanded } : undefined}
           >
@@ -167,10 +207,15 @@ export function TripGroupCard({
               distanceKm={summary.distanceKm}
               tripTotalCost={summary.tripTotalCost}
               tripTotalFuelCost={summary.tripTotalFuelCost}
+              tripTotalFuelLiters={summary.tripTotalFuelLiters}
               colors={colors}
             />
             {!expanded && members.length > 0 && (
-              <View style={[styles.childRowsWrap, { borderTopColor: colors.border }]}>
+              <Animated.View
+                entering={FadeInUp.springify().damping(20)}
+                exiting={FadeOutUp.duration(180)}
+                style={[styles.childRowsWrap, { borderTopColor: colors.border }]}
+              >
                 <View style={styles.sectionHeaderRow}>
                   <Text style={[styles.childRowsLabel, { color: colors.textSecondary }]}>
                     TRIP ENTRIES
@@ -241,12 +286,16 @@ export function TripGroupCard({
                     </View>
                   );
                 })}
-              </View>
+              </Animated.View>
             )}
           </Pressable>
 
           {expanded && hasMembers && (
-            <View style={[styles.itineraryWrap, { borderTopColor: colors.border }]}>
+            <Animated.View
+              entering={FadeIn.duration(240)}
+              exiting={FadeOutUp.duration(200)}
+              style={[styles.itineraryWrap, { borderTopColor: colors.border }]}
+            >
               <View style={styles.sectionHeaderRow}>
                 <Text style={[styles.itineraryLabel, { color: colors.textSecondary }]}>
                   TRIP ENTRIES
@@ -267,11 +316,11 @@ export function TripGroupCard({
                   />
                 ))}
               </View>
-            </View>
+            </Animated.View>
           )}
-        </View>
+        </Animated.View>
       </ReanimatedSwipeable>
-    </Animated.View>
+    </RNAnimated.View>
   );
 }
 
