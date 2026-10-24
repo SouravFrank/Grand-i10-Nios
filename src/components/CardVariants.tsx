@@ -2,7 +2,6 @@ import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Fragment } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Text, View } from 'react-native';
 import {
@@ -261,11 +260,25 @@ export function TripCard({
           <OdometerValue value={tripStartOdometer} color={colors.textPrimary} style={tripStyles.odomVal} />
         </View>
 
-        <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
-        <View style={[tripStyles.routeVehicle, { backgroundColor: theme.accentAlpha(0.16) }]}>
+        <View style={tripStyles.routeSegment}>
+          <View style={[tripStyles.routeDotHollow, { borderColor: theme.accentAlpha(0.45) }]} />
+          <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
+        </View>
+        <View
+          style={[
+            tripStyles.routeVehicle,
+            {
+              backgroundColor: theme.accentAlpha(0.15),
+              borderColor: theme.accentAlpha(0.28),
+            },
+          ]}
+        >
           <MaterialIcons name="directions-car" size={17} color={theme.accent} />
         </View>
-        <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
+        <View style={tripStyles.routeSegment}>
+          <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
+          <View style={[tripStyles.routeDotSolid, { backgroundColor: theme.accent }]} />
+        </View>
 
         <View style={{ flex: 1, alignItems: 'flex-end' }}>
           <Text style={[tripStyles.odomLabel, { color: colors.textSecondary, textAlign: 'right' }]}>END</Text>
@@ -274,21 +287,17 @@ export function TripCard({
       </View>
 
       {metrics.length > 0 && (
-        <View style={[tripStyles.statsRow, { backgroundColor: colors.backgroundSecondary }]}>
-          {metrics.map((metric, index) => (
-            <Fragment key={metric.value}>
-              {index > 0 && (
-                <View style={[tripStyles.statsDivider, { backgroundColor: colors.border }]} />
-              )}
-              <View style={tripStyles.statCell}>
-                <View style={tripStyles.statValueRow}>
-                  <MaterialIcons name={metric.icon} size={14} color={theme.accent} />
-                  <Text style={[tripStyles.statValue, { color: colors.textPrimary }]}>
-                    {metric.value}
-                  </Text>
-                </View>
-              </View>
-            </Fragment>
+        <View style={tripStyles.statsRow}>
+          {metrics.map((metric) => (
+            <View
+              key={metric.value}
+              style={[tripStyles.statChip, { backgroundColor: colors.backgroundSecondary }]}
+            >
+              <MaterialIcons name={metric.icon} size={14} color={theme.accent} />
+              <Text style={[tripStyles.statValue, { color: colors.textPrimary }]}>
+                {metric.value}
+              </Text>
+            </View>
           ))}
         </View>
       )}

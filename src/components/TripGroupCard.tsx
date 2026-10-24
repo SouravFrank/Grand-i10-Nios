@@ -96,6 +96,35 @@ export function TripGroupCard({
   );
   const borderColor = theme.accentAlpha(isDark ? 0.3 : 0.18);
 
+  // Count + chevron toggle lives in the TRIP ENTRIES section header, not the
+  // card header — it acts on that section in both collapsed and expanded states.
+  const entryToggle = (
+    <Pressable
+      onPress={hasMembers ? onToggle : undefined}
+      accessibilityRole={hasMembers ? 'button' : undefined}
+      accessibilityState={hasMembers ? { expanded } : undefined}
+      style={[styles.headerAccessory, { backgroundColor: theme.accentAlpha(0.12) }]}
+    >
+      <MaterialIcons name="layers" size={12} color={theme.accent} />
+      <Text style={[styles.countPillText, { color: theme.accent }]}>{members.length}</Text>
+      <View style={[styles.accessoryDivider, { backgroundColor: theme.accentAlpha(0.28) }]} />
+      <Animated.View
+        style={{
+          transform: [
+            {
+              rotate: chevronRotate.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '180deg'],
+              }),
+            },
+          ],
+        }}
+      >
+        <MaterialIcons name="expand-more" size={15} color={theme.accent} />
+      </Animated.View>
+    </Pressable>
+  );
+
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       <ReanimatedSwipeable
@@ -139,43 +168,16 @@ export function TripGroupCard({
               tripTotalCost={summary.tripTotalCost}
               tripTotalFuelCost={summary.tripTotalFuelCost}
               colors={colors}
-              headerAccessory={
-                hasMembers ? (
-                  <View style={styles.headerAccessory}>
-                    <View style={[styles.countPill, { backgroundColor: theme.accentAlpha(0.12) }]}>
-                      <MaterialIcons name="layers" size={11} color={theme.accent} />
-                      <Text style={[styles.countPillText, { color: theme.accent }]}>
-                        {members.length}
-                      </Text>
-                    </View>
-                    <Animated.View
-                      style={[
-                        styles.chevronBadge,
-                        {
-                          borderColor: theme.accentAlpha(0.3),
-                          transform: [
-                            {
-                              rotate: chevronRotate.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: ['0deg', '180deg'],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      <MaterialIcons name="expand-more" size={16} color={theme.accent} />
-                    </Animated.View>
-                  </View>
-                ) : undefined
-              }
             />
             {!expanded && members.length > 0 && (
               <View style={[styles.childRowsWrap, { borderTopColor: colors.border }]}>
-                <Text style={[styles.childRowsLabel, { color: colors.textSecondary }]}>
-                  TRIP ENTRIES
-                </Text>
-                {members.map((member, index) => {
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.childRowsLabel, { color: colors.textSecondary }]}>
+                    TRIP ENTRIES
+                  </Text>
+                  {entryToggle}
+                </View>
+                {members.map((member) => {
                   const childEntry = member.entry;
                   const childTheme = resolveCardTheme(
                     childEntry.type,
@@ -210,12 +212,16 @@ export function TripGroupCard({
                   return (
                     <View
                       key={childEntry.id}
-                      style={[
-                        styles.childRow,
-                        index > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
-                      ]}
+                      style={[styles.childRow, { backgroundColor: childTheme.accentAlpha(0.06) }]}
                     >
-                      <MaterialIcons name={childTheme.icon} size={13} color={childTheme.accent} />
+                      <View
+                        style={[
+                          styles.childRowIcon,
+                          { backgroundColor: childTheme.accentAlpha(0.14) },
+                        ]}
+                      >
+                        <MaterialIcons name={childTheme.icon} size={13} color={childTheme.accent} />
+                      </View>
                       <Text
                         style={[styles.childRowTitle, { color: colors.textPrimary }]}
                         numberOfLines={1}
@@ -241,25 +247,25 @@ export function TripGroupCard({
 
           {expanded && hasMembers && (
             <View style={[styles.itineraryWrap, { borderTopColor: colors.border }]}>
-              <Text style={[styles.itineraryLabel, { color: colors.textSecondary }]}>
-                TRIP ENTRIES
-              </Text>
-              <View style={styles.itineraryRow}>
-                <View style={[styles.rail, { backgroundColor: theme.accentAlpha(0.25) }]} />
-                <View style={styles.itineraryList}>
-                  {members.map((member, index) => (
-                    <HistoryItemCard
-                      key={member.entry.id}
-                      entry={member.entry}
-                      distanceKm={member.distanceKm}
-                      index={index}
-                      canEdit={canEditMember ? canEditMember(member.entry) : false}
-                      onPressEdit={
-                        onPressEditMember ? () => onPressEditMember(member.entry) : undefined
-                      }
-                    />
-                  ))}
-                </View>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={[styles.itineraryLabel, { color: colors.textSecondary }]}>
+                  TRIP ENTRIES
+                </Text>
+                {entryToggle}
+              </View>
+              <View>
+                {members.map((member, index) => (
+                  <HistoryItemCard
+                    key={member.entry.id}
+                    entry={member.entry}
+                    distanceKm={member.distanceKm}
+                    index={index}
+                    canEdit={canEditMember ? canEditMember(member.entry) : false}
+                    onPressEdit={
+                      onPressEditMember ? () => onPressEditMember(member.entry) : undefined
+                    }
+                  />
+                ))}
               </View>
             </View>
           )}
@@ -270,31 +276,29 @@ export function TripGroupCard({
 }
 
 const styles = StyleSheet.create({
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerAccessory: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  countPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    gap: 4,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingLeft: 9,
+    paddingRight: 7,
+    paddingVertical: 6,
   },
   countPillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
-  chevronBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  accessoryDivider: {
+    width: 1,
+    height: 12,
+    borderRadius: 1,
   },
   itineraryWrap: {
     borderTopWidth: 1,
@@ -306,21 +310,30 @@ const styles = StyleSheet.create({
   childRowsWrap: {
     borderTopWidth: 1,
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
-    gap: 2,
+    paddingTop: 9,
+    paddingBottom: 12,
+    gap: 6,
   },
   childRowsLabel: {
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   childRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingVertical: 6,
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  childRowIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   childRowTitle: {
     flex: 1,
@@ -340,18 +353,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
-  },
-  itineraryRow: {
-    flexDirection: 'row',
-  },
-  // Rail sits under the 32pt icon badges of the nested cards.
-  rail: {
-    width: 2,
-    borderRadius: 1,
-    marginLeft: 15,
-    marginRight: 10,
-  },
-  itineraryList: {
-    flex: 1,
   },
 });
