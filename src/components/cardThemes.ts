@@ -8,6 +8,8 @@ export type EntryCategory =
   | "odometer"
   | "expense_toll"
   | "expense_fasttag_recharge"
+  | "expense_annual_pass_purchase"
+  | "expense_annual_pass_deduction"
   | "expense_parking"
   | "expense_maintenance"
   | "expense_fine"
@@ -47,11 +49,11 @@ const THEMES: Record<
     motif: "⛽",
   },
   trip: {
-    accentHex: "#6366F1",
+    accentHex: "#22C55E",
     icon: "route",
     label: "TRIP",
     variant: "trip",
-    cardTint: rgba("#6366F1", 0.07),
+    cardTint: rgba("#22C55E", 0.07),
     leftBorderWidth: 5,
     motif: "🗺",
   },
@@ -127,12 +129,30 @@ const THEMES: Record<
     leftBorderWidth: 4,
     motif: "⚠️",
   },
+  expense_annual_pass_purchase: {
+    accentHex: "#6366F1",
+    icon: "card-membership",
+    label: "ANNUAL PASS",
+    variant: "expense",
+    cardTint: rgba("#6366F1", 0.05),
+    leftBorderWidth: 4,
+    motif: "🛣️",
+  },
+  expense_annual_pass_deduction: {
+    accentHex: "#F97316",
+    icon: "toll",
+    label: "PASS TOLL",
+    variant: "expense",
+    cardTint: rgba("#F97316", 0.05),
+    leftBorderWidth: 4,
+    motif: null,
+  },
   expense_other: {
-    accentHex: "#22C55E",
+    accentHex: "#800020",
     icon: "receipt-long",
     label: "EXPENSE",
     variant: "expense",
-    cardTint: rgba("#22C55E", 0.05),
+    cardTint: rgba("#800020", 0.05),
     leftBorderWidth: 4,
     motif: null,
   },
@@ -177,6 +197,10 @@ export function resolveCardTheme(
       expenseTitle?.toLowerCase().includes("recharge")
     ) {
       category = "expense_fasttag_recharge";
+    } else if (expenseCategory === "annual_pass_purchase") {
+      category = "expense_annual_pass_purchase";
+    } else if (expenseCategory === "annual_pass_deduction") {
+      category = "expense_annual_pass_deduction";
     } else if (expenseCategory === "parking") {
       category = "expense_parking";
     } else if (expenseCategory === "maintenance_lab") {

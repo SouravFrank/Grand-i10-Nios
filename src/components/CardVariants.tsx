@@ -2,6 +2,7 @@ import { FastagBrandIcon } from '@/components/FastagBrandIcon';
 import type { EntryRecord } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Fragment } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Text, View } from 'react-native';
 import {
@@ -34,30 +35,32 @@ function CardHeader({
     <View style={baseStyles.headerRow}>
       <View style={[baseStyles.iconBadge, { backgroundColor: theme.accentAlpha(0.14) }]}>
         {isFasttagItem ? (
-          <FastagBrandIcon size={16} color={theme.accent} />
+          <FastagBrandIcon size={17} color={theme.accent} />
         ) : (
-          <MaterialIcons name={theme.icon} size={16} color={theme.accent} />
+          <MaterialIcons name={theme.icon} size={18} color={theme.accent} />
         )}
       </View>
       <View style={baseStyles.headerMeta}>
-        <Text style={[baseStyles.typeLabel, { color: theme.accent }]}>{theme.label}</Text>
-        <Text style={[baseStyles.dot, { color: textSecondary }]}>·</Text>
-        <Text style={[baseStyles.dateText, { color: textSecondary }]}>
-          {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
+        <Text style={[baseStyles.typeLabel, { color: theme.accent }]} numberOfLines={1}>
+          {theme.label}
         </Text>
-        <Text style={[baseStyles.dot, { color: textSecondary }]}>·</Text>
-        <Text style={[baseStyles.userText, { color: textSecondary }]} numberOfLines={1}>
-          {entry.userName}
-        </Text>
+        <View style={baseStyles.headerSubRow}>
+          <Text style={[baseStyles.dateText, { color: textSecondary }]}>
+            {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
+          </Text>
+          <Text style={[baseStyles.dot, { color: textSecondary }]}>·</Text>
+          <Text style={[baseStyles.userText, { color: textSecondary }]} numberOfLines={1}>
+            {entry.userName}
+          </Text>
+        </View>
       </View>
-      
-      {/* Highlighted Shared Icon at Top Right */}
+
       {entry.sharedTrip && (
         <View style={[baseStyles.sharedBadge, { backgroundColor: theme.accentAlpha(0.15) }]}>
-          <MaterialIcons name="groups" size={16} color={theme.accent} />
+          <MaterialIcons name="groups" size={15} color={theme.accent} />
         </View>
       )}
-      
+
       {children}
     </View>
   );
@@ -99,7 +102,7 @@ function MetricPill({
 }) {
   return (
     <View style={[baseStyles.metricPill, { backgroundColor: bg }]}>
-      <MaterialIcons name={icon} size={14} color={accent} />
+      <MaterialIcons name={icon} size={15} color={accent} />
       <Text style={[baseStyles.metricPillText, { color: textColor }]}>{value}</Text>
     </View>
   );
@@ -167,30 +170,28 @@ export function FuelCard({
       : null;
   const liters = typeof entry.fuelLiters === 'number' ? entry.fuelLiters : null;
   const ppl = amount && liters ? (amount / liters).toFixed(1) : null;
-  const chipBg = theme.accentAlpha(0.1);
+  const chipBg = theme.accentAlpha(0.08);
   const hasPrimaryMetrics = amount !== null || liters !== null;
-  const hasSecondaryMetrics = typeof entry.odometer === 'number' || ppl !== null || entry.fullTank;
+  const hasSecondaryMetrics = entry.odometer > 0 || ppl !== null || entry.fullTank;
 
   return (
     <View style={fuelStyles.inner}>
       <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-      
-      {/* Description removed as requested */}
 
       {hasPrimaryMetrics && (
         <View style={fuelStyles.primaryRow}>
           {amount !== null && (
-            <MetricPill icon="currency-rupee" value={`${amount}`} accent={theme.accent}  textColor={colors.textPrimary} />
+            <MetricPill icon="currency-rupee" value={`${amount}`} accent={theme.accent} textColor={colors.textPrimary} />
           )}
           {liters !== null && (
-            <MetricPill icon="water-drop" value={`${liters} L`} accent={theme.accent}  textColor={colors.textPrimary} />
+            <MetricPill icon="water-drop" value={`${liters} L`} accent={theme.accent} textColor={colors.textPrimary} />
           )}
         </View>
       )}
 
       {hasSecondaryMetrics && (
         <View style={fuelStyles.dataRow}>
-          {typeof entry.odometer === 'number' && (
+          {entry.odometer > 0 && (
             <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
           )}
           {ppl !== null && (
@@ -199,7 +200,7 @@ export function FuelCard({
           {entry.fullTank && (
             <View style={[baseStyles.tagPill, { backgroundColor: chipBg }]}>
               <MaterialIcons name="check-circle" size={11} color={theme.accent} />
-              <Text style={[baseStyles.tagPillText, { color: theme.accent }]}>Full</Text>
+              <Text style={[baseStyles.tagPillText, { color: theme.accent }]}>Full tank</Text>
             </View>
           )}
         </View>
@@ -215,9 +216,8 @@ export function TripCard({
   tripEndOdometer,
   distanceKm,
   tripTotalCost,
-  tripTotalFuelLiters,
-  mileage,
-  costPerKm,
+  tripTotalFuelCost = 0,
+  headerAccessory,
   colors,
 }: {
   theme: CardTheme;
@@ -226,43 +226,46 @@ export function TripCard({
   tripEndOdometer: number | null;
   distanceKm: number | null;
   tripTotalCost: number;
-  tripTotalFuelLiters: number;
-  mileage: number | null;
-  costPerKm: number | null;
+  tripTotalFuelCost?: number;
+  headerAccessory?: React.ReactNode;
   colors: Record<string, string>;
 }) {
-  const fuelUsed =
-    mileage && mileage > 0 && distanceKm
-      ? distanceKm / mileage
-      : tripTotalFuelLiters > 0
-      ? tripTotalFuelLiters
-      : null;
-
-  const totalCost =
-    costPerKm && costPerKm > 0 && distanceKm
-      ? distanceKm * costPerKm
-      : tripTotalCost > 0
-      ? tripTotalCost
-      : null;
-
-  const chipBg = colors.backgroundSecondary;
+  // Fuel cost = what the trip consumed (distance ÷ mileage × avg fuel rate),
+  // not the money spent at the pump. Total = that fuel cost + other trip
+  // costs (parking, tolls, fines) — shown only when it differs from the fuel
+  // cost, so a fuel-only trip doesn't display the same number twice. The
+  // rupee glyph comes from the icons — never repeat ₹ inside the total's value.
+  const metrics: { icon: keyof typeof MaterialIcons.glyphMap; value: string }[] = [];
+  if (distanceKm !== null) {
+    metrics.push({ icon: 'route', value: `${distanceKm} km` });
+  }
+  if (tripTotalFuelCost > 0) {
+    metrics.push({ icon: 'water-drop', value: `₹${Math.round(tripTotalFuelCost)}` });
+  }
+  if (
+    tripTotalCost > 0 &&
+    Math.round(tripTotalCost) !== Math.round(tripTotalFuelCost)
+  ) {
+    metrics.push({ icon: 'currency-rupee', value: `${Math.round(tripTotalCost)}` });
+  }
 
   return (
     <View style={tripStyles.inner}>
-      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-      
+      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary}>
+        {headerAccessory}
+      </CardHeader>
+
       <View style={[tripStyles.journeyBar, { backgroundColor: theme.accentAlpha(0.08) }]}>
         <View style={{ flex: 1 }}>
           <Text style={[tripStyles.odomLabel, { color: colors.textSecondary }]}>START</Text>
           <OdometerValue value={tripStartOdometer} color={colors.textPrimary} style={tripStyles.odomVal} />
         </View>
-        
-        {/* Attractive Car + Dots Route Visual */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginHorizontal: 4 }}>
-          <MaterialIcons name="more-horiz" size={14} color={theme.accent} style={{ opacity: 0.4 }} />
-          <MaterialIcons name="directions-car" size={18} color={theme.accent} />
-          <MaterialIcons name="more-horiz" size={14} color={theme.accent} style={{ opacity: 0.4 }} />
+
+        <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
+        <View style={[tripStyles.routeVehicle, { backgroundColor: theme.accentAlpha(0.16) }]}>
+          <MaterialIcons name="directions-car" size={17} color={theme.accent} />
         </View>
+        <View style={[tripStyles.routeLine, { borderColor: theme.accentAlpha(0.35) }]} />
 
         <View style={{ flex: 1, alignItems: 'flex-end' }}>
           <Text style={[tripStyles.odomLabel, { color: colors.textSecondary, textAlign: 'right' }]}>END</Text>
@@ -270,17 +273,25 @@ export function TripCard({
         </View>
       </View>
 
-      <View style={tripStyles.statsRow}>
-        {distanceKm !== null && (
-          <Chip icon="route" value={`${distanceKm} km`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-        )}
-        {fuelUsed !== null && (
-          <Chip icon="water-drop" value={`${fuelUsed.toFixed(1)} L`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-        )}
-        {totalCost !== null && (
-          <Chip icon="currency-rupee" value={`${Number(totalCost).toFixed(0)}`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-        )}
-      </View>
+      {metrics.length > 0 && (
+        <View style={[tripStyles.statsRow, { backgroundColor: colors.backgroundSecondary }]}>
+          {metrics.map((metric, index) => (
+            <Fragment key={metric.value}>
+              {index > 0 && (
+                <View style={[tripStyles.statsDivider, { backgroundColor: colors.border }]} />
+              )}
+              <View style={tripStyles.statCell}>
+                <View style={tripStyles.statValueRow}>
+                  <MaterialIcons name={metric.icon} size={14} color={theme.accent} />
+                  <Text style={[tripStyles.statValue, { color: colors.textPrimary }]}>
+                    {metric.value}
+                  </Text>
+                </View>
+              </View>
+            </Fragment>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -299,41 +310,23 @@ export function OdometerCard({
 
   return (
     <View style={odometerStyles.inner}>
-      <View style={baseStyles.headerRow}>
-        <View style={[baseStyles.iconBadge, { backgroundColor: theme.accentAlpha(0.12) }]}>
-          <MaterialIcons name={theme.icon} size={15} color={theme.accent} />
-        </View>
-        <View style={baseStyles.headerMeta}>
-          <Text style={[baseStyles.typeLabel, { color: theme.accent }]}>{theme.label}</Text>
-          <Text style={[baseStyles.dot, { color: colors.textSecondary }]}>·</Text>
-          <Text style={[baseStyles.dateText, { color: colors.textSecondary }]}>
-            {dayjs(entry.createdAt).format(INDIA_DATE_FORMAT)}
-          </Text>
-          <Text style={[baseStyles.dot, { color: colors.textSecondary }]}>·</Text>
-          <Text style={[baseStyles.userText, { color: colors.textSecondary }]} numberOfLines={1}>
-            {entry.userName}
-          </Text>
-        </View>
-        
-        {entry.sharedTrip && (
-          <View style={[baseStyles.sharedBadge, { backgroundColor: theme.accentAlpha(0.15) }]}>
-            <MaterialIcons name="groups" size={16} color={theme.accent} />
-          </View>
-        )}
+      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
 
-        <View style={odometerStyles.readingInline}>
-          <OdometerValue value={entry.odometer} color={colors.textPrimary} style={odometerStyles.readingVal} />
-        </View>
-
+      <View style={baseStyles.readingRow}>
         {(isTripStart || isTripEnd) && (
-          <View style={[odometerStyles.stagePill, { backgroundColor: theme.accentAlpha(0.12) }]}>
-            <MaterialIcons name={isTripStart ? 'play-arrow' : 'flag'} size={11} color={theme.accent} />
+          <View style={[baseStyles.stagePill, { backgroundColor: theme.accentAlpha(0.12) }]}>
+            <MaterialIcons name={isTripStart ? 'play-arrow' : 'flag'} size={12} color={theme.accent} />
+            <Text style={[baseStyles.stagePillText, { color: theme.accent }]}>
+              {isTripStart ? 'Start' : 'End'}
+            </Text>
           </View>
         )}
+        <View style={{ flex: 1 }} />
+        <OdometerValue value={entry.odometer} color={colors.textPrimary} style={odometerStyles.readingVal} />
       </View>
 
-      {isTripEnd && typeof entry.tripDistanceKm === 'number' && (
-        <View>
+      {isTripEnd && typeof entry.tripDistanceKm === 'number' && entry.tripDistanceKm > 0 && (
+        <View style={baseStyles.infoRow}>
           <Chip
             icon="route"
             value={`${entry.tripDistanceKm} km`}
@@ -356,15 +349,17 @@ export function ExpenseCard({
   entry: EntryRecord;
   colors: Record<string, string>;
 }) {
-  const chipBg = theme.accentAlpha(0.09);
+  const chipBg = theme.accentAlpha(0.08);
   const isFastagRecharge = theme.label === 'FASTAG RECHARGE';
+  const isPassPurchase = entry.expenseCategory === 'annual_pass_purchase';
+  const isPassDeduction = entry.expenseCategory === 'annual_pass_deduction';
 
   if (isFastagRecharge) {
     return (
       <View style={expenseStyles.inner}>
         <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
 
-        {typeof entry.cost === 'number' && (
+        {typeof entry.cost === 'number' && entry.cost > 0 && (
           <View style={expenseStyles.primaryRow}>
             <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
           </View>
@@ -376,24 +371,72 @@ export function ExpenseCard({
   return (
     <View style={expenseStyles.inner}>
       <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-      
-      {/* Hide description for Fastag Recharge as requested */}
-      {theme.label !== 'FASTAG RECHARGE' && (
-        <View style={expenseStyles.titleRow}>
-          <Text style={[expenseStyles.title, { color: colors.textPrimary }]} numberOfLines={1}>
-            {entry.expenseTitle || 'Expense'}
-          </Text>
+
+      <View style={expenseStyles.titleRow}>
+        <Text style={[expenseStyles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+          {entry.expenseTitle || 'Expense'}
+        </Text>
+      </View>
+
+      {isPassPurchase ? (
+        <>
+          {typeof entry.cost === 'number' && entry.cost > 0 && (
+            <View style={expenseStyles.primaryRow}>
+              <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
+            </View>
+          )}
+          <View style={baseStyles.infoRow}>
+            {typeof entry.annualPassMaxTrips === 'number' && entry.annualPassMaxTrips > 0 && (
+              <Chip
+                icon="card-membership"
+                value={`${entry.annualPassMaxTrips} crossings`}
+                accent={theme.accent}
+                bg={chipBg}
+                textColor={colors.textPrimary}
+              />
+            )}
+            {entry.annualPassExpiryDate ? (
+              <Chip
+                icon="event"
+                value={`Valid till ${dayjs(entry.annualPassExpiryDate).format(INDIA_DATE_FORMAT)}`}
+                accent={theme.accent}
+                bg={chipBg}
+                textColor={colors.textPrimary}
+              />
+            ) : null}
+          </View>
+        </>
+      ) : isPassDeduction ? (
+        <View style={baseStyles.infoRow}>
+          {typeof entry.annualPassCrossings === 'number' && entry.annualPassCrossings > 0 && (
+            <Chip
+              icon="toll"
+              value={`Crossing ${entry.annualPassCrossings}`}
+              accent={theme.accent}
+              bg={chipBg}
+              textColor={colors.textPrimary}
+            />
+          )}
+          {typeof entry.annualPassTollValue === 'number' && entry.annualPassTollValue > 0 && (
+            <Chip
+              icon="currency-rupee"
+              value={`₹${entry.annualPassTollValue} covered`}
+              accent={theme.accent}
+              bg={chipBg}
+              textColor={colors.textPrimary}
+            />
+          )}
+        </View>
+      ) : (
+        <View style={expenseStyles.dataRow}>
+          {typeof entry.cost === 'number' && entry.cost > 0 && (
+            <Chip icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+          )}
+          {entry.odometer > 0 && (
+            <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+          )}
         </View>
       )}
-
-      <View style={expenseStyles.dataRow}>
-        {typeof entry.cost === 'number' && (
-          <Chip icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-        )}
-        {typeof entry.odometer === 'number' && (
-          <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-        )}
-      </View>
     </View>
   );
 }

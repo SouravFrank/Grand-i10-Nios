@@ -375,6 +375,10 @@ function isParkingExpense(entry: EntryRecord): boolean {
 function getOtherSectionKey(entry: EntryRecord): ReportSection["key"] | null {
   if (isFastagToll(entry)) return "toll";
   if (entry.type !== "expense") return null;
+  // Annual Pass purchase is real money spent (debited from the FASTag
+  // wallet), so it must surface in the misc spend. Deductions are ₹0 and
+  // intentionally excluded — no money moved.
+  if (entry.expenseCategory === "annual_pass_purchase") return "misc";
   if (
     isFastagRecharge(entry) ||
     isTrafficFine(entry) ||

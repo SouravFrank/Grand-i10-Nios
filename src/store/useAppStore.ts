@@ -78,6 +78,11 @@ type AddEntryInput = {
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
+  annualPassExpiryDate?: string;
+  annualPassMaxTrips?: number;
+  annualPassId?: string;
+  annualPassCrossings?: number;
+  annualPassTollValue?: number;
   specUpdatedFields?: string[];
   specUpdateDetails?: SpecUpdateDetail[];
   createdAt?: number;
@@ -634,6 +639,11 @@ export const useAppStore = create<AppState>()(
           expenseCategory: payload.expenseCategory,
           expenseTitle: payload.expenseTitle,
           cost: payload.cost,
+          annualPassExpiryDate: payload.annualPassExpiryDate,
+          annualPassMaxTrips: payload.annualPassMaxTrips,
+          annualPassId: payload.annualPassId,
+          annualPassCrossings: payload.annualPassCrossings,
+          annualPassTollValue: payload.annualPassTollValue,
           specUpdatedFields: payload.specUpdatedFields,
           specUpdateDetails: payload.specUpdateDetails,
           createdAt,

@@ -28,9 +28,7 @@ type HistoryItemCardProps = {
   tripStartOdometer?: number | null;
   tripEndOdometer?: number | null;
   tripTotalCost?: number;
-  tripTotalFuelLiters?: number;
-  mileage?: number | null;
-  costPerKm?: number | null;
+  tripTotalFuelCost?: number;
   index: number;
   canEdit?: boolean;
   onPressEdit?: () => void;
@@ -42,9 +40,7 @@ export function HistoryItemCard({
   tripStartOdometer = null,
   tripEndOdometer = null,
   tripTotalCost = 0,
-  tripTotalFuelLiters = 0,
-  mileage = null,
-  costPerKm = null,
+  tripTotalFuelCost = 0,
   index,
   canEdit,
   onPressEdit,
@@ -104,9 +100,7 @@ export function HistoryItemCard({
           tripEndOdometer={tripEndOdometer}
           distanceKm={distanceKm}
           tripTotalCost={tripTotalCost}
-          tripTotalFuelLiters={tripTotalFuelLiters}
-          mileage={mileage}
-          costPerKm={costPerKm}
+          tripTotalFuelCost={tripTotalFuelCost}
           colors={colors}
         />
       );
@@ -151,7 +145,6 @@ export function HistoryItemCard({
               backgroundColor: colors.card,
               borderColor,
               borderLeftColor: theme.accent,
-              borderLeftWidth: theme.leftBorderWidth,
             },
           ]}
         >

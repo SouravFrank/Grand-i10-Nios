@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 import { AppAlert, AppAlertProvider } from '@/components/AppAlert';
@@ -28,6 +28,7 @@ import type {
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
 import insurancePdf from '../../assets/pdf/insurence.pdf';
+import fastagLogo from '../../assets/images/fastag-seeklogo.png';
 import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
 import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
 import rcPdf from '../../assets/pdf/RC.pdf';
@@ -420,6 +421,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   const fastagData = useMemo(() => {
     let totalRecharges = 0;
     let totalTolls = 0;
+    let totalPassPurchases = 0;
 
     for (const entry of entries) {
       if (entry.type !== 'expense' || typeof entry.cost !== 'number') continue;
@@ -432,8 +434,47 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       if (entry.expenseCategory === 'fasttag_toll_paid') {
         totalTolls += entry.cost;
       }
+      // The ₹3,000 annual pass fee is debited from the FASTag wallet.
+      if (entry.expenseCategory === 'annual_pass_purchase') {
+        totalPassPurchases += entry.cost;
+      }
     }
-    return { balance: totalRecharges - totalTolls };
+    return { balance: totalRecharges - totalTolls - totalPassPurchases };
+  }, [entries]);
+
+  // Latest NHAI Annual Pass with its crossing usage. Deductions link to their
+  // pass via annualPassId; unlinked deductions count toward the pass that was
+  // active on the crossing date (purchased on/before it).
+  const annualPassData = useMemo(() => {
+    const purchases = entries.filter((entry) => entry.type === 'expense' && entry.expenseCategory === 'annual_pass_purchase');
+    if (purchases.length === 0) return null;
+
+    const currentPass = [...purchases].sort((a, b) => a.createdAt - b.createdAt)[purchases.length - 1];
+
+    let used = 0;
+    for (const entry of entries) {
+      if (entry.type !== 'expense' || entry.expenseCategory !== 'annual_pass_deduction') continue;
+      const crossings = typeof entry.annualPassCrossings === 'number' && entry.annualPassCrossings > 0 ? entry.annualPassCrossings : 1;
+      if (entry.annualPassId) {
+        if (entry.annualPassId === currentPass.id) used += crossings;
+      } else if (entry.createdAt >= currentPass.createdAt) {
+        used += crossings;
+      }
+    }
+
+    const max = typeof currentPass.annualPassMaxTrips === 'number' && currentPass.annualPassMaxTrips > 0 ? currentPass.annualPassMaxTrips : 200;
+    const expiryDay = currentPass.annualPassExpiryDate ? dayjs(currentPass.annualPassExpiryDate) : null;
+    const expired = expiryDay ? expiryDay.isBefore(dayjs(), 'day') : false;
+    const exhausted = used >= max;
+
+    return {
+      used,
+      max,
+      expired,
+      exhausted,
+      alert: expired || exhausted,
+      expiryLabel: expiryDay ? expiryDay.format(INDIA_DATE_FORMAT) : '—',
+    };
   }, [entries]);
 
   const beginEdit = (field: CarSpecEditableFieldKey) => {
@@ -713,8 +754,7 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                 <View style={styles.fastagSmartCard}>
                   <View style={styles.fastagCardTop}>
                      <View style={styles.fastagLogoBlock}>
-                        <Text style={styles.fastagTextOrange}>FAST</Text>
-                        <Text style={styles.fastagTextGreen}>ag</Text>
+                        <Image source={fastagLogo} style={styles.fastagLogoImage} />
                      </View>
                      <MaterialCommunityIcons name="contactless-payment" size={26} color="#FFFFFF" style={{ opacity: 0.9 }} />
                   </View>
@@ -728,7 +768,30 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
                      </View>
                      <MaterialCommunityIcons name="car-connected" size={56} color="#FFFFFF" style={styles.fastagWatermark} />
                   </View>
-                </View>
+
+                  {annualPassData ? (
+                     <View style={styles.fastagPassSection}>
+                        <View style={styles.fastagPassRow}>
+                           <View style={{ flex: 1, gap: 2 }}>
+                              <Text style={styles.fastagLabel}>NHAI ANNUAL PASS</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+                                 <Text style={[styles.fastagPassCount, annualPassData.alert && styles.fastagPassAlert]}>
+                                    {annualPassData.used}/{annualPassData.max}
+                                 </Text>
+                                 <Text style={[styles.fastagPassExpiry, annualPassData.alert && styles.fastagPassAlert]} numberOfLines={1}>
+                                    {annualPassData.expired ? 'Expired on ' : 'Valid till '}{annualPassData.expiryLabel}
+                                 </Text>
+                              </View>
+                           </View>
+                           <MaterialCommunityIcons
+                              name={annualPassData.alert ? 'alert-circle' : 'shield-check'}
+                              size={22}
+                              color={annualPassData.alert ? '#FCA5A5' : '#34D399'}
+                           />
+                        </View>
+                     </View>
+                  ) : null}
+               </View>
 
                 <View style={[styles.galleryPanel, { backgroundColor: colors.card }]}>
                   <View style={styles.galleryHeader}>
@@ -885,10 +948,14 @@ const styles = StyleSheet.create({
   },
   fastagCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   fastagLogoBlock: { flexDirection: 'row', alignItems: 'center' },
-  fastagTextOrange: { color: '#F97316', fontSize: 20, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
-  fastagTextGreen: { color: '#10B981', fontSize: 20, fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.5 },
+  fastagLogoImage: { width: 64, height: 22, resizeMode: 'contain' },
   fastagCardBottom: { marginTop: 32, position: 'relative' },
   fastagLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
   fastagAmount: { fontSize: 40, fontWeight: '900', letterSpacing: -1 },
   fastagWatermark: { position: 'absolute', right: -10, bottom: -10, opacity: 0.05, transform: [{ scale: 1.5 }] },
+  fastagPassSection: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)', marginTop: 20, paddingTop: 16 },
+  fastagPassRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  fastagPassCount: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  fastagPassExpiry: { color: '#94A3B8', fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  fastagPassAlert: { color: '#FCA5A5' },
 });
