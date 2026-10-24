@@ -60,9 +60,12 @@ const fasttagSchema = baseSchema.extend({
   category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().optional(), isSharedTrip: z.boolean(), fasttagType: z.enum(['toll_paid', 'recharge']).optional(),
 });
 const annualPassSchema = baseSchema.extend({
-  category: z.literal('annual_pass'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), annualPassType: z.enum(['purchase', 'deduction']), passAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), passExpiryDate: z.date().optional(), passMaxTrips: z.string().trim().optional(), passCrossings: z.string().trim().optional(), passTollValue: z.string().trim().optional(), isSharedTrip: z.boolean(),
+  category: z.literal('annual_pass'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), annualPassType: z.enum(['purchase', 'deduction']), passAmount: z.string().trim().optional(), passExpiryDate: z.date().optional(), passMaxTrips: z.string().trim().optional(), passCrossings: z.string().trim().optional(), passTollValue: z.string().trim().optional(), isSharedTrip: z.boolean(),
 }).superRefine((data, context) => {
+  // Only the fields visible for the selected record type are validated, so a
+  // hidden field can never silently block the save.
   if (data.annualPassType === 'purchase') {
+    if (!data.passAmount || Number.isNaN(Number(data.passAmount)) || Number(data.passAmount) <= 0) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be positive.', path: ['passAmount'] });
     if (!data.passExpiryDate) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Expiry date is required.', path: ['passExpiryDate'] });
     if (!data.passMaxTrips || !/^\d{1,4}$/.test(data.passMaxTrips) || Number(data.passMaxTrips) < 1) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter the crossing limit (e.g. 200).', path: ['passMaxTrips'] });
   } else {
@@ -183,6 +186,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    console.log('[HistoryEntry] submitting entry:', JSON.stringify(values));
     if (!currentUser) return AppAlert.alert('Session expired', 'Please login again.');
     const selectedOwner = ALLOWED_USERS.find((user) => user.id === values.ownerId);
     if (!selectedOwner) return AppAlert.alert('Invalid owner', 'Select who owns this entry.');
@@ -223,6 +227,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
           const activePass = entries
             .filter((entry) => entry.type === 'expense' && entry.expenseCategory === 'annual_pass_purchase' && entry.createdAt <= entryTime)
             .sort((a, b) => b.createdAt - a.createdAt)[0];
+          console.log('[HistoryEntry] annual pass deduction:', JSON.stringify({ entryTime, activePassId: activePass?.id ?? null, activePassCreatedAt: activePass?.createdAt ?? null }));
           await addEntryOfflineFirst({
             type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer),
             expenseCategory: 'annual_pass_deduction' as ExpenseCategory,
@@ -239,8 +244,11 @@ export function HistoryEntryScreen({ navigation }: Props) {
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
+      console.error('[HistoryEntry] failed to save entry:', error);
       AppAlert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
     }
+  }, (validationErrors) => {
+    console.warn('[HistoryEntry] entry validation failed:', JSON.stringify(validationErrors, null, 2));
   });
 
   return (

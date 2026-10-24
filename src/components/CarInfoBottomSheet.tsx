@@ -421,7 +421,6 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
   const fastagData = useMemo(() => {
     let totalRecharges = 0;
     let totalTolls = 0;
-    let totalPassPurchases = 0;
 
     for (const entry of entries) {
       if (entry.type !== 'expense' || typeof entry.cost !== 'number') continue;
@@ -434,12 +433,10 @@ export function CarInfoBottomSheet({ visible, carSpec, lastOdometer, onClose, on
       if (entry.expenseCategory === 'fasttag_toll_paid') {
         totalTolls += entry.cost;
       }
-      // The ₹3,000 annual pass fee is debited from the FASTag wallet.
-      if (entry.expenseCategory === 'annual_pass_purchase') {
-        totalPassPurchases += entry.cost;
-      }
     }
-    return { balance: totalRecharges - totalTolls - totalPassPurchases };
+    // Annual Pass purchases are paid from separate money, not the FASTag
+    // wallet, so they do not affect the balance.
+    return { balance: totalRecharges - totalTolls };
   }, [entries]);
 
   // Latest NHAI Annual Pass with its crossing usage. Deductions link to their

@@ -108,6 +108,7 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
     await set(ref(db, `${ENTRIES_COLLECTION}/${entry.id}`), sanitizedPayload);
     syncLog('realtime_push_entry_success', { entryId: entry.id });
   } catch (error) {
+    console.error('[SYNC_DEBUG] realtime_push_entry_failed:', entry.id, JSON.stringify({ type: entry.type, expenseCategory: entry.expenseCategory ?? null }), error);
     syncError('realtime_push_entry_failed', {
       entryId: entry.id,
       ...toErrorPayload(error),
