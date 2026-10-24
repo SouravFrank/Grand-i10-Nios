@@ -4,6 +4,7 @@ import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Text, View } from 'react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import {
   baseStyles,
   expenseStyles,
@@ -18,11 +19,13 @@ function CardHeader({
   theme,
   entry,
   textSecondary,
+  trailing,
   children,
 }: {
   theme: CardTheme;
   entry: EntryRecord;
   textSecondary: string;
+  trailing?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const isFasttagItem =
@@ -62,6 +65,8 @@ function CardHeader({
           </Text>
         </View>
       </View>
+
+      {trailing}
 
       {entry.sharedTrip && (
         <View style={[baseStyles.sharedBadge, { backgroundColor: theme.accentAlpha(0.15) }]}>
@@ -179,26 +184,26 @@ export function FuelCard({
   const liters = typeof entry.fuelLiters === 'number' ? entry.fuelLiters : null;
   const ppl = amount && liters ? (amount / liters).toFixed(1) : null;
   const chipBg = theme.accentAlpha(0.08);
-  const hasPrimaryMetrics = amount !== null || liters !== null;
-  const hasSecondaryMetrics = entry.odometer > 0 || ppl !== null || entry.fullTank;
+  const hasDataRow = liters !== null || entry.odometer > 0 || ppl !== null || entry.fullTank;
 
   return (
     <View style={fuelStyles.inner}>
-      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-
-      {hasPrimaryMetrics && (
-        <View style={fuelStyles.primaryRow}>
-          {amount !== null && (
+      <CardHeader
+        theme={theme}
+        entry={entry}
+        textSecondary={colors.textSecondary}
+        trailing={
+          amount !== null ? (
             <MetricPill icon="currency-rupee" value={`${amount}`} accent={theme.accent} textColor={colors.textPrimary} />
-          )}
-          {liters !== null && (
-            <MetricPill icon="water-drop" value={`${liters} L`} accent={theme.accent} textColor={colors.textPrimary} />
-          )}
-        </View>
-      )}
+          ) : undefined
+        }
+      />
 
-      {hasSecondaryMetrics && (
-        <View style={fuelStyles.dataRow}>
+      {hasDataRow && (
+        <Animated.View entering={FadeInUp.delay(60).springify().damping(20)} style={fuelStyles.dataRow}>
+          {liters !== null && (
+            <Chip icon="water-drop" value={`${liters} L`} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+          )}
           {entry.odometer > 0 && (
             <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
           )}
@@ -211,7 +216,7 @@ export function FuelCard({
               <Text style={[baseStyles.tagPillText, { color: theme.accent }]}>Full tank</Text>
             </View>
           )}
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -283,7 +288,10 @@ export function TripCard({
         {headerAccessory}
       </CardHeader>
 
-      <View style={[tripStyles.journeyBar, { backgroundColor: theme.accentAlpha(0.08) }]}>
+      <Animated.View
+        entering={FadeInUp.delay(40).springify().damping(22)}
+        style={[tripStyles.journeyBar, { backgroundColor: theme.accentAlpha(0.08) }]}
+      >
         <View style={{ flex: 1 }}>
           <Text style={[tripStyles.odomLabel, { color: colors.textSecondary }]}>START</Text>
           <OdometerValue value={tripStartOdometer} color={colors.textPrimary} style={tripStyles.odomVal} />
@@ -313,10 +321,10 @@ export function TripCard({
           <Text style={[tripStyles.odomLabel, { color: colors.textSecondary, textAlign: 'right' }]}>END</Text>
           <OdometerValue value={tripEndOdometer} color={colors.textPrimary} style={tripStyles.odomVal} textAlign="right" />
         </View>
-      </View>
+      </Animated.View>
 
       {stats.length > 0 && (
-        <View style={tripStyles.statsRow}>
+        <Animated.View entering={FadeInUp.delay(100).springify().damping(22)} style={tripStyles.statsRow}>
           {stats.map((stat) => (
             <View
               key={stat.key}
@@ -360,7 +368,7 @@ export function TripCard({
               )}
             </View>
           ))}
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -380,23 +388,27 @@ export function OdometerCard({
 
   return (
     <View style={odometerStyles.inner}>
-      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-
-      <View style={baseStyles.readingRow}>
-        {(isTripStart || isTripEnd) && (
-          <View style={[baseStyles.stagePill, { backgroundColor: theme.accentAlpha(0.12) }]}>
-            <MaterialIcons name={isTripStart ? 'play-arrow' : 'flag'} size={12} color={theme.accent} />
-            <Text style={[baseStyles.stagePillText, { color: theme.accent }]}>
-              {isTripStart ? 'Start' : 'End'}
-            </Text>
+      <CardHeader
+        theme={theme}
+        entry={entry}
+        textSecondary={colors.textSecondary}
+        trailing={
+          <View style={baseStyles.readingRow}>
+            {(isTripStart || isTripEnd) && (
+              <View style={[baseStyles.stagePill, { backgroundColor: theme.accentAlpha(0.12) }]}>
+                <MaterialIcons name={isTripStart ? 'play-arrow' : 'flag'} size={12} color={theme.accent} />
+                <Text style={[baseStyles.stagePillText, { color: theme.accent }]}>
+                  {isTripStart ? 'Start' : 'End'}
+                </Text>
+              </View>
+            )}
+            <OdometerValue value={entry.odometer} color={colors.textPrimary} style={odometerStyles.readingVal} />
           </View>
-        )}
-        <View style={{ flex: 1 }} />
-        <OdometerValue value={entry.odometer} color={colors.textPrimary} style={odometerStyles.readingVal} />
-      </View>
+        }
+      />
 
       {isTripEnd && typeof entry.tripDistanceKm === 'number' && entry.tripDistanceKm > 0 && (
-        <View style={baseStyles.infoRow}>
+        <Animated.View entering={FadeInUp.delay(60).springify().damping(20)} style={baseStyles.infoRow}>
           <Chip
             icon="route"
             value={`${entry.tripDistanceKm} km`}
@@ -404,7 +416,7 @@ export function OdometerCard({
             bg={theme.accentAlpha(0.08)}
             textColor={colors.textPrimary}
           />
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -423,24 +435,22 @@ export function ExpenseCard({
   const isFastagRecharge = theme.label === 'FASTAG RECHARGE';
   const isPassPurchase = entry.expenseCategory === 'annual_pass_purchase';
   const isPassDeduction = entry.expenseCategory === 'annual_pass_deduction';
+  const costPill =
+    typeof entry.cost === 'number' && entry.cost > 0 ? (
+      <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
+    ) : undefined;
 
   if (isFastagRecharge) {
     return (
       <View style={expenseStyles.inner}>
-        <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
-
-        {typeof entry.cost === 'number' && entry.cost > 0 && (
-          <View style={expenseStyles.primaryRow}>
-            <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
-          </View>
-        )}
+        <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} trailing={costPill} />
       </View>
     );
   }
 
   return (
     <View style={expenseStyles.inner}>
-      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
+      <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} trailing={costPill} />
 
       <View style={expenseStyles.titleRow}>
         <Text style={[expenseStyles.title, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -449,35 +459,28 @@ export function ExpenseCard({
       </View>
 
       {isPassPurchase ? (
-        <>
-          {typeof entry.cost === 'number' && entry.cost > 0 && (
-            <View style={expenseStyles.primaryRow}>
-              <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
-            </View>
+        <Animated.View entering={FadeInUp.delay(60).springify().damping(20)} style={baseStyles.infoRow}>
+          {typeof entry.annualPassMaxTrips === 'number' && entry.annualPassMaxTrips > 0 && (
+            <Chip
+              icon="card-membership"
+              value={`${entry.annualPassMaxTrips} crossings`}
+              accent={theme.accent}
+              bg={chipBg}
+              textColor={colors.textPrimary}
+            />
           )}
-          <View style={baseStyles.infoRow}>
-            {typeof entry.annualPassMaxTrips === 'number' && entry.annualPassMaxTrips > 0 && (
-              <Chip
-                icon="card-membership"
-                value={`${entry.annualPassMaxTrips} crossings`}
-                accent={theme.accent}
-                bg={chipBg}
-                textColor={colors.textPrimary}
-              />
-            )}
-            {entry.annualPassExpiryDate ? (
-              <Chip
-                icon="event"
-                value={`Valid till ${dayjs(entry.annualPassExpiryDate).format(INDIA_DATE_FORMAT)}`}
-                accent={theme.accent}
-                bg={chipBg}
-                textColor={colors.textPrimary}
-              />
-            ) : null}
-          </View>
-        </>
+          {entry.annualPassExpiryDate ? (
+            <Chip
+              icon="event"
+              value={`Valid till ${dayjs(entry.annualPassExpiryDate).format(INDIA_DATE_FORMAT)}`}
+              accent={theme.accent}
+              bg={chipBg}
+              textColor={colors.textPrimary}
+            />
+          ) : null}
+        </Animated.View>
       ) : isPassDeduction ? (
-        <View style={baseStyles.infoRow}>
+        <Animated.View entering={FadeInUp.delay(60).springify().damping(20)} style={baseStyles.infoRow}>
           {typeof entry.annualPassCrossings === 'number' && entry.annualPassCrossings > 0 && (
             <Chip
               icon="toll"
@@ -496,20 +499,13 @@ export function ExpenseCard({
               textColor={colors.textPrimary}
             />
           )}
-        </View>
+        </Animated.View>
       ) : (
-        <>
-          {typeof entry.cost === 'number' && entry.cost > 0 && (
-            <View style={expenseStyles.primaryRow}>
-              <MetricPill icon="currency-rupee" value={`${entry.cost}`} accent={theme.accent} textColor={colors.textPrimary} />
-            </View>
-          )}
-          {entry.odometer > 0 && (
-            <View style={expenseStyles.dataRow}>
-              <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
-            </View>
-          )}
-        </>
+        entry.odometer > 0 && (
+          <Animated.View entering={FadeInUp.delay(60).springify().damping(20)} style={expenseStyles.dataRow}>
+            <OdometerChip value={entry.odometer} accent={theme.accent} bg={chipBg} textColor={colors.textPrimary} />
+          </Animated.View>
+        )
       )}
     </View>
   );
@@ -541,7 +537,10 @@ export function SpecCard({
     <View style={specStyles.inner}>
       <CardHeader theme={theme} entry={entry} textSecondary={colors.textSecondary} />
       {diffLines.length > 0 && (
-        <View style={[specStyles.diffBox, { backgroundColor: theme.accentAlpha(0.07) }]}>
+        <Animated.View
+          entering={FadeInUp.delay(60).springify().damping(20)}
+          style={[specStyles.diffBox, { backgroundColor: theme.accentAlpha(0.07) }]}
+        >
           {diffLines.map((line, i) => (
             <View key={i.toString()} style={specStyles.diffRow}>
               <Text style={[specStyles.diffField, { color: colors.textSecondary }]}>
@@ -558,7 +557,7 @@ export function SpecCard({
               )}
             </View>
           ))}
-        </View>
+        </Animated.View>
       )}
     </View>
   );

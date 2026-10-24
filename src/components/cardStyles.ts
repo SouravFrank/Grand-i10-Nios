@@ -162,13 +162,7 @@ export const baseStyles = StyleSheet.create({
 });
 
 export const fuelStyles = StyleSheet.create({
-  inner: { padding: 12, gap: 9 },
-  primaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  inner: { padding: 12, gap: 8 },
   dataRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -178,12 +172,12 @@ export const fuelStyles = StyleSheet.create({
 });
 
 export const tripStyles = StyleSheet.create({
-  inner: { padding: 12, gap: 9 },
+  inner: { padding: 12, gap: 8 },
   journeyBar: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 13,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 13,
     gap: 8,
   },
@@ -231,7 +225,7 @@ export const tripStyles = StyleSheet.create({
 });
 
 export const odometerStyles = StyleSheet.create({
-  inner: { padding: 12, gap: 9 },
+  inner: { padding: 12, gap: 8 },
   readingVal: {
     fontSize: 20,
     fontWeight: "900",
@@ -247,12 +241,6 @@ export const expenseStyles = StyleSheet.create({
     gap: 6,
   },
   title: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
-  primaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
   dataRow: {
     flexDirection: "row",
     alignItems: "center",
