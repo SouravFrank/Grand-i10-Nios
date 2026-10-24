@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -15,10 +16,14 @@ type HeroPillProps = {
 
 // ─── Big pill CTA (START/END TRIP) ───────────────────────────────────────────
 export function HeroPill({ label, icon, onPress, outlined = false }: HeroPillProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const { scale, onPressIn, onPressOut } = usePressScale(0.98);
 
   const contentColor = outlined ? colors.textPrimary : colors.invertedText;
+  // Slight blue sheen fading down from the top edge, per the home mockup.
+  const sheenColors: [string, string] = isDark
+    ? ['rgba(59, 130, 246, 0.12)', 'rgba(59, 130, 246, 0)']
+    : ['#26355C', 'rgba(38, 53, 92, 0)'];
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
@@ -34,8 +39,16 @@ export function HeroPill({ label, icon, onPress, outlined = false }: HeroPillPro
             opacity: pressed ? 0.92 : 1,
           },
         ]}>
+        {!outlined && (
+          <LinearGradient
+            pointerEvents="none"
+            style={styles.heroPillSheen}
+            colors={sheenColors}
+            locations={[0, 0.55]}
+          />
+        )}
         <View style={styles.heroPillContent}>
-          <MaterialCommunityIcons name={icon} size={22} color={contentColor} />
+          <MaterialCommunityIcons name={icon} size={24} color={contentColor} />
           <Text style={[styles.heroPillLabel, { color: contentColor }]}>{label}</Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={contentColor} style={styles.heroPillChevron} />
@@ -46,8 +59,8 @@ export function HeroPill({ label, icon, onPress, outlined = false }: HeroPillPro
 
 const styles = StyleSheet.create({
   heroPill: {
-    height: 62,
-    borderRadius: 31,
+    height: 66,
+    borderRadius: 33,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -63,15 +76,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  // Rounded to the pill radius so the sheen clips itself without putting
+  // overflow:'hidden' on the pill, which would clip its own iOS shadow.
+  heroPillSheen: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 33,
+  },
   heroPillContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   heroPillLabel: {
-    fontSize: 16.5,
+    fontSize: 17,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
   },
   heroPillChevron: {
     position: 'absolute',

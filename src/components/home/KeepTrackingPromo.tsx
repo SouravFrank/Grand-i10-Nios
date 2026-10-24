@@ -23,7 +23,7 @@ export function KeepTrackingPromo({ onPress }: { onPress: () => void }) {
           { backgroundColor: colors.card, opacity: pressed ? 0.94 : 1 },
         ]}>
         <View style={[styles.promoIconTile, { backgroundColor: colors.backgroundSecondary }]}>
-          <MaterialCommunityIcons name="car" size={22} color={colors.textPrimary} />
+          <MaterialCommunityIcons name="car" size={20} color={colors.textPrimary} />
         </View>
         <View style={styles.promoText}>
           <Text style={[styles.promoTitle, { color: colors.textPrimary }]}>Keep tracking - Forgot?</Text>
@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   promoIconTile: {
-    width: 44,
-    height: 44,
+    width: 38,
+    height: 38,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -78,14 +78,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 16,
     marginTop: 2,
+    zIndex: 5
   },
   // Fills the card's bottom-right corner; the card's rounded corners clip it
   promoIllustration: {
     position: 'absolute',
     right: 0,
-    bottom: 0,
-    width: 120,
-    height: 60,
-    borderTopLeftRadius: 18,
+    bottom: -15,
+    width: 1774 / 13,
+    height: 887 / 13,
+    aspectRatio: 1774 / 887,
   },
 });

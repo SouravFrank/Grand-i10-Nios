@@ -2,11 +2,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import {
-    Pressable,
-    SectionList,
-    StyleSheet,
-    Text,
-    View
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
@@ -441,18 +441,18 @@ export function HistoryScreen({ navigation }: Props) {
 
   const viewContextOptions = useMemo(() => {
     const opts = [{ id: 'all', name: 'All Entries' }];
-    
+
     const ayan = userOptions.find(u => u.name.toLowerCase().includes('ayan'));
     const sourav = userOptions.find(u => u.name.toLowerCase().includes('sourav'));
-    
+
     if (ayan) opts.push({ id: ayan.id, name: `${ayan.name} Only` });
     if (sourav) opts.push({ id: sourav.id, name: `${sourav.name} Only` });
-    
+
     opts.push({ id: 'shared_only', name: 'Shared Trips Only' });
-    
+
     if (ayan) opts.push({ id: `${ayan.id}_shared`, name: `${ayan.name} + Shared` });
     if (sourav) opts.push({ id: `${sourav.id}_shared`, name: `${sourav.name} + Shared` });
-    
+
     userOptions.forEach((user) => {
       if (user.id !== 'all' && user.id !== ayan?.id && user.id !== sourav?.id) {
         opts.push({ id: user.id, name: `${user.name} Only` });
@@ -567,20 +567,20 @@ export function HistoryScreen({ navigation }: Props) {
 
       if (selectedUser !== 'all') {
         if (selectedUser === 'shared_only') {
-           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
-           if (!isSharedTrip) return false;
+          const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+          if (!isSharedTrip) return false;
         } else {
-           const isSharedIncluded = selectedUser.endsWith('_shared');
-           const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
-           
-           const isTargetEntry = entry.userId === targetUserId;
-           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+          const isSharedIncluded = selectedUser.endsWith('_shared');
+          const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
 
-           if (isSharedIncluded) {
-              if (!isTargetEntry && !isSharedTrip) return false;
-           } else {
-              if (!isTargetEntry) return false;
-           }
+          const isTargetEntry = entry.userId === targetUserId;
+          const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+
+          if (isSharedIncluded) {
+            if (!isTargetEntry && !isSharedTrip) return false;
+          } else {
+            if (!isTargetEntry) return false;
+          }
         }
       }
 
@@ -778,9 +778,7 @@ export function HistoryScreen({ navigation }: Props) {
         ListEmptyComponent={<Text style={[styles.empty, { color: colors.textSecondary }]}>No trips recorded yet.</Text>}
         ListHeaderComponent={
           !hasActiveFilters && timelineItems.length > 0 ? (
-            <Text style={[styles.groupHint, { color: colors.textSecondary }]}>
-              Fuel &amp; stops are grouped inside their trips — tap a trip to expand.
-            </Text>
+            null
           ) : null
         }
         renderSectionHeader={({ section: { title } }) => (
