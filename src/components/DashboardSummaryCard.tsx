@@ -1,49 +1,33 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Easing,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { EntryRecord, SyncStatus } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 import { getEntryOwnerName } from '@/utils/entryOwnership';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
-const DIGIT_H        = 54;
-const DIGIT_W        = 36;
-const DIGIT_GAP      = 5;
-const NUM_DIGITS     = 6;   // always 6 slots; leading zeros are dimmed
-const GLIMMER_W      = 22;
-const DIGIT_GROUP_W  = NUM_DIGITS * DIGIT_W + (NUM_DIGITS - 1) * DIGIT_GAP;
-
-const MONO = Platform.select({
-  ios:     'Menlo',
-  android: 'monospace',
-  default: 'monospace',
-});
+const DIGIT_H = 60;
+const DIGIT_W = 46;
+const DIGIT_GAP = 7;
+const NUM_DIGITS = 6; // always 6 slots; leading zeros are dimmed
 
 // ─── Single digit slot roller ────────────────────────────────────────────────
 // Each digit lives in an overflow:hidden window. An Animated.View containing
 // digits 0–9 is translateY'd so the correct digit scrolls into view with a
 // satisfying spring overshoot — like a mechanical odometer.
 type DigitRollerProps = {
-  digit:     number;
-  delay:     number;
+  digit: number;
+  delay: number;
   isLeading: boolean;
-  accent:    string;
-  dim:       string;
-  slotBg:    string;
+  textPrimary: string;
+  textSecondary: string;
+  slotBg: string;
+  borderColor: string;
 };
 
-function DigitRoller({ digit, delay, isLeading, accent, dim, slotBg }: DigitRollerProps) {
+function DigitRoller({ digit, delay, isLeading, textPrimary, textSecondary, slotBg, borderColor }: DigitRollerProps) {
   const rollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -51,52 +35,44 @@ function DigitRoller({ digit, delay, isLeading, accent, dim, slotBg }: DigitRoll
     Animated.sequence([
       Animated.delay(delay),
       Animated.spring(rollY, {
-        toValue:           -digit * DIGIT_H,
-        useNativeDriver:   true,
-        tension:           44,
-        friction:          7,
+        toValue: -digit * DIGIT_H,
+        useNativeDriver: true,
+        tension: 44,
+        friction: 7,
         overshootClamping: false,
       }),
     ]).start();
   }, [digit]);
 
-  const digitColor  = isLeading ? dim + '40' : accent;
-  const borderColor = isLeading ? dim + '15' : accent + '28';
+  const digitColor = isLeading ? textSecondary + '55' : textPrimary;
 
   return (
     <View style={[styles.digitWindow, { backgroundColor: slotBg, borderColor }]}>
       <Animated.View style={{ transform: [{ translateY: rollY }] }}>
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
           <View key={n} style={styles.digitSlot}>
-            <Text style={[styles.digitText, { color: digitColor, fontFamily: MONO }]}>
+            <Text style={[styles.digitText, { color: digitColor }]}>
               {n}
             </Text>
           </View>
         ))}
       </Animated.View>
 
-      {/* Top edge fade — partial overlay to create depth illusion */}
-      <View
-        pointerEvents="none"
-        style={[styles.edgeFade, { top: 0, backgroundColor: slotBg }]}
-      />
-      {/* Bottom edge fade */}
-      <View
-        pointerEvents="none"
-        style={[styles.edgeFade, { bottom: 0, backgroundColor: slotBg }]}
-      />
+      {/* Soft fades at the top/bottom of each window for depth */}
+      <View pointerEvents="none" style={[styles.edgeFade, { top: 0, backgroundColor: slotBg }]} />
+      <View pointerEvents="none" style={[styles.edgeFade, { bottom: 0, backgroundColor: slotBg }]} />
     </View>
   );
 }
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 type DashboardSummaryCardProps = {
-  entries?:       EntryRecord[];
-  syncStatus:     SyncStatus;
+  entries?: EntryRecord[];
+  syncStatus: SyncStatus;
   lastSyncError?: string | null;
-  queuedCount:    number;
-  isOnline:       boolean;
-  onRetrySync:    () => void;
+  queuedCount: number;
+  isOnline: boolean;
+  onRetrySync: () => void;
 };
 
 // ─── DashboardSummaryCard ────────────────────────────────────────────────────
@@ -113,26 +89,40 @@ export function DashboardSummaryCard({
   // Find entry with max odometer value
   const maxEntry = entries && entries.length > 0
     ? entries.reduce((max, entry) =>
-        Number(entry.odometer) > Number(max.odometer) ? entry : max
-      )
+      Number(entry.odometer) > Number(max.odometer) ? entry : max
+    )
     : undefined;
 
-  const isSyncing    = syncStatus === 'syncing';
+  const isSyncing = syncStatus === 'syncing';
   const recordedDate = maxEntry
     ? dayjs(maxEntry.createdAt).format(INDIA_DATE_FORMAT)
     : '—';
-  const recordedBy   = maxEntry
+  const recordedBy = maxEntry
     ? getEntryOwnerName(maxEntry).toUpperCase()
     : '—';
-  const odometerVal  = maxEntry ? Number(maxEntry.odometer) : undefined;
+  const odometerVal = maxEntry ? Number(maxEntry.odometer) : undefined;
+
+  // ── Sync status chip (dot + label, mirrors SyncStatusIndicator semantics) ──
+  const syncNotConfigured = syncStatus === 'failed' && (lastSyncError ?? '').toLowerCase().includes('not configured');
+  const offlinePending = !isOnline && queuedCount > 0;
+  const statusLabel = offlinePending
+    ? `Offline · Pending ${queuedCount} ${queuedCount > 1 ? 'entries' : 'entry'}`
+    : syncStatus === 'syncing'
+      ? 'Syncing…'
+      : syncStatus === 'failed'
+        ? (syncNotConfigured ? 'Sync not configured' : 'Sync Failed')
+        : 'Synced';
+  const statusColor = offlinePending || syncStatus === 'syncing'
+    ? '#F9A825'
+    : syncStatus === 'failed'
+      ? '#D93025'
+      : '#2E7D32';
 
   // ── Shared animation refs ───────────────────────────────────────────────
-  const cardY       = useRef(new Animated.Value(32)).current;
+  const cardY = useRef(new Animated.Value(32)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-  const accentPct   = useRef(new Animated.Value(0)).current; // 0→1 strip grow
-  const kmOpacity   = useRef(new Animated.Value(0)).current;
-  const glimmerX    = useRef(new Animated.Value(-1)).current; // relative 0..1
-  const spinValue   = useRef(new Animated.Value(0)).current;
+  const kmOpacity = useRef(new Animated.Value(0)).current;
+  const spinValue = useRef(new Animated.Value(0)).current;
 
   // ── Mount sequence ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -149,27 +139,11 @@ export function DashboardSummaryCard({
       }),
     ]).start();
 
-    // Accent strip grows from left → right
-    Animated.timing(accentPct, {
-      toValue: 1, duration: 480, delay: 80,
-      useNativeDriver: false,           // animating % width needs JS driver
-      easing: Easing.out(Easing.cubic),
-    }).start();
-
     // KM label fades in after digits settle
     Animated.timing(kmOpacity, {
       toValue: 1, duration: 280, delay: lastDigitDelay,
       useNativeDriver: true, easing: Easing.out(Easing.ease),
     }).start();
-
-    // Glimmer sweeps L→R across digit group after digits settle
-    Animated.sequence([
-      Animated.delay(lastDigitDelay + 60),
-      Animated.timing(glimmerX, {
-        toValue: 1.2, duration: 620,
-        useNativeDriver: true, easing: Easing.inOut(Easing.ease),
-      }),
-    ]).start();
   }, []);
 
   // ── Sync spin ───────────────────────────────────────────────────────────
@@ -187,35 +161,22 @@ export function DashboardSummaryCard({
   }, [isSyncing]);
 
   const spin = spinValue.interpolate({
-    inputRange:  [0, 1],
+    inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
   // ── Digit calculation ───────────────────────────────────────────────────
   const displayVal = odometerVal ?? 0;
-  const padded     = String(displayVal).padStart(NUM_DIGITS, '0');
-  const digits     = padded.split('').map(Number);
-  const firstLive  = digits.findIndex(d => d !== 0);
-  const cutoff     = firstLive === -1 ? NUM_DIGITS - 1 : firstLive;
-
-  // ── Interpolations ──────────────────────────────────────────────────────
-  const accentWidth = accentPct.interpolate({
-    inputRange:  [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
-  const glimmerTransX = glimmerX.interpolate({
-    inputRange:  [-1, 1.2],
-    outputRange: [-GLIMMER_W * 2, DIGIT_GROUP_W + GLIMMER_W * 2],
-  });
+  const padded = String(displayVal).padStart(NUM_DIGITS, '0');
+  const digits = padded.split('').map(Number);
+  const firstLive = digits.findIndex(d => d !== 0);
+  const cutoff = firstLive === -1 ? NUM_DIGITS - 1 : firstLive;
 
   // ── Theme ───────────────────────────────────────────────────────────────
-  const accent   = colors.primary;
-  const dim      = colors.textSecondary;
-  const cardBg   = colors.card;
-  const border   = colors.border;
-  const slotBg   = colors.backgroundSecondary;
-  const textMain = colors.textPrimary;
+  const textPrimary = colors.textPrimary;
+  const textSecondary = colors.textSecondary;
+  const slotBg = colors.backgroundSecondary;
+  const border = colors.border;
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
@@ -223,130 +184,103 @@ export function DashboardSummaryCard({
       style={[
         styles.card,
         {
-          backgroundColor: cardBg,
-          borderColor:     border,
-          opacity:         cardOpacity,
-          transform:       [{ translateY: cardY }],
+          backgroundColor: colors.card,
+          borderColor: border,
+          opacity: cardOpacity,
+          transform: [{ translateY: cardY }],
         },
       ]}
     >
-      {/* ── Animated accent strip — grows from left after card appears ── */}
-      <Animated.View
-        style={[styles.accentStrip, { backgroundColor: accent, width: accentWidth }]}
-      />
-
-      <View style={styles.content}>
-
-        {/* ── Header: label + sync controls ── */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <MaterialIcons name="speed" size={12} color={dim} />
-            <Text style={[styles.headerLabel, { color: dim }]}>ODOMETER</Text>
+      {/* ── Header: icon + label + sync controls ── */}
+      <View style={styles.headerRow}>
+        <View style={[styles.headerIconTile, { backgroundColor: slotBg }]}>
+          <MaterialIcons name="speed" size={20} color={textPrimary} />
+        </View>
+        <View style={styles.headerText}>
+          <Text style={[styles.headerTitle, { color: textPrimary }]}>ODOMETER</Text>
+          <Text style={[styles.headerSubtitle, { color: textSecondary }]} numberOfLines={1}>
+            Total distance recorded
+          </Text>
+        </View>
+        <View style={styles.headerRight}>
+          <View style={styles.statusWrap}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusText, { color: statusColor }]} numberOfLines={1}>
+              {statusLabel}
+            </Text>
           </View>
+          <Pressable onPress={onRetrySync} disabled={isSyncing} hitSlop={10} style={[styles.refreshBtn, { backgroundColor: slotBg }]}>
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <MaterialIcons name="sync" size={15} color={textPrimary} />
+            </Animated.View>
+          </Pressable>
+        </View>
+      </View>
 
-          <View style={styles.headerRight}>
-            <View style={{ transform: [{ scale: 0.78 }], marginRight: -4 }}>
-              <SyncStatusIndicator
-                status={syncStatus}
-                queuedCount={queuedCount}
-                isOnline={isOnline}
-                lastSyncError={lastSyncError}
-                onRetry={undefined}
-              />
+      {/* ── Odometer: digit rollers + KM unit ── */}
+      <View style={styles.odometerRow}>
+        {odometerVal !== undefined
+          ? digits.map((d, i) => (
+            <DigitRoller
+              key={i}
+              digit={d}
+              delay={i * 60} // left-to-right cascade
+              isLeading={i < cutoff}
+              textPrimary={textPrimary}
+              textSecondary={textSecondary}
+              slotBg={slotBg}
+              borderColor={border}
+            />
+          ))
+          : Array.from({ length: NUM_DIGITS }).map((_, i) => (
+            <View
+              key={i}
+              style={[styles.digitWindow, { backgroundColor: slotBg, borderColor: border }]}
+            >
+              <Text style={[styles.digitText, { color: textSecondary + '55' }]}>—</Text>
             </View>
-            <Pressable onPress={onRetrySync} disabled={isSyncing} hitSlop={12}>
-              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                <MaterialIcons name="sync" size={16} color={dim} />
-              </Animated.View>
-            </Pressable>
+          ))}
+
+        {/* KM unit — fades in after digits settle */}
+        <Animated.Text
+          style={[
+            styles.kmLabel,
+            { color: textPrimary, opacity: odometerVal !== undefined ? kmOpacity : 1 },
+          ]}
+        >
+          KM
+        </Animated.Text>
+      </View>
+
+      {/* ── Thin horizontal separator ── */}
+      <View style={[styles.separator, { backgroundColor: border }]} />
+
+      {/* ── Meta: last recorded date + entry owner ── */}
+      <View style={styles.metaRow}>
+        <View style={styles.metaCell}>
+          <View style={[styles.metaIconWrap, { backgroundColor: slotBg }]}>
+            <MaterialIcons name="event" size={16} color={textPrimary} />
+          </View>
+          <View style={styles.metaText}>
+            <Text style={[styles.metaLabel, { color: textSecondary }]}>LAST RECORDED</Text>
+            <Text style={[styles.metaValue, { color: textPrimary }]} numberOfLines={1}>
+              {recordedDate}
+            </Text>
           </View>
         </View>
 
-        {/* ── Odometer: digit rollers + KM unit ── */}
-        <View style={styles.odometerRow}>
-          {/*
-            digitGroupClip: explicit width + overflow:hidden so the glimmer
-            shimmer is clipped cleanly at the group boundaries.
-          */}
-          <View style={[styles.digitGroupClip, { width: DIGIT_GROUP_W }]}>
-            <View style={styles.digitGroup}>
-              {odometerVal !== undefined
-                ? digits.map((d, i) => (
-                    <DigitRoller
-                      key={i}
-                      digit={d}
-                      delay={i * 60}           // left-to-right cascade
-                      isLeading={i < cutoff}
-                      accent={accent}
-                      dim={dim}
-                      slotBg={slotBg}
-                    />
-                  ))
-                : Array.from({ length: NUM_DIGITS }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.digitWindow,
-                        { backgroundColor: slotBg, borderColor: dim + '15' },
-                      ]}
-                    >
-                      <Text style={[styles.digitText, { color: dim + '35', fontFamily: MONO }]}>
-                        —
-                      </Text>
-                    </View>
-                  ))}
-            </View>
+        <View style={[styles.metaDivider, { backgroundColor: border }]} />
 
-            {/* Glimmer — a sheen of light that sweeps across after digits settle */}
-            {odometerVal !== undefined && (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.glimmer,
-                  { width: GLIMMER_W, transform: [{ translateX: glimmerTransX }] },
-                ]}
-              />
-            )}
+        <View style={styles.metaCell}>
+          <View style={[styles.metaIconWrap, { backgroundColor: slotBg }]}>
+            <MaterialIcons name="person" size={16} color={textPrimary} />
           </View>
-
-          {/* KM unit — fades in after digits settle */}
-          <Animated.View style={[styles.kmBlock, { opacity: odometerVal !== undefined ? kmOpacity : 1 }]}>
-            <Text style={[styles.kmLabel, { color: accent }]}>KM</Text>
-          </Animated.View>
-        </View>
-
-        {/* ── Thin horizontal separator ── */}
-        <View style={[styles.separator, { backgroundColor: border }]} />
-
-        {/* ── Meta: date + person ── */}
-        <View style={styles.metaRow}>
-
-          <View style={styles.metaCell}>
-            <View style={[styles.metaIconWrap, { backgroundColor: accent + '12' }]}>
-              <MaterialIcons name="event" size={11} color={accent} />
-            </View>
-            <View style={styles.metaText}>
-              <Text style={[styles.metaLabel, { color: dim }]}>RECORDED</Text>
-              <Text style={[styles.metaValue, { color: textMain }]} numberOfLines={1}>
-                {recordedDate}
-              </Text>
-            </View>
+          <View style={styles.metaText}>
+            <Text style={[styles.metaLabel, { color: textSecondary }]}>ENTRY BY</Text>
+            <Text style={[styles.metaValue, { color: textPrimary }]} numberOfLines={1}>
+              {recordedBy}
+            </Text>
           </View>
-
-          <View style={[styles.metaDivider, { backgroundColor: border }]} />
-
-          <View style={styles.metaCell}>
-            <View style={[styles.metaIconWrap, { backgroundColor: accent + '12' }]}>
-              <MaterialIcons name="person" size={11} color={accent} />
-            </View>
-            <View style={styles.metaText}>
-              <Text style={[styles.metaLabel, { color: dim }]}>ENTRY BY</Text>
-              <Text style={[styles.metaValue, { color: textMain }]} numberOfLines={1}>
-                {recordedBy}
-              </Text>
-            </View>
-          </View>
-
         </View>
       </View>
     </Animated.View>
@@ -356,154 +290,160 @@ export function DashboardSummaryCard({
 // ─── StyleSheet ──────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   card: {
-    borderWidth:   1,
-    borderRadius:  22,
-    overflow:      'hidden',   // clips accent strip flush to top corners
-    elevation:     5,
-    shadowOpacity: 0.09,
-    shadowRadius:  18,
-    shadowOffset:  { width: 0, height: 6 },
-  },
-
-  // 3-px accent strip that grows from the left on entrance
-  accentStrip: {
-    height: 3,
-  },
-
-  content: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    paddingTop:        14,
-    paddingBottom:     14,
-    gap:               14,
+    paddingTop: 16,
+    paddingBottom: 14,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
 
   // ── Header
-  header: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-  },
-  headerLeft: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
+    alignItems: 'center',
+    gap: 10,
   },
-  headerLabel: {
-    fontSize:      10,
-    fontWeight:    '800',
-    letterSpacing: 1.8,
+  headerIconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
   },
   headerRight: {
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           8,
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  statusWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flexShrink: 1,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '800',
+    maxWidth: 118,
+  },
+  refreshBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ── Odometer
   odometerRow: {
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           10,
+    alignItems: 'center',
+    gap: DIGIT_GAP,
+    marginTop: 16,
   },
-  digitGroupClip: {
-    overflow: 'hidden',   // clips the glimmer shimmer to group bounds
-  },
-  digitGroup: {
-    flexDirection: 'row',
-    gap:           DIGIT_GAP,
-  },
-
-  // Individual digit window — shows exactly one digit at a time
   digitWindow: {
-    width:          DIGIT_W,
-    height:         DIGIT_H,
-    borderRadius:   8,
-    borderWidth:    1,
-    overflow:       'hidden',
-    alignItems:     'center',
+    width: DIGIT_W,
+    height: DIGIT_H,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
     justifyContent: 'flex-start',
   },
   digitSlot: {
-    height:         DIGIT_H,
-    width:          DIGIT_W,
-    alignItems:     'center',
+    height: DIGIT_H,
+    width: DIGIT_W,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   digitText: {
-    fontSize:           28,
-    fontWeight:         '700',
+    fontSize: 30,
+    fontWeight: '800',
     includeFontPadding: false,
-    textAlign:          'center',
-    fontVariant:        ['tabular-nums'],
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
-
-  // Soft fade overlays at top/bottom of each digit window
   edgeFade: {
     position: 'absolute',
-    left:     0,
-    right:    0,
-    height:   10,
-    opacity:  0.55,
-  },
-
-  // Glimmer strip — absolute inside digitGroupClip, swept by translateX
-  glimmer: {
-    position:        'absolute',
-    top:             0,
-    bottom:          0,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius:    5,
-  },
-
-  // KM unit
-  kmBlock: {
-    paddingBottom: 2,
-    justifyContent:'flex-end',
+    left: 0,
+    right: 0,
+    height: 10,
+    opacity: 0.55,
   },
   kmLabel: {
-    fontSize:      13,
-    fontWeight:    '900',
-    letterSpacing: 2.5,
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginLeft: 4,
   },
 
   // ── Separator
   separator: {
     height: 1,
+    marginTop: 16,
   },
 
   // ── Meta row
   metaRow: {
     flexDirection: 'row',
-    alignItems:    'center',
+    alignItems: 'center',
+    marginTop: 13,
   },
   metaCell: {
-    flex:          1,
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           8,
+    alignItems: 'center',
+    gap: 9,
   },
   metaIconWrap: {
-    width:          26,
-    height:         26,
-    borderRadius:   8,
-    alignItems:     'center',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   metaText: {
+    flex: 1,
+    minWidth: 0,
     gap: 1,
   },
   metaLabel: {
-    fontSize:      8.5,
-    fontWeight:    '800',
-    letterSpacing: 0.9,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   metaValue: {
-    fontSize:   12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
   },
   metaDivider: {
-    width:           1,
-    height:          26,
-    marginHorizontal:12,
+    width: 1,
+    height: 30,
   },
 });
