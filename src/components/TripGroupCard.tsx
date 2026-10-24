@@ -245,6 +245,23 @@ export function TripGroupCard({
                     : typeof childEntry.cost === 'number' && childEntry.cost > 0
                       ? childEntry.cost
                       : null;
+                  // Pass tolls never carry a cost (the pass covers the toll) —
+                  // the crossings consumed are the tile's number instead.
+                  const isPassToll =
+                    childEntry.type === 'expense' &&
+                    childEntry.expenseCategory === 'annual_pass_deduction';
+                  const passCrossings =
+                    isPassToll &&
+                    typeof childEntry.annualPassCrossings === 'number' &&
+                    childEntry.annualPassCrossings > 0
+                      ? childEntry.annualPassCrossings
+                      : null;
+                  const passCoveredValue =
+                    isPassToll &&
+                    typeof childEntry.annualPassTollValue === 'number' &&
+                    childEntry.annualPassTollValue > 0
+                      ? childEntry.annualPassTollValue
+                      : null;
                   const rowTitle = isFuel
                     ? liters !== null
                       ? `${liters} L`
@@ -273,10 +290,20 @@ export function TripGroupCard({
                       >
                         {rowTitle}
                       </Text>
-                      {amount !== null && (
+                      {passCrossings !== null ? (
                         <Text style={[styles.childRowAmount, { color: childTheme.accent }]}>
-                          ₹{amount}
+                          {passCrossings} crossing{passCrossings === 1 ? '' : 's'}
                         </Text>
+                      ) : passCoveredValue !== null ? (
+                        <Text style={[styles.childRowAmount, { color: childTheme.accent }]}>
+                          ₹{passCoveredValue} covered
+                        </Text>
+                      ) : (
+                        amount !== null && (
+                          <Text style={[styles.childRowAmount, { color: childTheme.accent }]}>
+                            ₹{amount}
+                          </Text>
+                        )
                       )}
                       {!isSameDay && (
                         <Text style={[styles.childRowDate, { color: colors.textSecondary }]}>

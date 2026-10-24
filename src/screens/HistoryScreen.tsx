@@ -72,17 +72,19 @@ function isFastagRechargeTitle(title?: string | null): boolean {
 }
 
 // Entries that belong to a trip card: fuel fills, parking, FASTag toll
-// payments and traffic fines. FASTag recharges are wallet top-ups, not trip
-// spend, and stay standalone — even when a legacy record was miscategorized
-// as a toll. Other expenses (maintenance, purchases, annual pass, recharges…)
-// and car records (spec updates, standalone odometer readings) also stay as
-// standalone timeline rows.
+// payments, traffic fines and annual-pass toll crossings (the pass purchase
+// itself is a top-up, like a recharge, and stays standalone). FASTag
+// recharges are wallet top-ups, not trip spend, and stay standalone — even
+// when a legacy record was miscategorized as a toll. Other expenses
+// (maintenance, purchases, recharges…) and car records (spec updates,
+// standalone odometer readings) also stay as standalone timeline rows.
 function isTripEntry(entry: EntryRecord): boolean {
   if (entry.type === 'fuel') return true;
   if (entry.type !== 'expense') return false;
   if (
     entry.expenseCategory === 'parking' ||
-    entry.expenseCategory === 'traffic_violation_fine'
+    entry.expenseCategory === 'traffic_violation_fine' ||
+    entry.expenseCategory === 'annual_pass_deduction'
   ) {
     return true;
   }
@@ -151,10 +153,16 @@ function assignTripMembers(entries: EntryRecord[]): Map<string, EntryRecord[]> {
         entry.odometer > 0 &&
         entry.odometer >= w.startOdo &&
         entry.odometer <= w.endOdo;
-      // Toll, parking and fine entries carry no odometer — the guarded time
-      // window (±12h around the trip) is their only placement signal, so a
-      // toll logged shortly before/after the trip readings still joins it.
-      return inTimeWindow || (inGuardedTimeWindow && (entry.odometer === 0 || inOdometerRange));
+      // Fuel fills keep the odometer-range check — consecutive trips can share
+      // a boundary reading, so time alone would misplace a boundary fill.
+      // Toll/parking/fine/pass-toll entries are trip-scoped spend by
+      // definition; their odometer is optional (often 0, sometimes typed past
+      // the trip's end reading) and must never veto placement — the ±12h
+      // guarded time window decides.
+      if (entry.type === 'fuel') {
+        return inTimeWindow || (inGuardedTimeWindow && inOdometerRange);
+      }
+      return inTimeWindow || inGuardedTimeWindow;
     });
     if (!window) continue;
     const list = membersByTripId.get(window.tripId);
