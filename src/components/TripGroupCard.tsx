@@ -20,7 +20,7 @@
  */
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef } from 'react';
-import { Animated as RNAnimated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Animated as RNAnimated, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
   FadeIn,
@@ -29,8 +29,8 @@ import Animated, {
   LinearTransition,
 } from 'react-native-reanimated';
 
-import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { TripCard } from '@/components/CardVariants';
+import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { baseStyles } from '@/components/cardStyles';
 import { resolveCardTheme } from '@/components/cardThemes';
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -240,11 +240,11 @@ export function TripGroupCard({
                     ? typeof childEntry.fuelAmount === 'number' && childEntry.fuelAmount > 0
                       ? childEntry.fuelAmount
                       : typeof childEntry.cost === 'number' && childEntry.cost > 0
-                      ? childEntry.cost
-                      : null
+                        ? childEntry.cost
+                        : null
                     : typeof childEntry.cost === 'number' && childEntry.cost > 0
-                    ? childEntry.cost
-                    : null;
+                      ? childEntry.cost
+                      : null;
                   const rowTitle = isFuel
                     ? liters !== null
                       ? `${liters} L`

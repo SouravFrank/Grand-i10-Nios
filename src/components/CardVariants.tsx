@@ -174,8 +174,8 @@ export function FuelCard({
     typeof entry.fuelAmount === 'number'
       ? entry.fuelAmount
       : typeof entry.cost === 'number'
-      ? entry.cost
-      : null;
+        ? entry.cost
+        : null;
   const liters = typeof entry.fuelLiters === 'number' ? entry.fuelLiters : null;
   const ppl = amount && liters ? (amount / liters).toFixed(1) : null;
   const chipBg = theme.accentAlpha(0.08);
@@ -260,7 +260,7 @@ export function TripCard({
     const liters = Math.round(tripTotalFuelLiters * 10) / 10;
     stats.push({
       key: 'fuel',
-      icon: 'local-gas-station',
+      icon: 'water-drop',
       value: `${liters} L`,
       extra: tripTotalFuelCost > 0 ? `₹${Math.round(tripTotalFuelCost)}` : undefined,
     });
@@ -323,18 +323,21 @@ export function TripCard({
               style={[
                 tripStyles.statChip,
                 {
-                  backgroundColor: stat.highlighted
-                    ? theme.accentAlpha(0.12)
-                    : colors.backgroundSecondary,
+                  backgroundColor: colors.backgroundSecondary,
                   borderColor: stat.highlighted ? theme.accentAlpha(0.45) : 'transparent',
+                  paddingVertical: 8
                 },
+                stat.key === 'fuel' && {
+                  flex: 1.5,
+                  width: '45%'
+                }
               ]}
             >
               <MaterialIcons name={stat.icon} size={14} color={theme.accent} />
               <Text
                 style={[
                   tripStyles.statValue,
-                  { color: stat.highlighted ? theme.accent : colors.textPrimary },
+                  { fontSize: stat.highlighted ? 16 : 12, },
                 ]}
                 numberOfLines={1}
                 adjustsFontSizeToFit

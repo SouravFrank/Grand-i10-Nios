@@ -271,7 +271,7 @@ export function DashboardSummaryCard({
 
         <View style={[styles.metaDivider, { backgroundColor: border }]} />
 
-        <View style={styles.metaCell}>
+        <View style={[styles.metaCell, { marginLeft: 12 }]}>
           <View style={[styles.metaIconWrap, { backgroundColor: slotBg }]}>
             <MaterialIcons name="person" size={16} color={textPrimary} />
           </View>

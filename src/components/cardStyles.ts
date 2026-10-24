@@ -227,7 +227,7 @@ export const tripStyles = StyleSheet.create({
     borderColor: "transparent",
   },
   statDot: { fontSize: 12, fontWeight: "900", opacity: 0.45 },
-  statValue: { fontSize: 14, fontWeight: "900", letterSpacing: -0.2 },
+  statValue: { fontSize: 12, fontWeight: "900", letterSpacing: -0.2 },
 });
 
 export const odometerStyles = StyleSheet.create({
