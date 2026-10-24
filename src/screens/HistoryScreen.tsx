@@ -2,16 +2,17 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import {
-    Pressable,
-    SectionList,
-    StyleSheet,
-    Text,
-    View
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 
 import { HistoryItemCard } from '@/components/HistoryItemCard';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SmartFilterSheet, type CategoryFilter, type DatePreset, type DateTarget } from '@/components/SmartFilterSheet';
+import { TripGroupCard } from '@/components/TripGroupCard';
 import type { AppStackParamList } from '@/navigation/types';
 import { DEFAULT_MONTHLY_MILEAGE } from '@/screens/reporting/reportCalculations';
 import { useAppStore } from '@/store/useAppStore';
@@ -28,9 +29,8 @@ type HistoryRow = {
   tripStartOdometer: number | null;
   tripEndOdometer: number | null;
   tripTotalCost: number;
+  tripTotalFuelCost: number;
   tripTotalFuelLiters: number;
-  mileage: number | null;
-  costPerKm: number | null;
 };
 
 type ExpenseSubcategory = 'fasttag' | 'car_maintenance' | 'parking' | 'traffic_violation' | 'others';
@@ -45,8 +45,9 @@ function canEditEntry(entry: EntryRecord, currentUserId?: string | null) {
   return getEntryOwnerId(entry) === currentUserId;
 }
 
-function getMonthKey(timestamp: number): string {
-  return dayjs(timestamp).format('YYYY-MM');
+function resolveMonthMileage(monthKey: string, mileageByMonth: Record<string, number>): number {
+  const saved = mileageByMonth[monthKey];
+  return Number.isFinite(saved) ? saved : DEFAULT_MONTHLY_MILEAGE;
 }
 
 function getFuelAmount(entry: EntryRecord): number | null {
@@ -62,53 +63,129 @@ function getFuelLiters(entry: EntryRecord): number | null {
     : null;
 }
 
-function buildFuelStatsByMonth(entries: EntryRecord[]): Map<string, { rates: number[]; amount: number; liters: number }> {
-  const statsByMonth = new Map<string, { rates: number[]; amount: number; liters: number }>();
+// A wallet top-up for the FASTag account — never trip spend. Some legacy
+// records were saved under the toll category, so the title is the arbiter.
+function isFastagRechargeTitle(title?: string | null): boolean {
+  if (!title) return false;
+  const normalized = title.trim().toLowerCase();
+  return /fast\s*tag|fastag/.test(normalized) && normalized.includes('recharge');
+}
 
+// Entries that belong to a trip card: fuel fills, parking, FASTag toll
+// payments, traffic fines and annual-pass toll crossings (the pass purchase
+// itself is a top-up, like a recharge, and stays standalone). FASTag
+// recharges are wallet top-ups, not trip spend, and stay standalone — even
+// when a legacy record was miscategorized as a toll. Other expenses
+// (maintenance, purchases, recharges…) and car records (spec updates,
+// standalone odometer readings) also stay as standalone timeline rows.
+function isTripEntry(entry: EntryRecord): boolean {
+  if (entry.type === 'fuel') return true;
+  if (entry.type !== 'expense') return false;
+  if (
+    entry.expenseCategory === 'parking' ||
+    entry.expenseCategory === 'traffic_violation_fine' ||
+    entry.expenseCategory === 'annual_pass_deduction'
+  ) {
+    return true;
+  }
+  return (
+    entry.expenseCategory === 'fasttag_toll_paid' &&
+    !isFastagRechargeTitle(entry.expenseTitle)
+  );
+}
+
+// Fuel logged at the pump minutes before the trip starts shares the trip's
+// start odometer; the guard keeps far-away-in-time entries from matching a
+// trip through a coincidental odometer reading alone.
+const TRIP_MEMBER_TIME_GUARD_MS = 12 * 60 * 60 * 1000;
+
+type TripWindow = {
+  tripId: string;
+  startTs: number;
+  endTs: number;
+  startOdo: number;
+  endOdo: number;
+};
+
+function buildCompleteTripWindows(entries: EntryRecord[]): TripWindow[] {
+  const trips = new Map<string, { start?: EntryRecord; end?: EntryRecord }>();
   for (const entry of entries) {
-    if (entry.type !== 'fuel') continue;
-
-    const amount = getFuelAmount(entry);
-    const liters = getFuelLiters(entry);
-    if (!amount || !liters || amount <= 0 || liters <= 0) continue;
-
-    const monthKey = getMonthKey(entry.createdAt);
-    const stats = statsByMonth.get(monthKey) ?? {
-      rates: [],
-      amount: 0,
-      liters: 0,
-    };
-
-    stats.rates.push(amount / liters);
-    stats.amount += amount;
-    stats.liters += liters;
-    statsByMonth.set(monthKey, stats);
+    if (entry.type !== 'odometer' || !entry.tripId || !entry.tripStage) {
+      continue;
+    }
+    const bucket = trips.get(entry.tripId) ?? {};
+    if (entry.tripStage === 'start') bucket.start = entry;
+    if (entry.tripStage === 'end') bucket.end = entry;
+    trips.set(entry.tripId, bucket);
   }
 
-  return statsByMonth;
+  return Array.from(trips.entries())
+    .filter(([, trip]) => trip.start && trip.end)
+    .map(([tripId, trip]) => ({
+      tripId,
+      startTs: trip.start!.createdAt,
+      endTs: trip.end!.createdAt,
+      startOdo: trip.start!.odometer,
+      endOdo: trip.end!.odometer,
+    }));
 }
 
-function getAverageFuelRate(monthKey: string, statsByMonth: Map<string, { rates: number[]; amount: number; liters: number }>): number {
-  const stats = statsByMonth.get(monthKey);
-  if (!stats || stats.rates.length === 0) return 0;
-  return stats.rates.reduce((total, rate) => total + rate, 0) / stats.rates.length;
-}
+/**
+ * Single source of truth for trip membership: assigns each fuel/parking/FASTag
+ * entry to exactly ONE complete trip (latest-starting window wins — a fill at
+ * the reading where one trip ended and the next began belongs to the trip it
+ * was filled for). Both the trip card totals and the accordion children are
+ * derived from this map, so the strip numbers always equal the rows shown.
+ */
+function assignTripMembers(entries: EntryRecord[]): Map<string, EntryRecord[]> {
+  // Latest-starting window first, so boundary entries resolve to the newer trip.
+  const windows = buildCompleteTripWindows(entries).sort((a, b) => b.startTs - a.startTs);
 
-function resolveMonthMileage(monthKey: string, mileageByMonth: Record<string, number>): number {
-  const saved = mileageByMonth[monthKey];
-  return Number.isFinite(saved) ? saved : DEFAULT_MONTHLY_MILEAGE;
+  const membersByTripId = new Map<string, EntryRecord[]>();
+  for (const entry of entries) {
+    if (!isTripEntry(entry)) continue;
+    const window = windows.find((w) => {
+      const inTimeWindow = entry.createdAt >= w.startTs && entry.createdAt <= w.endTs;
+      const inGuardedTimeWindow =
+        entry.createdAt >= w.startTs - TRIP_MEMBER_TIME_GUARD_MS &&
+        entry.createdAt <= w.endTs + TRIP_MEMBER_TIME_GUARD_MS;
+      const inOdometerRange =
+        entry.odometer > 0 &&
+        entry.odometer >= w.startOdo &&
+        entry.odometer <= w.endOdo;
+      // Fuel fills keep the odometer-range check — consecutive trips can share
+      // a boundary reading, so time alone would misplace a boundary fill.
+      // Toll/parking/fine/pass-toll entries are trip-scoped spend by
+      // definition; their odometer is optional (often 0, sometimes typed past
+      // the trip's end reading) and must never veto placement — the ±12h
+      // guarded time window decides.
+      if (entry.type === 'fuel') {
+        return inTimeWindow || (inGuardedTimeWindow && inOdometerRange);
+      }
+      return inTimeWindow || inGuardedTimeWindow;
+    });
+    if (!window) continue;
+    const list = membersByTripId.get(window.tripId);
+    if (list) {
+      list.push(entry);
+    } else {
+      membersByTripId.set(window.tripId, [entry]);
+    }
+  }
+
+  return membersByTripId;
 }
 
 function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string, number>): HistoryRow[] {
   const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
-  const fuelStatsByMonth = buildFuelStatsByMonth(entries);
 
-  // Calculate weighted average fuel price up to a given timestamp
+  // Weighted average fuel price across all fills logged up to a timestamp —
+  // used to estimate a trip's fuel cost when nothing was logged inside it.
   function getWeightedAvgFuelRateUpTo(timestamp: number): number {
     let totalLiters = 0;
     let totalValue = 0;
 
-    for (const entry of entries) {
+    for (const entry of sorted) {
       if (entry.type !== 'fuel' || entry.createdAt > timestamp) continue;
       const liters = getFuelLiters(entry);
       const amount = getFuelAmount(entry);
@@ -132,24 +209,22 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
     trips.set(entry.tripId, bucket);
   }
 
-  // Calculate trip totals by aggregating fuel and expense entries within each trip
-  function getTripTotals(tripId: string, startTime: number, endTime: number): { totalCost: number; totalFuelLiters: number } {
-    let totalCost = 0;
-    let totalFuelLiters = 0;
+  const membersByTripId = assignTripMembers(entries);
 
-    for (const entry of entries) {
-      // Only count entries within the trip time range (excluding the odometer entries themselves)
-      if (entry.createdAt >= startTime && entry.createdAt <= endTime && entry.tripId !== tripId) {
-        if (entry.type === 'fuel' && typeof entry.fuelLiters === 'number') {
-          totalFuelLiters += entry.fuelLiters;
-        }
-        if (typeof entry.cost === 'number') {
-          totalCost += entry.cost;
-        }
+  // Non-fuel spend assigned to the trip (parking, FASTag, fines). Fuel refill
+  // money is NOT trip cost — the trip's fuel cost is consumption-based
+  // (distance ÷ mileage × avg fuel rate) and is computed by the caller.
+  function getTripOtherCost(tripId: string): number {
+    let otherCost = 0;
+
+    for (const member of membersByTripId.get(tripId) ?? []) {
+      if (member.type === 'fuel') continue;
+      if (typeof member.cost === 'number') {
+        otherCost += member.cost;
       }
     }
 
-    return { totalCost, totalFuelLiters };
+    return otherCost;
   }
 
   const visited = new Set<string>();
@@ -170,23 +245,25 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
         visited.add(entry.id);
         visited.add(start.id);
         const distanceKm = entry.odometer - start.odometer;
-        const { totalCost, totalFuelLiters } = getTripTotals(entry.tripId, start.createdAt, entry.createdAt);
 
-        // Calculate mileage and cost per km based on the trip's month
-        const monthKey = getMonthKey(entry.createdAt);
+        // Fuel consumed by the trip = distance ÷ mileage (liters); its cost =
+        // liters × weighted average fuel rate. Total = that fuel cost + the
+        // other spend assigned to the trip.
+        const monthKey = dayjs(entry.createdAt).format('YYYY-MM');
         const mileage = resolveMonthMileage(monthKey, mileageByMonth);
         const avgFuelRate = getWeightedAvgFuelRateUpTo(entry.createdAt);
-        const costPerKm = mileage > 0 ? avgFuelRate / mileage : 0;
+        const fuelLiters = distanceKm > 0 && mileage > 0 ? distanceKm / mileage : 0;
+        const fuelCost = fuelLiters * avgFuelRate;
+        const otherCost = getTripOtherCost(entry.tripId);
 
         rows.push({
           entry,
           distanceKm: distanceKm > 0 ? distanceKm : null,
           tripStartOdometer: start.odometer,
           tripEndOdometer: entry.odometer,
-          tripTotalCost: totalCost,
-          tripTotalFuelLiters: totalFuelLiters,
-          mileage,
-          costPerKm: costPerKm > 0 ? costPerKm : null,
+          tripTotalCost: fuelCost + otherCost,
+          tripTotalFuelCost: fuelCost,
+          tripTotalFuelLiters: fuelLiters,
         });
         continue;
       }
@@ -205,9 +282,8 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
         tripStartOdometer: entry.tripStage === 'start' ? entry.odometer : null,
         tripEndOdometer: entry.tripStage === 'end' ? entry.odometer : null,
         tripTotalCost: 0,
+        tripTotalFuelCost: 0,
         tripTotalFuelLiters: 0,
-        mileage: null,
-        costPerKm: null,
       });
       continue;
     }
@@ -219,13 +295,103 @@ function buildHistoryRows(entries: EntryRecord[], mileageByMonth: Record<string,
       tripStartOdometer: null,
       tripEndOdometer: null,
       tripTotalCost: 0,
+      tripTotalFuelCost: 0,
       tripTotalFuelLiters: 0,
-      mileage: null,
-      costPerKm: null,
     });
   }
 
   return rows;
+}
+
+type TripGroupData = {
+  tripId: string;
+  endEntry: EntryRecord;
+  members: HistoryRow[];
+  summary: {
+    distanceKm: number | null;
+    tripStartOdometer: number | null;
+    tripEndOdometer: number | null;
+    tripTotalCost: number;
+    tripTotalFuelCost: number;
+    tripTotalFuelLiters: number;
+  };
+};
+
+type TimelineItem =
+  | { kind: 'entry'; key: string; row: HistoryRow; positionTs: number }
+  | { kind: 'trip-group'; key: string; group: TripGroupData; positionTs: number };
+
+/**
+ * Groups the flat history rows into accordion trip groups for the unfiltered
+ * view. Members come from assignTripMembers — the same map the trip card
+ * totals are summed from — so the strip numbers always equal the child rows
+ * shown. Other expenses and car records stay as standalone rows.
+ */
+function buildGroupedTimeline(rows: HistoryRow[], entries: EntryRecord[]): TimelineItem[] {
+  // Complete trips are already merged into summary rows by buildHistoryRows.
+  const groupRowByTripId = new Map<string, HistoryRow>();
+  for (const row of rows) {
+    const entry = row.entry;
+    if (entry.type !== 'odometer' || entry.tripStage !== 'end' || !entry.tripId) continue;
+    if (row.tripStartOdometer === null || row.tripEndOdometer === null) continue;
+    groupRowByTripId.set(entry.tripId, row);
+  }
+
+  const rowByEntryId = new Map(rows.map((row) => [row.entry.id, row]));
+  const assignedEntries = assignTripMembers(entries);
+
+  const membersByTripId = new Map<string, HistoryRow[]>();
+  const memberRowIds = new Set<string>();
+  for (const [tripId, tripEntries] of assignedEntries) {
+    if (!groupRowByTripId.has(tripId)) continue;
+    const memberRows = tripEntries
+      .map((entry) => rowByEntryId.get(entry.id))
+      .filter((row): row is HistoryRow => Boolean(row));
+    membersByTripId.set(
+      tripId,
+      memberRows.sort((a, b) => a.entry.createdAt - b.entry.createdAt),
+    );
+    for (const row of memberRows) {
+      memberRowIds.add(row.entry.id);
+    }
+  }
+
+  const items: TimelineItem[] = [];
+  for (const row of rows) {
+    if (memberRowIds.has(row.entry.id)) continue;
+    if (
+      row.entry.type === 'odometer' &&
+      row.entry.tripId &&
+      groupRowByTripId.has(row.entry.tripId)
+    ) {
+      continue;
+    }
+    items.push({ kind: 'entry', key: row.entry.id, row, positionTs: row.entry.createdAt });
+  }
+
+  for (const [tripId, row] of groupRowByTripId) {
+    items.push({
+      kind: 'trip-group',
+      key: `trip-${tripId}`,
+      positionTs: row.entry.createdAt,
+      group: {
+        tripId,
+        endEntry: row.entry,
+        members: membersByTripId.get(tripId) ?? [],
+        summary: {
+          distanceKm: row.distanceKm,
+          tripStartOdometer: row.tripStartOdometer,
+          tripEndOdometer: row.tripEndOdometer,
+          tripTotalCost: row.tripTotalCost,
+          tripTotalFuelCost: row.tripTotalFuelCost,
+          tripTotalFuelLiters: row.tripTotalFuelLiters,
+        },
+      },
+    });
+  }
+
+  items.sort((a, b) => b.positionTs - a.positionTs);
+  return items;
 }
 
 export function HistoryScreen({ navigation }: Props) {
@@ -233,7 +399,7 @@ export function HistoryScreen({ navigation }: Props) {
   const entries = useAppStore((state) => state.entries);
   const currentUser = useAppStore((state) => state.currentUser);
   const reportMileageByMonth = useAppStore((state) => state.reportMileageByMonth);
-  
+
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -243,6 +409,29 @@ export function HistoryScreen({ navigation }: Props) {
   const [activeDateTarget, setActiveDateTarget] = useState<DateTarget | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [expandedTripIds, setExpandedTripIds] = useState<Set<string>>(() => new Set());
+
+  const toggleTripGroup = (tripId: string) => {
+    setExpandedTripIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tripId)) {
+        next.delete(tripId);
+      } else {
+        next.add(tripId);
+      }
+      return next;
+    });
+  };
+
+  const navigateToEdit = (entry: EntryRecord) => {
+    if (entry.type === 'fuel') {
+      navigation.navigate('FuelEntryModal', { entryId: entry.id });
+    } else if (entry.type === 'odometer') {
+      navigation.navigate('StartingCarModal', { entryId: entry.id, mode: 'edit' });
+    } else if (entry.type === 'expense') {
+      navigation.navigate('ExpenseEntryModal', { entryId: entry.id });
+    }
+  };
 
   const closeFilterModal = () => {
     setIsFilterOpen(false);
@@ -260,18 +449,18 @@ export function HistoryScreen({ navigation }: Props) {
 
   const viewContextOptions = useMemo(() => {
     const opts = [{ id: 'all', name: 'All Entries' }];
-    
+
     const ayan = userOptions.find(u => u.name.toLowerCase().includes('ayan'));
     const sourav = userOptions.find(u => u.name.toLowerCase().includes('sourav'));
-    
+
     if (ayan) opts.push({ id: ayan.id, name: `${ayan.name} Only` });
     if (sourav) opts.push({ id: sourav.id, name: `${sourav.name} Only` });
-    
+
     opts.push({ id: 'shared_only', name: 'Shared Trips Only' });
-    
+
     if (ayan) opts.push({ id: `${ayan.id}_shared`, name: `${ayan.name} + Shared` });
     if (sourav) opts.push({ id: `${sourav.id}_shared`, name: `${sourav.name} + Shared` });
-    
+
     userOptions.forEach((user) => {
       if (user.id !== 'all' && user.id !== ayan?.id && user.id !== sourav?.id) {
         opts.push({ id: user.id, name: `${user.name} Only` });
@@ -356,14 +545,15 @@ export function HistoryScreen({ navigation }: Props) {
           if (entry.type !== 'expense') return false;
           const subcategory = category.replace('expense_', '') as ExpenseSubcategory;
 
-          // Special handling for fasttag - includes toll paid and recharges
+          // Special handling for fasttag - includes toll paid, recharges and annual pass records
           if (subcategory === 'fasttag') {
             const isTollPaid = entry.expenseCategory === 'fasttag_toll_paid';
             const isFastagRecharge = entry.expenseCategory === 'utility_addon' &&
               entry.expenseTitle &&
               (entry.expenseTitle.toLowerCase().includes('fastag') || entry.expenseTitle.toLowerCase().includes('fast tag')) &&
               entry.expenseTitle.toLowerCase().includes('recharge');
-            if (!isTollPaid && !isFastagRecharge) return false;
+            const isAnnualPass = entry.expenseCategory === 'annual_pass_purchase' || entry.expenseCategory === 'annual_pass_deduction';
+            if (!isTollPaid && !isFastagRecharge && !isAnnualPass) return false;
           } else {
             const expenseCategoryMap: Record<Exclude<ExpenseSubcategory, 'fasttag'>, string[]> = {
               car_maintenance: ['maintenance_lab', 'shield_safety', 'care_comfort', 'utility_addon'],
@@ -385,20 +575,20 @@ export function HistoryScreen({ navigation }: Props) {
 
       if (selectedUser !== 'all') {
         if (selectedUser === 'shared_only') {
-           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
-           if (!isSharedTrip) return false;
+          const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+          if (!isSharedTrip) return false;
         } else {
-           const isSharedIncluded = selectedUser.endsWith('_shared');
-           const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
-           
-           const isTargetEntry = entry.userId === targetUserId;
-           const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+          const isSharedIncluded = selectedUser.endsWith('_shared');
+          const targetUserId = isSharedIncluded ? selectedUser.replace('_shared', '') : selectedUser;
 
-           if (isSharedIncluded) {
-              if (!isTargetEntry && !isSharedTrip) return false;
-           } else {
-              if (!isTargetEntry) return false;
-           }
+          const isTargetEntry = entry.userId === targetUserId;
+          const isSharedTrip = entry.type === 'odometer' && entry.sharedTrip;
+
+          if (isSharedIncluded) {
+            if (!isTargetEntry && !isSharedTrip) return false;
+          } else {
+            if (!isTargetEntry) return false;
+          }
         }
       }
 
@@ -414,17 +604,38 @@ export function HistoryScreen({ navigation }: Props) {
     });
   }, [category, entries, fromDate, selectedMonth, selectedUser, toDate, currentUser]);
 
+  const hasActiveFilters =
+    category !== 'all' ||
+    selectedUser !== 'all' ||
+    selectedMonth !== 'all' ||
+    datePreset !== 'all' ||
+    fromDate !== null ||
+    toDate !== null;
+
+  const timelineItems = useMemo(() => {
+    // Grouped view only when no filter is active; filtered views stay flat.
+    if (hasActiveFilters) {
+      return rows.map((row) => ({
+        kind: 'entry' as const,
+        key: row.entry.id,
+        row,
+        positionTs: row.entry.createdAt,
+      }));
+    }
+    return buildGroupedTimeline(rows, entries);
+  }, [rows, entries, hasActiveFilters]);
+
   const sectionedRows = useMemo(() => {
-    const groups = new Map<string, HistoryRow[]>();
-    for (const row of rows) {
-      const monthLabel = dayjs(row.entry.createdAt).format(INDIA_MONTH_FORMAT);
+    const groups = new Map<string, TimelineItem[]>();
+    for (const item of timelineItems) {
+      const monthLabel = dayjs(item.positionTs).format(INDIA_MONTH_FORMAT);
       if (!groups.has(monthLabel)) {
         groups.set(monthLabel, []);
       }
-      groups.get(monthLabel)!.push(row);
+      groups.get(monthLabel)!.push(item);
     }
     return Array.from(groups.entries()).map(([title, data]) => ({ title, data }));
-  }, [rows]);
+  }, [timelineItems]);
 
   const resetFilters = () => {
     setCategory('all');
@@ -568,10 +779,16 @@ export function HistoryScreen({ navigation }: Props) {
 
       <SectionList
         sections={sectionedRows}
-        keyExtractor={(item) => item.entry.id}
+        keyExtractor={(item) => item.key}
+        extraData={expandedTripIds}
         contentContainerStyle={styles.list}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={<Text style={[styles.empty, { color: colors.textSecondary }]}>No trips recorded yet.</Text>}
+        ListHeaderComponent={
+          !hasActiveFilters && timelineItems.length > 0 ? (
+            null
+          ) : null
+        }
         renderSectionHeader={({ section: { title } }) => (
           <View style={styles.monthHeaderRow}>
             <View style={[styles.monthDivider, { backgroundColor: colors.border }]} />
@@ -579,29 +796,40 @@ export function HistoryScreen({ navigation }: Props) {
             <View style={[styles.monthDivider, { backgroundColor: colors.border }]} />
           </View>
         )}
-        renderItem={({ item, index }) => (
-          <HistoryItemCard
-            entry={item.entry}
-            distanceKm={item.distanceKm}
-            tripStartOdometer={item.tripStartOdometer}
-            tripEndOdometer={item.tripEndOdometer}
-            tripTotalCost={item.tripTotalCost}
-            tripTotalFuelLiters={item.tripTotalFuelLiters}
-            mileage={item.mileage}
-            costPerKm={item.costPerKm}
-            index={index}
-            canEdit={canEditEntry(item.entry, currentUser?.id)}
-            onPressEdit={() => {
-              if (item.entry.type === 'fuel') {
-                navigation.navigate('FuelEntryModal', { entryId: item.entry.id });
-              } else if (item.entry.type === 'odometer') {
-                navigation.navigate('StartingCarModal', { entryId: item.entry.id, mode: 'edit' });
-              } else if (item.entry.type === 'expense') {
-                navigation.navigate('ExpenseEntryModal', { entryId: item.entry.id });
-              }
-            }}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          if (item.kind === 'trip-group') {
+            const { group } = item;
+            return (
+              <TripGroupCard
+                endEntry={group.endEntry}
+                members={group.members}
+                summary={group.summary}
+                expanded={expandedTripIds.has(group.tripId)}
+                onToggle={() => toggleTripGroup(group.tripId)}
+                canEditTrip={canEditEntry(group.endEntry, currentUser?.id)}
+                onPressEditTrip={() => navigateToEdit(group.endEntry)}
+                canEditMember={(entry) => canEditEntry(entry, currentUser?.id)}
+                onPressEditMember={navigateToEdit}
+              />
+            );
+          }
+
+          const row = item.row;
+          return (
+            <HistoryItemCard
+              entry={row.entry}
+              distanceKm={row.distanceKm}
+              tripStartOdometer={row.tripStartOdometer}
+              tripEndOdometer={row.tripEndOdometer}
+              tripTotalCost={row.tripTotalCost}
+              tripTotalFuelCost={row.tripTotalFuelCost}
+              tripTotalFuelLiters={row.tripTotalFuelLiters}
+              index={index}
+              canEdit={canEditEntry(row.entry, currentUser?.id)}
+              onPressEdit={() => navigateToEdit(row.entry)}
+            />
+          );
+        }}
       />
     </ScreenContainer>
   );
@@ -683,6 +911,15 @@ const styles = StyleSheet.create({
   list: {
     gap: 10,
     paddingBottom: 24,
+  },
+  groupHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    marginTop: 2,
+    marginBottom: 4,
+    paddingHorizontal: 16,
   },
   monthHeaderRow: {
     flexDirection: 'row',

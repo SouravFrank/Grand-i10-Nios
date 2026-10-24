@@ -54,6 +54,9 @@ type PersistedAppData = {
   biometricEnabled: boolean;
   carSpec: CarSpec;
   carSpecDirty: boolean;
+  // Snapshot of the spec as of the last successful sync. Used to compute the
+  // per-field delta for remote updates; null until the first sync completes.
+  lastSyncedCarSpec: CarSpec | null;
   reportMileageByMonth: Record<string, number>;
   settledReportMonths: Record<string, boolean>;
 };
@@ -75,6 +78,11 @@ type AddEntryInput = {
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
+  annualPassExpiryDate?: string;
+  annualPassMaxTrips?: number;
+  annualPassId?: string;
+  annualPassCrossings?: number;
+  annualPassTollValue?: number;
   specUpdatedFields?: string[];
   specUpdateDetails?: SpecUpdateDetail[];
   createdAt?: number;
@@ -256,7 +264,7 @@ type AppState = PersistedAppData & {
   runIntegrityCheck: () => Promise<void>;
   updateCarSpec: (updates: Partial<CarSpec>) => void;
   updateTyreSetup: (tyreSetup: TyreRecord[]) => void;
-  markCarSpecSynced: () => void;
+  markCarSpecSynced: (syncedCarSpec: CarSpec) => void;
   replaceCarSpecFromRemote: (carSpec: CarSpec) => void;
   setReportMileage: (monthKey: string, value: number) => void;
   replaceReportMileage: (data: Record<string, number>) => void;
@@ -280,6 +288,7 @@ const initialPersistedState: PersistedAppData = {
   biometricEnabled: false,
   carSpecDirty: false,
   carSpec: normalizeCarSpec(),
+  lastSyncedCarSpec: null,
   reportMileageByMonth: {},
   settledReportMonths: {},
 };
@@ -630,6 +639,11 @@ export const useAppStore = create<AppState>()(
           expenseCategory: payload.expenseCategory,
           expenseTitle: payload.expenseTitle,
           cost: payload.cost,
+          annualPassExpiryDate: payload.annualPassExpiryDate,
+          annualPassMaxTrips: payload.annualPassMaxTrips,
+          annualPassId: payload.annualPassId,
+          annualPassCrossings: payload.annualPassCrossings,
+          annualPassTollValue: payload.annualPassTollValue,
           specUpdatedFields: payload.specUpdatedFields,
           specUpdateDetails: payload.specUpdateDetails,
           createdAt,
@@ -948,14 +962,16 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      markCarSpecSynced: () => {
-        set({ carSpecDirty: false });
+      markCarSpecSynced: (syncedCarSpec) => {
+        set({ carSpecDirty: false, lastSyncedCarSpec: syncedCarSpec });
       },
 
       replaceCarSpecFromRemote: (carSpec) => {
+        const normalized = normalizeCarSpec(carSpec);
         const shouldSyncNormalizedSpec = requiresCarSpecNormalization(carSpec);
         set({
-          carSpec: normalizeCarSpec(carSpec),
+          carSpec: normalized,
+          lastSyncedCarSpec: normalized,
           carSpecDirty: shouldSyncNormalizedSpec,
         });
       },
@@ -1604,6 +1620,7 @@ export const useAppStore = create<AppState>()(
         biometricEnabled: state.biometricEnabled,
         carSpec: state.carSpec,
         carSpecDirty: state.carSpecDirty,
+        lastSyncedCarSpec: state.lastSyncedCarSpec,
         activeTrip: state.activeTrip,
         reportMileageByMonth: state.reportMileageByMonth,
         settledReportMonths: state.settledReportMonths,
@@ -1618,6 +1635,7 @@ export const useAppStore = create<AppState>()(
           carSpecDirty:
             Boolean(typedPersistedState.carSpecDirty) ||
             requiresCarSpecNormalization(persistedCarSpec),
+          lastSyncedCarSpec: typedPersistedState.lastSyncedCarSpec ?? null,
           reportMileageByMonth: typedPersistedState.reportMileageByMonth ?? {},
           settledReportMonths: typedPersistedState.settledReportMonths ?? {},
         };

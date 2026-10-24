@@ -19,6 +19,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { ALLOWED_USERS } from '@/constants/users';
 import type { AppStackParamList } from '@/navigation/types';
+import { AnnualPassFormSection } from '@/screens/HistoryEntry/components/AnnualPassFormSection';
 import { FastagFormSection } from '@/screens/HistoryEntry/components/FastagFormSection';
 import { FuelFormSection } from '@/screens/HistoryEntry/components/FuelFormSection';
 import { ParkingFormSection } from '@/screens/HistoryEntry/components/ParkingFormSection';
@@ -31,7 +32,7 @@ import type { ExpenseCategory } from '@/types/models';
 import { dayjs, INDIA_DATE_FORMAT } from '@/utils/day';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'HistoryEntryModal'>;
-type EntryCategory = 'trip' | 'fuel' | 'parking' | 'fasttag';
+type EntryCategory = 'trip' | 'fuel' | 'parking' | 'fasttag' | 'annual_pass';
 
 const GRAND_I10_NIOS_TANK_CAPACITY_LITERS = 37;
 
@@ -58,7 +59,21 @@ const parkingSchema = baseSchema.extend({
 const fasttagSchema = baseSchema.extend({
   category: z.literal('fasttag'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), tollAmount: z.string().trim().min(1, 'Required.').refine((value) => Number(value) > 0, 'Amount must be positive.'), tollLocation: z.string().trim().optional(), isSharedTrip: z.boolean(), fasttagType: z.enum(['toll_paid', 'recharge']).optional(),
 });
-const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema]);
+const annualPassSchema = baseSchema.extend({
+  category: z.literal('annual_pass'), odometer: z.string().trim().min(1, 'Required.').refine((value) => /^\d{1,6}$/.test(value), 'Use up to 6 digits.'), annualPassType: z.enum(['purchase', 'deduction']), passAmount: z.string().trim().optional(), passExpiryDate: z.date().optional(), passMaxTrips: z.string().trim().optional(), passCrossings: z.string().trim().optional(), passTollValue: z.string().trim().optional(), isSharedTrip: z.boolean(),
+}).superRefine((data, context) => {
+  // Only the fields visible for the selected record type are validated, so a
+  // hidden field can never silently block the save.
+  if (data.annualPassType === 'purchase') {
+    if (!data.passAmount || Number.isNaN(Number(data.passAmount)) || Number(data.passAmount) <= 0) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be positive.', path: ['passAmount'] });
+    if (!data.passExpiryDate) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Expiry date is required.', path: ['passExpiryDate'] });
+    if (!data.passMaxTrips || !/^\d{1,4}$/.test(data.passMaxTrips) || Number(data.passMaxTrips) < 1) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter the crossing limit (e.g. 200).', path: ['passMaxTrips'] });
+  } else {
+    if (!data.passCrossings || !/^\d{1,3}$/.test(data.passCrossings) || Number(data.passCrossings) < 1) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter crossings used.', path: ['passCrossings'] });
+    if (data.passTollValue && !(Number(data.passTollValue) >= 0)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be a positive amount.', path: ['passTollValue'] });
+  }
+});
+const historyFormSchema = z.discriminatedUnion('category', [tripSchema, fuelSchema, parkingSchema, fasttagSchema, annualPassSchema]);
 type HistoryForm = z.infer<typeof historyFormSchema>;
 
 function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerId: string, lastOdometer: number): HistoryForm {
@@ -102,6 +117,20 @@ function getHistoryFormDefaults(category: EntryCategory, entryDate: Date, ownerI
         isSharedTrip: false,
         fasttagType: 'toll_paid',
       };
+    case 'annual_pass':
+      return {
+        ...commonDefaults,
+        category: 'annual_pass',
+        odometer,
+        annualPassType: 'purchase',
+        // NHAI FASTag Annual Pass: ₹3,000 · 200 crossings · 1 year validity.
+        passAmount: '3000',
+        passExpiryDate: dayjs().add(1, 'year').toDate(),
+        passMaxTrips: '200',
+        passCrossings: '1',
+        passTollValue: '',
+        isSharedTrip: false,
+      };
   }
 }
 
@@ -110,6 +139,7 @@ const CATEGORY_CONFIG: Record<EntryCategory, { label: string; icon: keyof typeof
   fuel: { label: 'fuel', icon: 'local-gas-station', color: '#F59E0B' },
   parking: { label: 'parking', icon: 'local-parking', color: '#22C55E' },
   fasttag: { label: 'fasttag', icon: 'toll', color: '#F97316' },
+  annual_pass: { label: 'annual pass', icon: 'card-membership', color: '#6366F1' },
 };
 
 export function HistoryEntryScreen({ navigation }: Props) {
@@ -117,6 +147,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
   const lastOdometer = useAppStore((state) => state.lastOdometerValue);
   const currentUser = useAppStore((state) => state.currentUser);
   const addEntryOfflineFirst = useAppStore((state) => state.addEntryOfflineFirst);
+  const entries = useAppStore((state) => state.entries);
   const orbTone = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)';
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
@@ -155,6 +186,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    console.log('[HistoryEntry] submitting entry:', JSON.stringify(values));
     if (!currentUser) return AppAlert.alert('Session expired', 'Please login again.');
     const selectedOwner = ALLOWED_USERS.find((user) => user.id === values.ownerId);
     if (!selectedOwner) return AppAlert.alert('Invalid owner', 'Select who owns this entry.');
@@ -177,12 +209,46 @@ export function HistoryEntryScreen({ navigation }: Props) {
         } else {
           await addEntryOfflineFirst({ type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer), expenseCategory: 'fasttag_toll_paid' as ExpenseCategory, expenseTitle: title, cost: Number(values.tollAmount), createdAt: entryTime, sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined });
         }
+      } else if (values.category === 'annual_pass') {
+        if (values.annualPassType === 'purchase') {
+          await addEntryOfflineFirst({
+            type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer),
+            expenseCategory: 'annual_pass_purchase' as ExpenseCategory,
+            expenseTitle: 'NHAI FASTag Annual Pass',
+            cost: Number(values.passAmount),
+            annualPassExpiryDate: values.passExpiryDate ? dayjs(values.passExpiryDate).format('YYYY-MM-DD') : undefined,
+            annualPassMaxTrips: values.passMaxTrips ? Number(values.passMaxTrips) : 200,
+            createdAt: entryTime,
+          });
+        } else {
+          // Attribute the deduction to the pass that was active on the entry
+          // date (latest purchase at or before it). Unlinked deductions still
+          // count toward a pass purchased on/after the crossing date.
+          const activePass = entries
+            .filter((entry) => entry.type === 'expense' && entry.expenseCategory === 'annual_pass_purchase' && entry.createdAt <= entryTime)
+            .sort((a, b) => b.createdAt - a.createdAt)[0];
+          console.log('[HistoryEntry] annual pass deduction:', JSON.stringify({ entryTime, activePassId: activePass?.id ?? null, activePassCreatedAt: activePass?.createdAt ?? null }));
+          await addEntryOfflineFirst({
+            type: 'expense', userId: selectedOwner.id, userName: selectedOwner.name, odometer: Number(values.odometer),
+            expenseCategory: 'annual_pass_deduction' as ExpenseCategory,
+            expenseTitle: 'Annual Pass Toll',
+            cost: 0,
+            annualPassId: activePass?.id,
+            annualPassCrossings: Number(values.passCrossings) || 1,
+            annualPassTollValue: values.passTollValue?.trim() ? Number(values.passTollValue) : undefined,
+            createdAt: entryTime,
+            sharedTrip: values.isSharedTrip, sharedTripMarkedById: values.isSharedTrip ? currentUser.id : undefined, sharedTripMarkedByName: values.isSharedTrip ? currentUser.name : undefined,
+          });
+        }
       }
       navigation.goBack();
       void runSyncCycle();
     } catch (error) {
+      console.error('[HistoryEntry] failed to save entry:', error);
       AppAlert.alert('Could not save entry', error instanceof Error ? error.message : 'Unknown error');
     }
+  }, (validationErrors) => {
+    console.warn('[HistoryEntry] entry validation failed:', JSON.stringify(validationErrors, null, 2));
   });
 
   return (
@@ -307,6 +373,7 @@ export function HistoryEntryScreen({ navigation }: Props) {
             {category === 'fuel' && <FuelFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} fullTankSelected={fullTankSelected} isDark={isDark} colors={colors} />}
             {category === 'parking' && <ParkingFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
             {category === 'fasttag' && <FastagFormSection control={control as never} errors={errors} lastOdometer={lastOdometer} isDark={isDark} colors={colors} />}
+            {category === 'annual_pass' && <AnnualPassFormSection control={control as never} errors={errors} isDark={isDark} colors={colors} />}
 
             <View style={styles.actionRow}>
               <PrimaryButton label={`SAVE ${CATEGORY_CONFIG[category].label.toUpperCase()} ENTRY`} onPress={onSubmit} loading={isSubmitting} style={styles.primaryAction} />

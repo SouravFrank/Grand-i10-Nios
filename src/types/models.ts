@@ -8,6 +8,8 @@ export type ExpenseCategory =
   | "purchase"
   | "traffic_violation_fine"
   | "fasttag_toll_paid"
+  | "annual_pass_purchase"
+  | "annual_pass_deduction"
   | "parking"
   | "other";
 
@@ -54,6 +56,13 @@ export type Entry = {
   expenseCategory?: ExpenseCategory;
   expenseTitle?: string;
   cost?: number;
+  // NHAI FASTag Annual Pass (₹3,000 · 200 toll crossings · 1 year, whichever first).
+  // Only present on annual_pass_purchase / annual_pass_deduction entries.
+  annualPassExpiryDate?: string; // ISO 'YYYY-MM-DD', on purchase entries
+  annualPassMaxTrips?: number; // crossing limit, on purchase entries (NHAI default: 200)
+  annualPassId?: string; // id of the purchase entry a deduction consumes
+  annualPassCrossings?: number; // crossings consumed by a deduction entry
+  annualPassTollValue?: number; // toll value covered by the pass (no money spent)
   specUpdatedFields?: string[];
   specUpdateDetails?: SpecUpdateDetail[];
   createdAt: number;
@@ -171,6 +180,9 @@ export type CarSpecFieldUpdateSubmission = {
   odometer: number;
   cost?: number;
   wheelAlignmentOdometer?: number;
+  // Timestamp of the picked date; becomes the spec_update entry's createdAt
+  // so backdated spec updates land at the right place in the timeline.
+  entryDate: number;
 };
 
 export type CarDocumentKey =

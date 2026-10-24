@@ -58,6 +58,8 @@ const categoryMeta: Record<ExpenseCategory, { label: string; icon: keyof typeof 
   purchase: { label: 'Purchase', icon: 'shopping-cart' },
   traffic_violation_fine: { label: 'Traffic Violation Fine', icon: 'gavel' },
   fasttag_toll_paid: { label: 'FASTag Toll Paid', icon: 'toll' },
+  annual_pass_purchase: { label: 'NHAI Annual Pass', icon: 'card-membership' },
+  annual_pass_deduction: { label: 'Annual Pass Toll', icon: 'toll' },
   parking: { label: 'Parking', icon: 'local-parking' },
   other: { label: 'Other', icon: 'apps' },
 };
@@ -81,7 +83,7 @@ function inferExpenseCategory(title: string): ExpenseCategory {
   return matchedRule?.category ?? 'other';
 }
 
-const NO_ODOMETER_EXPENSE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid', 'parking'];
+const NO_ODOMETER_EXPENSE_CATEGORIES: ExpenseCategory[] = ['traffic_violation_fine', 'fasttag_toll_paid', 'parking', 'annual_pass_purchase', 'annual_pass_deduction'];
 
 function isFastagRechargeExpense(title: string) {
   const normalized = title.trim().toLowerCase();
@@ -93,12 +95,14 @@ function expenseRequiresOdometer(title: string) {
   return !NO_ODOMETER_EXPENSE_CATEGORIES.includes(category) && !isFastagRechargeExpense(title);
 }
 
-const expenseSchema = z.object({
+const expenseSchemaBase = z.object({
   odometer: z.string().trim(),
   expenseTitle: z.string().trim().min(2, 'Expense title is required.').max(48, 'Keep title under 48 characters.'),
   cost: z.string().trim().min(1, 'Cost is required.').refine((value) => Number(value) > 0, 'Cost must be positive.'),
   paidByUserId: z.string().trim().optional(),
-}).superRefine((data, context) => {
+});
+
+const expenseSchema = expenseSchemaBase.superRefine((data, context) => {
   const category = inferExpenseCategory(data.expenseTitle);
   if (expenseRequiresOdometer(data.expenseTitle)) {
     if (!data.odometer) {
@@ -108,6 +112,18 @@ const expenseSchema = z.object({
     }
   }
 
+  if (!data.paidByUserId || data.paidByUserId.trim() === '') {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
+  } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select a valid user.', path: ['paidByUserId'] });
+  }
+});
+
+// Annual Pass toll deductions never charge money (the pass covers the
+// crossing), so editing one must not require a positive cost.
+const annualPassDeductionEditSchema = expenseSchemaBase.extend({
+  cost: z.string().trim().optional(),
+}).superRefine((data, context) => {
   if (!data.paidByUserId || data.paidByUserId.trim() === '') {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Select who paid.', path: ['paidByUserId'] });
   } else if (!ALLOWED_USERS.some((user) => user.id === data.paidByUserId)) {
@@ -134,6 +150,10 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
 
   const editingEntry = route.params?.entryId ? entries.find((entry) => entry.id === route.params?.entryId && entry.type === 'expense') : undefined;
   const isEditing = Boolean(editingEntry);
+  const editingAnnualPassCategory = editingEntry && (editingEntry.expenseCategory === 'annual_pass_purchase' || editingEntry.expenseCategory === 'annual_pass_deduction')
+    ? editingEntry.expenseCategory
+    : undefined;
+  const isPassDeductionEdit = editingAnnualPassCategory === 'annual_pass_deduction';
 
   const [sharedExpense, setSharedExpense] = useState(editingEntry?.sharedTrip ?? false);
   const [entryDate, setEntryDate] = useState(() => new Date(editingEntry?.createdAt ?? Date.now()));
@@ -189,7 +209,7 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   }, [headerSlide, formSlide, opacity, orb1Scale, orb1TranslateY, orb2Scale, orb2TranslateX]);
 
   const { control, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<ExpenseForm>({
-    resolver: zodResolver(expenseSchema),
+    resolver: zodResolver(isPassDeductionEdit ? (annualPassDeductionEditSchema as unknown as typeof expenseSchema) : expenseSchema),
     defaultValues: {
       odometer: String(editingEntry?.odometer ?? lastOdometer),
       expenseTitle: editingEntry?.expenseTitle ?? '',
@@ -201,7 +221,8 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
   const selectedExpenseTitle = watch('expenseTitle');
   const selectedPaidByUserId = watch('paidByUserId');
   const inferredCategory = inferExpenseCategory(selectedExpenseTitle);
-  const inferredCategoryMeta = categoryMeta[inferredCategory];
+  const detectedCategory = editingAnnualPassCategory ?? inferredCategory;
+  const detectedCategoryMeta = categoryMeta[detectedCategory];
   const showSharedToggle = SHAREABLE_CATEGORIES.includes(inferredCategory);
   const showPaidBySection = true;
   const showOdometerSection = expenseRequiresOdometer(selectedExpenseTitle);
@@ -248,25 +269,30 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
     if (isEditing && !editingEntry) return AppAlert.alert('Entry not found', 'This expense entry is no longer available.');
     if (editingEntry && getEntryOwnerId(editingEntry) !== currentUser.id) return AppAlert.alert('Edit not allowed', 'You can only edit your own expense entries.');
 
-    const category = inferExpenseCategory(expenseTitle);
-    const shouldShare = SHAREABLE_CATEGORIES.includes(category) && sharedExpense;
+    // Annual pass entries keep their category and pass fields; only their
+    // title, payer, date and (for purchases) amount are editable here.
+    const category = editingAnnualPassCategory ?? inferExpenseCategory(expenseTitle);
+    const shouldShare = editingAnnualPassCategory
+      ? (editingEntry?.sharedTrip ?? false)
+      : (SHAREABLE_CATEGORIES.includes(category) && sharedExpense);
     const entryOdometer = expenseRequiresOdometer(expenseTitle) ? Number(odometer) : (editingEntry?.odometer ?? lastOdometer);
     const selectedPayer = ALLOWED_USERS.find((user) => user.id === paidByUserId);
     if (!selectedPayer) return AppAlert.alert('Invalid payer', 'Select who paid/incurred this expense.');
     const entryUser = selectedPayer;
+    const entryCost = editingAnnualPassCategory === 'annual_pass_deduction' ? 0 : Number(cost);
 
     try {
       if (editingEntry) {
         await updateEntryOfflineFirst(editingEntry.id, {
           userId: entryUser.id, userName: entryUser.name, odometer: entryOdometer,
           createdAt: mergeDateWithExistingTime(entryDate, editingEntry.createdAt),
-          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
+          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: entryCost,
           sharedTrip: shouldShare, sharedTripMarkedById: getEntryOwnerId(editingEntry), sharedTripMarkedByName: getEntryOwnerName(editingEntry),
         });
       } else {
         await addEntryOfflineFirst({
           type: 'expense', userId: entryUser.id, userName: entryUser.name, odometer: entryOdometer,
-          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: Number(cost),
+          expenseCategory: category, expenseTitle: expenseTitle.trim(), cost: entryCost,
           sharedTrip: shouldShare, sharedTripMarkedById: currentUser.id, sharedTripMarkedByName: currentUser.name,
         });
       }
@@ -416,19 +442,27 @@ export function ExpenseEntryScreen({ navigation, route }: Props) {
               )} />
               
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 4 }}>
-                {inferredCategory === 'fasttag_toll_paid' || isFastagRechargeExpense(selectedExpenseTitle) ? (
+                {!editingAnnualPassCategory && (inferredCategory === 'fasttag_toll_paid' || isFastagRechargeExpense(selectedExpenseTitle)) ? (
                   <FastagBrandIcon size={16} color={colors.primary} />
                 ) : (
-                  <MaterialIcons name={inferredCategoryMeta.icon} size={14} color={colors.primary} />
+                  <MaterialIcons name={detectedCategoryMeta.icon} size={14} color={colors.primary} />
                 )}
                 <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Detected Category: <Text style={{ color: colors.textPrimary }}>{inferredCategoryMeta.label}</Text>
+                  Detected Category: <Text style={{ color: colors.textPrimary }}>{detectedCategoryMeta.label}</Text>
                 </Text>
               </View>
 
-              <Controller control={control} name="cost" render={({ field: { onChange, value } }) => (
-                <AppTextField label="Amount (₹)" value={value} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 950" error={errors.cost?.message} />
-              )} />
+              {isPassDeductionEdit ? (
+                <View style={[styles.odoPanel, { backgroundColor: colors.backgroundSecondary }]}>
+                  <Text style={[styles.odoHint, { color: colors.textSecondary }]}>
+                    Toll crossing covered by the NHAI Annual Pass — no money is charged (₹0). Crossings used are managed from History → Add Record.
+                  </Text>
+                </View>
+              ) : (
+                <Controller control={control} name="cost" render={({ field: { onChange, value } }) => (
+                  <AppTextField label="Amount (₹)" value={value} onChangeText={onChange} keyboardType="decimal-pad" placeholder="e.g. 950" error={errors.cost?.message} />
+                )} />
+              )}
             </View>
 
             {showOdometerSection && (

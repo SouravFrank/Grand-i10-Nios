@@ -15,6 +15,15 @@ export function SyncStatusIndicator({ status, queuedCount, isOnline, lastSyncErr
   const { colors } = useAppTheme();
   const syncNotConfigured = status === 'failed' && (lastSyncError ?? '').toLowerCase().includes('not configured');
 
+  if (status === 'failed') {
+    console.log('[SyncStatusIndicator] status=failed', {
+      label: syncNotConfigured ? 'Sync not configured' : 'Sync Failed',
+      lastSyncError,
+      isOnline,
+      queuedCount,
+    });
+  }
+
   const label = (() => {
     if (!isOnline && queuedCount > 0) {
       return `Offline - Pending ${queuedCount} ${queuedCount > 1 ? 'entries' : 'entry'}`;

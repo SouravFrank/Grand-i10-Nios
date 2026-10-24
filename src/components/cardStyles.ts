@@ -7,7 +7,7 @@ export const baseStyles = StyleSheet.create({
     alignItems: "center",
     width: 56,
     height: "100%",
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   editButton: {
     width: 34,
@@ -17,57 +17,64 @@ export const baseStyles = StyleSheet.create({
     justifyContent: "center",
   },
   card: {
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    marginBottom: 8,
+    borderLeftWidth: 3,
+    marginBottom: 10,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
+    gap: 10,
   },
   iconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
   headerMeta: {
     flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  typeLabel: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  headerSubRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flexWrap: "nowrap",
-  },
-  typeLabel: {
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 1,
   },
   dot: {
     fontSize: 8,
     opacity: 0.35,
   },
   dateText: {
-    fontSize: 11, // Increased from 10 for better readability
+    fontSize: 11,
     fontWeight: "600",
   },
   userText: {
-    fontSize: 11, // Increased from 10 for better readability
+    fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
+    flexShrink: 1,
   },
-  // New highlighted shared badge at top right
   sharedBadge: {
     width: 28,
     height: 28,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 6,
     flexShrink: 0,
   },
   chipRow: {
@@ -79,31 +86,31 @@ export const baseStyles = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   chipText: {
     fontSize: 12,
     fontWeight: "800",
-    letterSpacing: -0.2,
+    letterSpacing: -0.1,
   },
   metricPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   metricPillText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "900",
     letterSpacing: 0,
   },
   odometerChip: {
-    gap: 4,
+    gap: 5,
   },
   odometerDigitText: {
     fontFamily: Platform.select({
@@ -117,46 +124,62 @@ export const baseStyles = StyleSheet.create({
   tagPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    borderRadius: 20,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   tagPillText: {
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-});
-
-export const fuelStyles = StyleSheet.create({
-  inner: { padding: 11, gap: 7 },
-  primaryRow: {
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     flexWrap: "wrap",
-    paddingLeft: 31,
-    marginTop: -10,
   },
+  readingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stagePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  stagePillText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+});
+
+export const fuelStyles = StyleSheet.create({
+  inner: { padding: 12, gap: 8 },
   dataRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     flexWrap: "wrap",
-    paddingLeft: 41,
   },
 });
 
 export const tripStyles = StyleSheet.create({
-  inner: { padding: 11, gap: 7 },
+  inner: { padding: 12, gap: 8 },
   journeyBar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 9,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    gap: 6,
+    borderRadius: 13,
+    paddingVertical: 8,
+    paddingHorizontal: 13,
+    gap: 8,
   },
   odomLabel: {
     fontSize: 8,
@@ -166,69 +189,73 @@ export const tripStyles = StyleSheet.create({
     opacity: 0.5,
     marginBottom: 1,
   },
-  odomVal: { fontSize: 17, fontWeight: "900", letterSpacing: -0.5 },
-  statsRow: {
+  odomVal: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  routeSegment: { flex: 1, flexDirection: "row", alignItems: "center" },
+  routeLine: { flex: 1, borderTopWidth: 2, borderStyle: "dashed" },
+  routeDotHollow: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 2,
+  },
+  routeDotSolid: { width: 7, height: 7, borderRadius: 4 },
+  routeVehicle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  statsRow: { flexDirection: "row", gap: 6 },
+  statChip: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingLeft: 41,
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
+  statDot: { fontSize: 12, fontWeight: "900", opacity: 0.45 },
+  statValue: { fontSize: 12, fontWeight: "900", letterSpacing: -0.2 },
 });
 
 export const odometerStyles = StyleSheet.create({
-  inner: { paddingVertical: 10, paddingHorizontal: 11 },
-  readingInline: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  inner: { padding: 12, gap: 8 },
   readingVal: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "900",
     letterSpacing: 0,
-  },
-  readingUnit: { fontSize: 10, fontWeight: "700", opacity: 0.45 },
-  stagePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    borderRadius: 20,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 6,
   },
 });
 
 export const expenseStyles = StyleSheet.create({
-  inner: { padding: 11, gap: 6 },
+  inner: { padding: 12, gap: 8 },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingLeft: 42,
-    marginTop: -10,
-    marginBottom: 3,
   },
-  title: { fontSize: 13, fontWeight: "800", letterSpacing: -0.3, flex: 1 },
-  primaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-    paddingLeft: 31,
-    marginTop: -10,
-  },
+  title: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   dataRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingLeft: 41,
+    flexWrap: "wrap",
   },
 });
 
 export const specStyles = StyleSheet.create({
-  inner: { padding: 11, gap: 7 },
+  inner: { padding: 12, gap: 8 },
   diffBox: {
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
-    gap: 4,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    gap: 5,
   },
   diffRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   diffField: {
@@ -237,7 +264,7 @@ export const specStyles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: "uppercase",
     opacity: 0.5,
-    minWidth: 80,
+    minWidth: 90,
   },
   diffFrom: {
     fontSize: 11,

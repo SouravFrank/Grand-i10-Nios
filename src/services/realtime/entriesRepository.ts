@@ -1,4 +1,4 @@
-import { get, orderByChild, query, ref, set, startAt, remove } from 'firebase/database';
+import { get, orderByChild, query, ref, set, startAt, remove, update } from 'firebase/database';
 
 import { getFirebaseDb } from '@/config/firebase';
 import type { CarSpec, EntryRecord, RemoteEntryDocument } from '@/types/models';
@@ -6,6 +6,45 @@ import { syncError, syncLog, syncWarn, toErrorPayload } from '@/utils/syncLogger
 
 const ENTRIES_COLLECTION = 'carEntries';
 const CAR_SPEC_PATH = 'carMeta/carSpec';
+
+// Mirrors the required children and primitive types in the deployed
+// carMeta/carSpec .validate rules. Field-level updates validate against the
+// merged remote document, so they are only safe when every required field
+// already exists remotely.
+const CAR_SPEC_REQUIRED_STRING_FIELDS: (keyof CarSpec)[] = [
+  'purchasedOn',
+  'registrationNumber',
+  'engineNumber',
+  'chassisNumber',
+  'registrationDate',
+  'registrationYear',
+  'manufacturingYear',
+  'fuelType',
+  'model',
+  'variant',
+  'carColor',
+  'lastMaintenanceDate',
+  'lastEngineOilChangedOn',
+  'lastCoolantRefillOn',
+  'lastBrakeFluidChangedOn',
+  'lastGearboxOilChangedOn',
+  'lastAirFilterChangedOn',
+  'lastOilFilterChangedOn',
+  'lastAcFilterChangedOn',
+  'lastSparkPlugsChangedOn',
+  'lastBatteryChangedOn',
+  'lastBrakePadsChangedOn',
+  'lastTyresChangedOn',
+  'lastWheelAlignmentOn',
+  'puccExpireDate',
+  'insuranceValidUpTo',
+  'fitnessValidUpTo',
+  'taxValidUpTo',
+];
+const CAR_SPEC_REQUIRED_NUMBER_FIELDS: (keyof CarSpec)[] = [
+  'initialOdometer',
+  'lastWheelAlignmentOdometer',
+];
 
 function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
   const filteredEntries = Object.entries(obj).filter(([, value]) => value !== undefined);
@@ -53,6 +92,11 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
     expenseCategory: entry.expenseCategory,
     expenseTitle: entry.expenseTitle,
     cost: entry.cost,
+    annualPassExpiryDate: entry.annualPassExpiryDate,
+    annualPassMaxTrips: entry.annualPassMaxTrips,
+    annualPassId: entry.annualPassId,
+    annualPassCrossings: entry.annualPassCrossings,
+    annualPassTollValue: entry.annualPassTollValue,
     specUpdatedFields: entry.specUpdatedFields,
     specUpdateDetails: entry.specUpdateDetails,
     createdAt: entry.createdAt,
@@ -64,6 +108,7 @@ export async function pushEntryToRealtimeDb(entry: EntryRecord): Promise<void> {
     await set(ref(db, `${ENTRIES_COLLECTION}/${entry.id}`), sanitizedPayload);
     syncLog('realtime_push_entry_success', { entryId: entry.id });
   } catch (error) {
+    console.error('[SYNC_DEBUG] realtime_push_entry_failed:', entry.id, JSON.stringify({ type: entry.type, expenseCategory: entry.expenseCategory ?? null }), error);
     syncError('realtime_push_entry_failed', {
       entryId: entry.id,
       ...toErrorPayload(error),
@@ -112,6 +157,43 @@ export async function pullEntriesFromRealtimeDb(since?: number): Promise<RemoteE
   } catch (error) {
     syncError('realtime_pull_entries_failed', {
       since: since ?? null,
+      ...toErrorPayload(error),
+    });
+    throw error;
+  }
+}
+
+export function canUpdateCarSpecFieldsRemotely(remoteCarSpec: CarSpec): boolean {
+  const raw = remoteCarSpec as Record<string, unknown>;
+  const hasType = (key: keyof CarSpec, expected: 'string' | 'number') =>
+    typeof raw[key] === expected;
+
+  return (
+    CAR_SPEC_REQUIRED_STRING_FIELDS.every((key) => hasType(key, 'string')) &&
+    CAR_SPEC_REQUIRED_NUMBER_FIELDS.every((key) => hasType(key, 'number'))
+  );
+}
+
+export async function pushCarSpecFieldsToRealtimeDb(
+  changes: Partial<CarSpec>,
+): Promise<void> {
+  const db = getFirebaseDb();
+  if (!db) {
+    throw new Error('Firebase is not configured.');
+  }
+
+  const changeCount = Object.keys(changes).length;
+  if (changeCount === 0) {
+    return;
+  }
+
+  try {
+    syncLog('realtime_push_car_spec_fields_start', { fields: Object.keys(changes) });
+    await update(ref(db, CAR_SPEC_PATH), stripUndefinedDeep(changes));
+    syncLog('realtime_push_car_spec_fields_success');
+  } catch (error) {
+    syncError('realtime_push_car_spec_fields_failed', {
+      fields: Object.keys(changes),
       ...toErrorPayload(error),
     });
     throw error;

@@ -9,8 +9,9 @@ import { AppAlert } from '@/components/AppAlert';
 import { CarDisplayCard } from '@/components/CarDisplayCard';
 import { CarInfoBottomSheet } from '@/components/CarInfoBottomSheet';
 import { DashboardSummaryCard } from '@/components/DashboardSummaryCard';
-import { ScreenContainer } from '@/components/ScreenContainer';
-import { SharpButton } from '@/components/SharpButton';
+import { HeroPill } from '@/components/home/HeroPill';
+import { KeepTrackingPromo } from '@/components/home/KeepTrackingPromo';
+import { QuickTile } from '@/components/home/QuickTile';
 import type { AppStackParamList } from '@/navigation/types';
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
@@ -80,8 +81,11 @@ export function HomeScreen({ navigation }: Props) {
       : 'OFFLINE MODE';
   }, [isOnline, pendingQueue.length]);
 
+  // The bell dot is a real signal: something needs attention in the sync pipeline.
+  const showBellDot = (!isOnline && pendingQueue.length > 0) || syncStatus === 'failed';
+
   const handleCarSpecSave = async (submission: CarSpecFieldUpdateSubmission) => {
-    const { field, label, previousValue, value, odometer, cost, wheelAlignmentOdometer } = submission;
+    const { field, label, previousValue, value, odometer, cost, wheelAlignmentOdometer, entryDate } = submission;
     const updates: Partial<CarSpec> = { [field]: value };
     if (field === 'lastWheelAlignmentOn' && wheelAlignmentOdometer !== undefined) {
       updates.lastWheelAlignmentOdometer = wheelAlignmentOdometer;
@@ -99,6 +103,9 @@ export function HomeScreen({ navigation }: Props) {
         userName: currentUser.name,
         odometer,
         cost,
+        // The picked date becomes the entry's timeline date so backdated
+        // spec updates are recorded as history entries.
+        createdAt: entryDate,
         specUpdatedFields: [field],
         specUpdateDetails: [
           {
@@ -124,172 +131,124 @@ export function HomeScreen({ navigation }: Props) {
     }
   };
 
+  const quickActions = useMemo(() => [
+    {
+      key: 'fuel',
+      title: 'ADD FUEL',
+      subtitle: 'Log refuel details',
+      icon: 'gas-station' as const,
+      solid: '#2FA35C',
+      tint: 'rgba(47,163,92,0.13)',
+      onPress: () => navigation.navigate('FuelEntryModal'),
+    },
+    {
+      key: 'expense',
+      title: 'ADD EXPENSE',
+      subtitle: 'Track other costs',
+      icon: 'receipt' as const,
+      solid: '#F57C00',
+      tint: 'rgba(245,124,0,0.13)',
+      onPress: () => navigation.navigate('ExpenseEntryModal'),
+    },
+    {
+      key: 'timeline',
+      title: 'Timeline',
+      subtitle: 'View all entries',
+      icon: 'chart-line' as const,
+      solid: '#2E86F0',
+      tint: 'rgba(46,134,240,0.11)',
+      onPress: () => navigation.navigate('History'),
+    },
+    {
+      key: 'report',
+      title: 'Report',
+      subtitle: 'Insights & analysis',
+      icon: 'chart-bar' as const,
+      solid: '#7C4DFF',
+      tint: 'rgba(124,77,255,0.11)',
+      onPress: () => navigation.navigate('Report'),
+    },
+  ], []);
+
   return (
-    <ScreenContainer>
-      <View style={styles.screen}>
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <CarDisplayCard
+          currentUser={currentUser}
+          registrationText={carSpec.registrationNumber}
+          subtitle="Viraaj i10"
+          topInset={insets.top}
+          showBellDot={showBellDot}
+          onPress={() => setCarSheetVisible(true)}
+          onLongPressRegistration={() => void handleCopyVehicleNumber()}
+          onPressBell={() => navigation.navigate('SyncLogs')}
+          onPressSettings={() => setCarSheetVisible(true)}
+        />
+
+        <View style={styles.content}>
           {offlineBannerText ? (
-            <View style={[styles.offlineBanner, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-              <Text style={[styles.offlineText, { color: colors.textSecondary }]}>{offlineBannerText}</Text>
+            <View style={styles.offlineBanner}>
+              <Text style={styles.offlineText}>{offlineBannerText}</Text>
             </View>
           ) : null}
 
-          <CarDisplayCard
-            currentUser={currentUser}
-            registrationText={carSpec.registrationNumber}
-            subtitle="Viraaj i10"
-            onPress={() => setCarSheetVisible(true)}
-            onLongPressRegistration={() => void handleCopyVehicleNumber()}
+          <DashboardSummaryCard
+            entries={entries}
+            syncStatus={syncStatus}
+            lastSyncError={lastSyncError}
+            queuedCount={pendingQueue.length}
+            isOnline={isOnline}
+            onRetrySync={() => void runSyncCycle()}
           />
-          <View style={{ justifyContent: 'space-between', flex: 1 }}>
-            <DashboardSummaryCard
-              entries={entries}
-              syncStatus={syncStatus}
-              lastSyncError={lastSyncError}
-              queuedCount={pendingQueue.length}
-              isOnline={isOnline}
-              onRetrySync={() => void runSyncCycle()}
-            />
 
-            <Animated.View style={[styles.ctaStack, { opacity: ctaOpacity, transform: [{ translateY: ctaSlideY }] }]}>
-              {activeTrip ? (
-                <>
-                  <View style={styles.ctaRow}>
-                    <SharpButton
-                      label="END TRIP"
-                      variant="primary"
-                      iconName="flag-checkered"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('StartingCarModal', { mode: 'end' })}
-                    />
-                    <SharpButton
-                      label="START NEW TRIP"
-                      variant="secondary"
-                      iconName="plus-circle-outline"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('StartingCarModal', { mode: 'restart' })}
-                    />
-                  </View>
+          <Animated.View style={[styles.ctaStack, { opacity: ctaOpacity, transform: [{ translateY: ctaSlideY }] }]}>
+            {activeTrip ? (
+              <>
+                <HeroPill
+                  label="END TRIP"
+                  icon="flag-checkered"
+                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'end' })}
+                />
+                <HeroPill
+                  label="START NEW TRIP"
+                  icon="plus-circle-outline"
+                  outlined
+                  onPress={() => navigation.navigate('StartingCarModal', { mode: 'restart' })}
+                />
+              </>
+            ) : (
+              <HeroPill
+                label="START TRIP"
+                icon="steering"
+                onPress={() => navigation.navigate('StartingCarModal', { mode: 'start' })}
+              />
+            )}
 
-                  <View style={styles.ctaRow}>
-                    <SharpButton
-                      label="ADD FUEL"
-                      variant="secondary"
-                      iconName="fuel"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('FuelEntryModal')}
-                    />
-                    <SharpButton
-                      label="ADD EXPENSE"
-                      variant="secondary"
-                      iconName="wallet-plus-outline"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('ExpenseEntryModal')}
-                    />
-                  </View>
+            <View style={styles.tileGrid}>
+              <View style={styles.tileRow}>
+                <QuickTile {...quickActions[0]} key={quickActions[0].key} />
+                <QuickTile {...quickActions[1]} key={quickActions[1].key} />
+              </View>
+              <View style={styles.tileRow}>
+                <QuickTile {...quickActions[2]} key={quickActions[2].key} />
+                <QuickTile {...quickActions[3]} key={quickActions[3].key} />
+              </View>
+            </View>
 
-                  <View style={styles.ctaRow}>
-                    <SharpButton
-                      label="Timeline"
-                      variant="secondary"
-                      iconName="timeline"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('History')}
-                    />
-                    <SharpButton
-                      label="Report"
-                      variant="secondary"
-                      iconName="chart-line"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('Report')}
-                    />
-                    <SharpButton
-                      label="History"
-                      variant="secondary"
-                      iconName="store-plus"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('HistoryEntryModal')}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <SharpButton
-                    label="START TRIP"
-                    variant="primary"
-                    iconName="steering"
-                    style={styles.fullWidthCtaButton}
-                    onPress={() => navigation.navigate('StartingCarModal', { mode: 'start' })}
-                  />
+            <KeepTrackingPromo onPress={() => navigation.navigate('HistoryEntryModal')} />
+          </Animated.View>
+        </View>
 
-                  <View style={styles.ctaRow}>
-                    <SharpButton
-                      label="ADD FUEL"
-                      variant="secondary"
-                      iconName="fuel"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('FuelEntryModal')}
-                    />
-                    <SharpButton
-                      label="ADD EXPENSE"
-                      variant="secondary"
-                      iconName="wallet-plus-outline"
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('ExpenseEntryModal')}
-                    />
-                  </View>
-
-                  <View style={styles.ctaRow}>
-                    <SharpButton
-                      label="Timeline"
-                      variant="secondary"
-                      iconName="timeline"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('History')}
-                    />
-                    <SharpButton
-                      label="Report"
-                      variant="secondary"
-                      iconName="chart-line"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('Report')}
-                    />
-                    <SharpButton
-                      label="Forgot Entry?"
-                      variant="secondary"
-                      iconName="car-clock"
-                      textBelowIcon={true}
-                      style={styles.splitCtaButton}
-                      onPress={() => navigation.navigate('HistoryEntryModal')}
-                    />
-                  </View>
-                </>
-              )}
-            </Animated.View>
-          </View>
-
-
-        </ScrollView>
-
-        <Pressable
-          delayLongPress={250}
-          onLongPress={() => navigation.navigate('SyncLogs')}
+        <Animated.View
           style={[
             styles.versionFooter,
-            {
-              borderTopColor: colors.border,
-              backgroundColor: colors.background,
-              paddingBottom: Math.max(insets.bottom, 12),
-            },
+            { opacity: footerOpacity, paddingBottom: Math.max(insets.bottom, 14) },
           ]}>
-          <Text style={[styles.versionText, { color: colors.textSecondary }]}>App version {appVersion}</Text>
-        </Pressable>
-      </View>
+          <Pressable delayLongPress={250} onLongPress={() => navigation.navigate('SyncLogs')} hitSlop={8}>
+            <Text style={[styles.versionText, { color: colors.textSecondary }]}>App version {appVersion}</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
 
       <CarInfoBottomSheet
         visible={carSheetVisible}
@@ -298,7 +257,7 @@ export function HomeScreen({ navigation }: Props) {
         lastOdometer={lastOdometerValue}
         onSaveFieldEdit={(submission) => void handleCarSpecSave(submission)}
       />
-    </ScreenContainer>
+    </View>
   );
 }
 
@@ -307,78 +266,45 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    flexGrow: 1,
+    paddingBottom: 10,
+  },
+  content: {
+    paddingHorizontal: 16,
+    marginTop: 18,
     gap: 14,
-    paddingBottom: 20,
   },
   offlineBanner: {
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    borderRadius: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderColor: 'rgba(249,168,37,0.4)',
+    backgroundColor: 'rgba(249,168,37,0.12)',
   },
   offlineText: {
     fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.8,
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 12,
-    width: '100%',
+    color: '#9A6A00',
+    textAlign: 'center',
   },
   ctaStack: {
     gap: 12,
     width: '100%',
   },
-  tripBanner: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 2,
+  tileGrid: {
+    gap: 12,
   },
-  tripBannerLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  tripBannerValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  fullWidthCtaButton: {
-    width: '100%',
-  },
-  splitCtaButton: {
-    flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-  },
-  historyWrap: {
-    alignItems: 'center',
-  },
-  historyRow: {
+  tileRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  historyLink: {
-    fontSize: 16,
-    letterSpacing: 0.5,
-    textAlign: 'center',
-  },
-  securityText: {
-    fontSize: 12,
+    gap: 12,
   },
   versionFooter: {
-    borderTopWidth: 1,
-    paddingTop: 10,
-    paddingHorizontal: 8,
+    alignItems: 'center',
+    paddingTop: 6,
   },
   versionText: {
-    alignSelf: 'center',
-    fontSize: 11,
-    letterSpacing: 0.5,
+    fontSize: 11.5,
+    letterSpacing: 0.4,
   },
 });
