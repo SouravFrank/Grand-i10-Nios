@@ -1,75 +1,31 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { useCallback, useState } from 'react';
+import { runOnJS, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
+/** How long the success celebration stays on screen before the scene fades. */
+const SUCCESS_HOLD_MS = 1500;
+const EXIT_FADE_MS = 280;
+
+/**
+ * Trip popup motion, fully Reanimated: entrance staggering is done with
+ * `entering` builders on each section (UI thread), and this hook drives the
+ * success celebration — it fades the whole scene out and only then hands
+ * control back to navigation on the JS thread.
+ */
 export function useTripAnimations(onSuccessComplete: () => void) {
-    const overlayOpacity = useRef(new Animated.Value(0)).current;
-    const popupScale = useRef(new Animated.Value(0.88)).current;
-    const popupOpacity = useRef(new Animated.Value(0)).current;
-    const carSlideX = useRef(new Animated.Value(-80)).current;
-    const carOpacity = useRef(new Animated.Value(0)).current;
-    const headerSlideY = useRef(new Animated.Value(-20)).current;
-    const headerOpacity = useRef(new Animated.Value(0)).current;
-    const formSlideY = useRef(new Animated.Value(30)).current;
-    const formOpacity = useRef(new Animated.Value(0)).current;
-    const buttonSlideY = useRef(new Animated.Value(20)).current;
-    const buttonOpacity = useRef(new Animated.Value(0)).current;
-
-    // Success state
     const [showSuccess, setShowSuccess] = useState(false);
-    const successScale = useRef(new Animated.Value(0)).current;
-    const successOpacity = useRef(new Animated.Value(0)).current;
-    const checkScale = useRef(new Animated.Value(0)).current;
 
-    useEffect(() => {
-        Animated.stagger(80, [
-            Animated.timing(overlayOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.parallel([
-                Animated.spring(popupScale, { toValue: 1, useNativeDriver: true, tension: 65, friction: 10 }),
-                Animated.timing(popupOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-            ]),
-            Animated.parallel([
-                Animated.spring(carSlideX, { toValue: 0, useNativeDriver: true, tension: 40, friction: 9 }),
-                Animated.timing(carOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-            ]),
-            Animated.parallel([
-                Animated.spring(headerSlideY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 10 }),
-                Animated.timing(headerOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-            ]),
-            Animated.parallel([
-                Animated.spring(formSlideY, { toValue: 0, useNativeDriver: true, tension: 50, friction: 10 }),
-                Animated.timing(formOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-            ]),
-            Animated.parallel([
-                Animated.spring(buttonSlideY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 9 }),
-                Animated.timing(buttonOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-            ]),
-        ]).start();
-    }, []);
+    /** Fades the backdrop + popup together once the celebration is done. */
+    const sceneOpacity = useSharedValue(1);
 
-    const playSuccessAnimation = () => {
+    const playSuccessAnimation = useCallback(() => {
         setShowSuccess(true);
-        Animated.sequence([
-            Animated.parallel([
-                Animated.spring(successScale, { toValue: 1, useNativeDriver: true, tension: 50, friction: 7 }),
-                Animated.timing(successOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-            ]),
-            Animated.spring(checkScale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 6 }),
-            Animated.delay(600),
-            Animated.parallel([
-                Animated.timing(successOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-                Animated.timing(popupOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-                Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-            ]),
-        ]).start(onSuccessComplete);
-    };
+        sceneOpacity.value = withDelay(
+            SUCCESS_HOLD_MS,
+            withTiming(0, { duration: EXIT_FADE_MS }, (finished) => {
+                if (finished) runOnJS(onSuccessComplete)();
+            }),
+        );
+    }, [onSuccessComplete, sceneOpacity]);
 
-    return {
-        showSuccess,
-        playSuccessAnimation,
-        anims: {
-            overlayOpacity, popupScale, popupOpacity, carSlideX, carOpacity,
-            headerSlideY, headerOpacity, formSlideY, formOpacity, buttonSlideY, buttonOpacity,
-            successScale, successOpacity, checkScale
-        }
-    };
+    return { showSuccess, playSuccessAnimation, sceneOpacity };
 }
