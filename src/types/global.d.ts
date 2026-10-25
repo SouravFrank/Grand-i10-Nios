@@ -13,6 +13,11 @@ declare module '*.jpg' {
   export default source;
 }
 
+declare module '*.webp' {
+  const source: number;
+  export default source;
+}
+
 declare module '*.pdf' {
   const source: number;
   export default source;

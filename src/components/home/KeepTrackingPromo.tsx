@@ -5,7 +5,7 @@ import { useAppTheme } from '@/theme/useAppTheme';
 
 import { usePressScale } from './usePressScale';
 
-import scenicRoad from '../../../assets/images/scenic_road.png';
+import scenicRoad from '../../../assets/images/scenic_road.webp';
 
 // ─── Keep-tracking promo card (doubles as the missed-entry / history action) ──
 export function KeepTrackingPromo({ onPress }: { onPress: () => void }) {

@@ -19,7 +19,7 @@ import { authenticateWithPassword, canUseBiometricAuth } from '@/services/auth/a
 import { runSyncCycle } from '@/services/sync/syncEngine';
 import { useAppStore } from '@/store/useAppStore';
 import { useAppTheme } from '@/theme/useAppTheme';
-import appIcon from '../../assets/images/g-i10-App-icon.png';
+import appIcon from '../../assets/images/g-i10-App-icon.webp';
 
 const loginSchema = z.object({
   userId: z.string().trim().min(1, 'User ID is required.'),
