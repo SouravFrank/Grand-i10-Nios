@@ -6,8 +6,8 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useAppTheme } from '@/theme/useAppTheme';
 import type { AppUser } from '@/types/models';
 
-import carAyan from '../../assets/images/car_Ayan.png';
-import carSourav from '../../assets/images/car_Sourav.png';
+import carAyan from '../../assets/images/car_Ayan.webp';
+import carSourav from '../../assets/images/car_Sourav.webp';
 
 // Photo height measured from the status-bar inset down to the page background.
 const HERO_BODY = 296;

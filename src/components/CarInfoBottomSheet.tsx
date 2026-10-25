@@ -28,7 +28,7 @@ import type {
 import { dayjs, INDIA_DATE_FORMAT, normalizeIndianDate } from '@/utils/day';
 
 import insurancePdf from '../../assets/pdf/insurence.pdf';
-import fastagLogo from '../../assets/images/fastag-seeklogo.png';
+import fastagLogo from '../../assets/images/fastag-seeklogo.webp';
 import numberPlateJpg from '../../assets/pdf/number_plate.jpg';
 import pdiReportPdf from '../../assets/pdf/pdi_report.pdf';
 import rcPdf from '../../assets/pdf/RC.pdf';
