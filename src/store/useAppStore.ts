@@ -325,88 +325,6 @@ function recalculateLastOdometer(
   );
 }
 
-function validateUpdatedEntryOdometer(
-  entries: EntryRecord[],
-  entryId: string,
-  nextOdometer: number,
-  nextCreatedAt?: number,
-): void {
-  if (!Number.isFinite(nextOdometer) || nextOdometer <= 0) {
-    throw new Error("Enter a valid odometer reading.");
-  }
-
-  const targetEntry = entries.find((entry) => entry.id === entryId);
-  if (!targetEntry) {
-    throw new Error("Entry not found.");
-  }
-
-  // Expense entries (FASTag recharge, tolls, parking, fines) do not drive odometer progression.
-  // Skip relative odometer progression checks for expense entries.
-  if (targetEntry.type === "expense") {
-    return;
-  }
-
-  const effectiveCreatedAt = nextCreatedAt ?? targetEntry.createdAt;
-  const chronologicalEntries = entries
-    .map((entry) =>
-      entry.id === entryId
-        ? {
-            ...entry,
-            createdAt: effectiveCreatedAt,
-          }
-        : entry,
-    )
-    .sort((a, b) => a.createdAt - b.createdAt);
-  const targetIndex = chronologicalEntries.findIndex(
-    (entry) => entry.id === entryId,
-  );
-
-  const previousEntry = chronologicalEntries[targetIndex - 1];
-  const nextEntry = chronologicalEntries[targetIndex + 1];
-
-  if (previousEntry && nextOdometer < previousEntry.odometer) {
-    throw new Error(
-      "Edited odometer cannot be less than the previous recorded value.",
-    );
-  }
-
-  if (nextEntry && nextOdometer > nextEntry.odometer) {
-    throw new Error("Edited odometer cannot exceed the next recorded value.");
-  }
-
-  if (previousEntry && nextOdometer - previousEntry.odometer > 500) {
-    throw new Error(
-      "Single odometer entry cannot exceed 500 km from the previous reading.",
-    );
-  }
-
-  if (targetEntry.tripId && targetEntry.tripStage) {
-    const pairedEntry = entries.find(
-      (entry) =>
-        entry.id !== entryId &&
-        entry.tripId === targetEntry.tripId &&
-        entry.tripStage &&
-        entry.tripStage !== targetEntry.tripStage,
-    );
-
-    if (
-      pairedEntry &&
-      targetEntry.tripStage === "start" &&
-      effectiveCreatedAt > pairedEntry.createdAt
-    ) {
-      throw new Error("Trip start date cannot be after the trip end date.");
-    }
-
-    if (
-      pairedEntry &&
-      targetEntry.tripStage === "end" &&
-      effectiveCreatedAt < pairedEntry.createdAt
-    ) {
-      throw new Error("Trip end date cannot be before the trip start date.");
-    }
-  }
-}
-
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -697,12 +615,11 @@ export const useAppStore = create<AppState>()(
           );
         }
 
-        validateUpdatedEntryOdometer(
-          entries,
-          entryId,
-          updates.odometer,
-          updates.createdAt ?? targetEntry.createdAt,
-        );
+        // Edits are unrestricted: no chronological-neighbor or 500 km checks.
+        // Only guard against a corrupt (non-numeric / non-positive) odometer.
+        if (!Number.isFinite(updates.odometer) || updates.odometer <= 0) {
+          throw new Error("Enter a valid odometer reading.");
+        }
 
         const secret = await ensureIntegritySecret();
         const isPayerEditableEntry =
