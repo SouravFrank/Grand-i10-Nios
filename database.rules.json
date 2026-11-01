@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "carEntries": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": "createdAt"
+    },
+
+    "carMeta": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    "reportSettlements": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    "reportMileage": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
